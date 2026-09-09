@@ -32,14 +32,7 @@ interface MenuActionProps {
   danger?: boolean;
 }
 
-const MenuAction = ({
-  icon: Icon,
-  label,
-  onClick,
-  close,
-  disabled,
-  danger,
-}: MenuActionProps) => (
+const MenuAction = ({ icon: Icon, label, onClick, close, disabled, danger }: MenuActionProps) => (
   <button
     type="button"
     disabled={disabled}
@@ -88,7 +81,12 @@ export const ProjectCardContextMenu = ({
           close={close}
           disabled={!canCopyLink}
         />
-        <MenuAction icon={ExternalLink} label="Open project" onClick={onOpenProject} close={close} />
+        <MenuAction
+          icon={ExternalLink}
+          label="Open project"
+          onClick={onOpenProject}
+          close={close}
+        />
         <MenuAction icon={Pencil} label="Rename project" onClick={onRename} close={close} />
         <MenuAction icon={FolderPlus} label="Add gallery" onClick={onAddGallery} close={close} />
         <MenuAction
@@ -99,13 +97,7 @@ export const ProjectCardContextMenu = ({
         />
         <MenuAction icon={Settings} label="Project settings" onClick={onSettings} close={close} />
         <div className="my-1 border-t border-border/45" />
-        <MenuAction
-          icon={Trash2}
-          label="Delete project"
-          onClick={onDelete}
-          close={close}
-          danger
-        />
+        <MenuAction icon={Trash2} label="Delete project" onClick={onDelete} close={close} danger />
       </div>
     )}
   />

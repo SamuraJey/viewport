@@ -236,13 +236,19 @@ export const AppDrawer = ({
               )}
             >
               {icon ? (
-                <div data-drawer-icon className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-accent/10 text-accent">
+                <div
+                  data-drawer-icon
+                  className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-accent/10 text-accent"
+                >
                   {icon}
                 </div>
               ) : null}
               <div className="min-w-0 flex-1 pr-10">
                 {eyebrow ? (
-                  <p data-drawer-eyebrow className="mb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-accent">
+                  <p
+                    data-drawer-eyebrow
+                    className="mb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-accent"
+                  >
                     {eyebrow}
                   </p>
                 ) : null}
@@ -250,7 +256,10 @@ export const AppDrawer = ({
                   {title}
                 </Drawer.Title>
                 {description ? (
-                  <Drawer.Description data-drawer-description className="mt-1 text-sm leading-5 text-muted">
+                  <Drawer.Description
+                    data-drawer-description
+                    className="mt-1 text-sm leading-5 text-muted"
+                  >
                     {description}
                   </Drawer.Description>
                 ) : null}

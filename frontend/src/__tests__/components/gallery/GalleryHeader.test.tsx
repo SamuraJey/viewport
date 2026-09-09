@@ -247,11 +247,7 @@ describe('GalleryHeader', () => {
 
       render(
         <MemoryRouter>
-          <GalleryHeader
-            {...createProps()}
-            onAddPhotos={onAddPhotos}
-            onAddFolder={onAddFolder}
-          />
+          <GalleryHeader {...createProps()} onAddPhotos={onAddPhotos} onAddFolder={onAddFolder} />
         </MemoryRouter>,
       );
 
@@ -270,11 +266,7 @@ describe('GalleryHeader', () => {
 
       render(
         <MemoryRouter>
-          <GalleryHeader
-            {...createProps()}
-            onAddPhotos={onAddPhotos}
-            onAddFolder={onAddFolder}
-          />
+          <GalleryHeader {...createProps()} onAddPhotos={onAddPhotos} onAddFolder={onAddFolder} />
         </MemoryRouter>,
       );
 
@@ -300,11 +292,7 @@ describe('GalleryHeader', () => {
 
       render(
         <MemoryRouter>
-          <GalleryHeader
-            {...createProps()}
-            onAddPhotos={onAddPhotos}
-            onAddFolder={onAddFolder}
-          />
+          <GalleryHeader {...createProps()} onAddPhotos={onAddPhotos} onAddFolder={onAddFolder} />
         </MemoryRouter>,
       );
 

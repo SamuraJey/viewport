@@ -308,14 +308,12 @@ export const usePhotoUpload = (
     } catch {
       if (!abortController.signal.aborted) {
         const failedResult: PhotoUploadResponse = {
-          results: preparedFiles.map(
-            (item): PhotoUploadResult => ({
-              filename: item.filename,
-              original_filename: item.filename,
-              success: false,
-              error: 'Upload failed. Check your connection and retry this file.',
-            }),
-          ),
+          results: preparedFiles.map((item): PhotoUploadResult => ({
+            filename: item.filename,
+            original_filename: item.filename,
+            success: false,
+            error: 'Upload failed. Check your connection and retry this file.',
+          })),
           total_files: preparedFiles.length,
           successful_uploads: 0,
           failed_uploads: preparedFiles.length,

@@ -459,10 +459,7 @@ export const PublicGalleryPage = () => {
   const heroAppearance = appearance;
   const publicThemeClassName = getPublicGalleryThemeClassName(appearance);
   const showStickySelectionBar = Boolean(
-    selection.config?.is_enabled &&
-    selection.session &&
-    hasScrolledPastHero &&
-    !isFavoritesView,
+    selection.config?.is_enabled && selection.session && hasScrolledPastHero && !isFavoritesView,
   );
   const heroTitle = isProjectFolderView
     ? folderShare?.project_name || projectGalleryTabs?.project_name || 'Public Project'
@@ -794,9 +791,7 @@ export const PublicGalleryPage = () => {
     );
   }
   return (
-    <div
-      className={`pg-public-page ${publicThemeClassName} min-h-screen bg-surface text-text`}
-    >
+    <div className={`pg-public-page ${publicThemeClassName} min-h-screen bg-surface text-text`}>
       <SkipToContentLink targetId="main-content" />
       <div
         data-testid="public-gallery-utility-controls"

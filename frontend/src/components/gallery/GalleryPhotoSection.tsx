@@ -106,15 +106,6 @@ const GalleryPhotoSectionComponent = ({
 }: GalleryPhotoSectionProps) => {
   const shouldShowGridSkeleton = state.isLoadingPhotos;
   const [skeletonRenderNonce, setSkeletonRenderNonce] = React.useState(0);
-  const previousLoadingPhotosRef = React.useRef(state.isLoadingPhotos);
-
-  React.useEffect(() => {
-    const startedLoading = state.isLoadingPhotos && !previousLoadingPhotosRef.current;
-    if (startedLoading) {
-      setSkeletonRenderNonce((value) => value + 1);
-    }
-    previousLoadingPhotosRef.current = state.isLoadingPhotos;
-  }, [state.isLoadingPhotos]);
 
   const [lastSkeletonKey, setLastSkeletonKey] = React.useState<string | null>(null);
   const skeletonKey = `${pagination.page}|${state.activeSearchTerm}|${shouldShowGridSkeleton}`;

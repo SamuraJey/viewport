@@ -57,7 +57,10 @@ export const RenameProjectModal = ({
           <AppDialogDescription className="mobile-dialog-detail mt-2 text-sm leading-6 text-muted">
             Update how “{projectName}” appears in your workspace and client deliveries.
           </AppDialogDescription>
-          <label className="mt-4 block text-sm font-semibold text-text sm:mt-5" htmlFor="rename-project">
+          <label
+            className="mt-4 block text-sm font-semibold text-text sm:mt-5"
+            htmlFor="rename-project"
+          >
             Project name
           </label>
           <input
@@ -80,9 +83,7 @@ export const RenameProjectModal = ({
           </button>
           <button
             type="submit"
-            disabled={
-              isSaving || !value.trim() || value.trim() === projectName.trim()
-            }
+            disabled={isSaving || !value.trim() || value.trim() === projectName.trim()}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-bold text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}

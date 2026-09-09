@@ -18,8 +18,7 @@ interface AppListboxProps<TValue extends string> {
   buttonClassName?: string | ((open: boolean) => string);
   optionsClassName?: string;
   optionClassName?:
-    | string
-    | ((state: { focus: boolean; selected: boolean; disabled: boolean }) => string);
+    string | ((state: { focus: boolean; selected: boolean; disabled: boolean }) => string);
   buttonContent?: (
     selectedOption: AppListboxOption<TValue> | undefined,
     open: boolean,

@@ -211,8 +211,6 @@ summary {
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-
-
 /* ===== THEME TRANSITION ANIMATIONS ===== */
 /* View Transitions API for smooth theme switching */
 
@@ -486,8 +484,8 @@ html.dark {
   --color-accent-foreground-rgb: var(--color-white-rgb);
   --color-danger-rgb: 239 68 68;
   --color-success-rgb: 16 185 129;
-  --color-info-rgb: 56 189 248;          /* sky-400 */
-  --color-warning-rgb: 245 158 11;       /* amber-500 */
+  --color-info-rgb: 56 189 248; /* sky-400 */
+  --color-warning-rgb: 245 158 11; /* amber-500 */
   --color-info-foreground-rgb: 255 255 255;
   --color-warning-foreground-rgb: 255 255 255;
   --color-photo-overlay-rgb: var(--color-black-rgb);
@@ -585,7 +583,7 @@ html.dark {
   --color-danger-rgb: 248 113 113;
   --color-success-rgb: 34 197 94;
   --color-info-rgb: 56 189 248;
-  --color-warning-rgb: 251 191 36;       /* amber-400 — softer on dark surfaces */
+  --color-warning-rgb: 251 191 36; /* amber-400 — softer on dark surfaces */
   --color-info-foreground-rgb: 255 255 255;
   --color-warning-foreground-rgb: 255 255 255;
   --color-photo-overlay-rgb: var(--color-black-rgb);
@@ -1544,7 +1542,12 @@ html.dark .popup-container {
 
 /* Fix for popup action buttons inside popups - only override neutral ones, preserve accent colors */
 html.dark
-  .popup-action:not(.popup-action--accent, .popup-action--warning, .popup-action--success, .popup-action--danger) {
+  .popup-action:not(
+    .popup-action--accent,
+    .popup-action--warning,
+    .popup-action--success,
+    .popup-action--danger
+  ) {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(244, 244, 245) !important;
   border-color: rgb(82, 82, 91) !important;

@@ -69,8 +69,7 @@ interface DemoProjectState extends DemoSelectionState {
 }
 
 type DemoSelectionOwnerLookup =
-  | { kind: 'gallery'; state: DemoGalleryState }
-  | { kind: 'project'; state: DemoProjectState };
+  { kind: 'gallery'; state: DemoGalleryState } | { kind: 'project'; state: DemoProjectState };
 
 interface DemoPersistedState {
   galleries: DemoGalleryState[];

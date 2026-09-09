@@ -15,7 +15,6 @@ import { ProfileModal } from './ProfileModal';
 import { ThemeSwitch } from './ThemeSwitch';
 import { useAuthStore } from '../stores/authStore';
 
-
 interface LayoutProps {
   children: ReactNode;
   onOpenCommandPalette?: () => void;
@@ -105,8 +104,12 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
                 <Search className="h-3.5 w-3.5" aria-hidden="true" />
                 Quick search
                 <span className="ml-1 flex items-center gap-0.5">
-                  <kbd className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono dark:bg-surface-dark-2">{isMacPlatform ? '⌘' : 'Ctrl'}</kbd>
-                  <kbd className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono dark:bg-surface-dark-2">K</kbd>
+                  <kbd className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono dark:bg-surface-dark-2">
+                    {isMacPlatform ? '⌘' : 'Ctrl'}
+                  </kbd>
+                  <kbd className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono dark:bg-surface-dark-2">
+                    K
+                  </kbd>
                 </span>
               </button>
             ) : null}

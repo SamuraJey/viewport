@@ -89,7 +89,7 @@ export const ShareLinkSettingsModal = ({
   );
 
   const [lastResetKey, setLastResetKey] = useState<string | null>(null);
-  const resetKey = isOpen ? `${isOpen}|${mode}|${link?.id ?? 'new'}` : null;
+  const resetKey = isOpen ? `open|${mode}|${link?.id ?? 'new'}` : null;
   if (isOpen && lastResetKey !== resetKey) {
     setLastResetKey(resetKey);
 
@@ -115,6 +115,8 @@ export const ShareLinkSettingsModal = ({
       setPasswordMode('none');
       setPassword('');
     }
+  } else if (!isOpen && lastResetKey !== null) {
+    setLastResetKey(null);
   }
 
   useEffect(() => {
@@ -467,7 +469,11 @@ export const ShareLinkSettingsModal = ({
         className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
         disabled={!canSubmit}
       >
-        {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+        {isSaving ? (
+          <LoaderCircle className="h-4 w-4 animate-spin" />
+        ) : (
+          <Share2 className="h-4 w-4" />
+        )}
         {mode === 'create' ? 'Create link' : 'Save changes'}
       </button>
     </div>

@@ -2,10 +2,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { CommandPalette } from '../../../components/command/CommandPalette';
-import type {
-  ProjectListResponse,
-  ShareLinksDashboardResponse,
-} from '../../../types';
+import type { ProjectListResponse, ShareLinksDashboardResponse } from '../../../types';
 
 vi.mock('../../../services/projectService', () => ({
   projectService: { getProjects: vi.fn() },
@@ -64,24 +61,16 @@ describe('CommandPalette', () => {
 
     render(
       <MemoryRouter>
-        <CommandPalette
-          open={true}
-          onOpenChange={onOpenChange}
-          onOpenShortcuts={onOpenShortcuts}
-        />
+        <CommandPalette open={true} onOpenChange={onOpenChange} onOpenShortcuts={onOpenShortcuts} />
       </MemoryRouter>,
     );
 
     // Search input is visible
-    expect(
-      screen.getByPlaceholderText(/type a command or search/i),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/type a command or search/i)).toBeInTheDocument();
 
     // Navigation group heading and items
     expect(screen.getByText('Navigation')).toBeInTheDocument();
-    expect(
-      screen.getByRole('option', { name: /go to dashboard/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /go to dashboard/i })).toBeInTheDocument();
 
     // Dynamic data — projects
     await waitFor(() => {
@@ -104,13 +93,9 @@ describe('CommandPalette', () => {
     fireEvent.change(input, { target: { value: 'dash' } });
 
     await waitFor(() => {
-      expect(
-        screen.getByRole('option', { name: /go to dashboard/i }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /go to dashboard/i })).toBeInTheDocument();
     });
-    expect(
-      screen.queryByRole('option', { name: /go to share links/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /go to share links/i })).not.toBeInTheDocument();
 
     // Clicking 'Go to dashboard' closes the palette
     fireEvent.click(screen.getByRole('option', { name: /go to dashboard/i }));

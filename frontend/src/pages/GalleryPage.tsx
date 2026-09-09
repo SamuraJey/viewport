@@ -1238,9 +1238,7 @@ export const GalleryPage = () => {
             onDeleteGallery={handleDeleteGallery}
             onAddPhotos={() => photoUploaderRef.current?.openFilePicker()}
             onAddFolder={
-              folderPickerSupported
-                ? () => photoUploaderRef.current?.openFolderPicker()
-                : undefined
+              folderPickerSupported ? () => photoUploaderRef.current?.openFolderPicker() : undefined
             }
             onDownloadGallery={photoUrls.length > 0 ? handleDownloadGallery : undefined}
             onToggleSelectionMode={photoUrls.length > 0 ? handleToggleSelectionMode : undefined}

@@ -51,7 +51,9 @@ describe('ProjectGalleriesPanel empty state', () => {
   it('shows a busy state and disables the button while uploading', () => {
     const onUploadFolder = vi.fn();
 
-    render(<ProjectGalleriesPanel {...baseProps} onUploadFolder={onUploadFolder} isUploadingFolder />);
+    render(
+      <ProjectGalleriesPanel {...baseProps} onUploadFolder={onUploadFolder} isUploadingFolder />,
+    );
 
     const button = screen.getByRole('button', { name: /creating gallery/i });
     expect(button).toBeDisabled();

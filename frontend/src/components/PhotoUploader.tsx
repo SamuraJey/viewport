@@ -4,7 +4,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { UploadConfirmModal } from './upload/UploadConfirmModal';
 import { UploadDropzone } from './upload/UploadDropzone';
-import { isSupportedUploadFile, prepareUploadSelection, filterTopLevelFiles } from './upload/uploadUtils';
+import {
+  isSupportedUploadFile,
+  prepareUploadSelection,
+  filterTopLevelFiles,
+} from './upload/uploadUtils';
 import {
   MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
   MAX_UPLOAD_FILE_SIZE_MB,

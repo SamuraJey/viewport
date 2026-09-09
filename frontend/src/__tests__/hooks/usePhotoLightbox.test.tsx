@@ -330,11 +330,7 @@ describe('usePhotoLightbox', () => {
       initialLightbox.props.on.view({ index: 1 });
     });
 
-    const paginatedSlides = [
-      ...initialSlides,
-      { src: '/photo3.jpg' },
-      { src: '/photo4.jpg' },
-    ];
+    const paginatedSlides = [...initialSlides, { src: '/photo3.jpg' }, { src: '/photo4.jpg' }];
     const updatedLightbox = result.current.renderLightbox(paginatedSlides);
     const indicator = updatedLightbox.props.render.controls();
     const { getByRole } = render(indicator);
@@ -346,10 +342,7 @@ describe('usePhotoLightbox', () => {
   it('keeps the shared indicator disabled unless the caller opts in', () => {
     const { result } = renderHook(() => usePhotoLightbox());
 
-    const lightbox = result.current.renderLightbox(
-      [{ src: '/page-two-photo.jpg' }],
-      120,
-    );
+    const lightbox = result.current.renderLightbox([{ src: '/page-two-photo.jpg' }], 120);
 
     expect(lightbox.props.render.controls).toBeUndefined();
   });

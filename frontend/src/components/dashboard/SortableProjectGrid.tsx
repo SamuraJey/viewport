@@ -56,21 +56,14 @@ const findProjectPosition = (projects: Project[], id: string | number) => {
   return index >= 0 ? index + 1 : null;
 };
 
-export const describeProjectDragStart = (
-  projects: Project[],
-  id: string | number,
-) => {
+export const describeProjectDragStart = (projects: Project[], id: string | number) => {
   const position = findProjectPosition(projects, id);
   return `Picked up ${findProjectName(projects, id)}${
     position ? `, position ${position} of ${projects.length}` : ''
   }.`;
 };
 
-const SortableProjectCard = ({
-  project,
-  disabled,
-  ...actions
-}: SortableProjectCardProps) => {
+const SortableProjectCard = ({ project, disabled, ...actions }: SortableProjectCardProps) => {
   const {
     attributes,
     listeners,
@@ -103,9 +96,7 @@ const SortableProjectCard = ({
             disabled={disabled}
             className="flex h-9 w-9 touch-none items-center justify-center rounded-lg bg-black/65 text-white shadow-md transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-45"
             aria-label={
-              disabled
-                ? `Manual order is required to move ${project.name}`
-                : `Move ${project.name}`
+              disabled ? `Manual order is required to move ${project.name}` : `Move ${project.name}`
             }
           >
             <GripVertical className="h-5 w-5" aria-hidden="true" />

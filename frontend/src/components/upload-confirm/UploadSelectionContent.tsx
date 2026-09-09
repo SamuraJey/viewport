@@ -85,11 +85,12 @@ const FileCard = memo(
     }, []);
 
     // Reset thumbnail state when a new file lands in the same card position,
-    // so a stale thumbnail from the previous file never shows.
-    const [lastThumbKey, setLastThumbKey] = useState<string | null>(null);
-    const thumbKey = `${shouldLoad}|${file.name}|${file.size}|${file.lastModified}`;
-    if (shouldLoad && lastThumbKey !== thumbKey) {
-      setLastThumbKey(thumbKey);
+    // so a stale thumbnail from the previous file never shows. Files are
+    // compared by reference so a replacement File with identical metadata
+    // still triggers a reset.
+    const [lastThumbFile, setLastThumbFile] = useState<File | null>(null);
+    if (shouldLoad && lastThumbFile !== file) {
+      setLastThumbFile(file);
       setThumbUrl(null);
       setThumbLoaded(false);
     }

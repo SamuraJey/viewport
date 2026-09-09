@@ -13,10 +13,7 @@ const browserSupportsNativeShare = () =>
   typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
 const isShareCancellation = (error: unknown) =>
-  typeof error === 'object' &&
-  error !== null &&
-  'name' in error &&
-  error.name === 'AbortError';
+  typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError';
 
 export const usePublicGalleryShare = (payload: PublicGallerySharePayload) => {
   const {

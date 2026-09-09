@@ -18,7 +18,9 @@ describe('publicPhotoGridLayout', () => {
   it('normalizes API dimensions, explicit ratios, and invalid fallbacks', () => {
     expect(getPublicPhotoAspectRatio({ photo_id: 'explicit', ratio: 1.5 })).toBe(1.5);
     expect(getPublicPhotoAspectRatio({ photo_id: 'dimensions', width: 400, height: 200 })).toBe(2);
-    expect(getPublicPhotoAspectRatio({ photo_id: 'invalid', ratio: Number.NaN })).toBeCloseTo(4 / 3);
+    expect(getPublicPhotoAspectRatio({ photo_id: 'invalid', ratio: Number.NaN })).toBeCloseTo(
+      4 / 3,
+    );
     expect(hasIntrinsicPublicPhotoAspectRatio({ photo_id: 'sized', width: 400, height: 200 })).toBe(
       true,
     );
@@ -57,10 +59,7 @@ describe('publicPhotoGridLayout', () => {
         computeJustifiedRows(photos, { ...justifiedOptions, containerWidth: 260 }).map((row) =>
           row.map((photo) => photo.photo_id),
         ),
-      ).toEqual([
-        ['wide', 'portrait', 'square'],
-        ['landscape'],
-      ]);
+      ).toEqual([['wide', 'portrait', 'square'], ['landscape']]);
     });
 
     it('keeps an incomplete final row instead of stretching or discarding it', () => {
@@ -88,11 +87,7 @@ describe('publicPhotoGridLayout', () => {
         { ...justifiedOptions, containerWidth: 1_000, maxCropRatio: 1.5 },
       );
 
-      expect(layout.itemGeometry.map((item) => item.aspectRatio)).toEqual([
-        4 / 3,
-        1.5,
-        1 / 1.5,
-      ]);
+      expect(layout.itemGeometry.map((item) => item.aspectRatio)).toEqual([4 / 3, 1.5, 1 / 1.5]);
       layout.itemGeometry.forEach(({ width, height }) => {
         expect(Number.isFinite(width)).toBe(true);
         expect(Number.isFinite(height)).toBe(true);

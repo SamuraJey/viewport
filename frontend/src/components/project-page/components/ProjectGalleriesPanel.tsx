@@ -1,5 +1,15 @@
 import type { ReactNode, RefObject } from 'react';
-import { Check, Eye, EyeOff, FolderPlus, FolderUp, GripHorizontal, Info, LoaderCircle, Settings2 } from 'lucide-react';
+import {
+  Check,
+  Eye,
+  EyeOff,
+  FolderPlus,
+  FolderUp,
+  GripHorizontal,
+  Info,
+  LoaderCircle,
+  Settings2,
+} from 'lucide-react';
 
 import { EnhancedGalleryCard } from '../../dashboard/EnhancedGalleryCard';
 import { AppBadge, AppPopover } from '../../ui';

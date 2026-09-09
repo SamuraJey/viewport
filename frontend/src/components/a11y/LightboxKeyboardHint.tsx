@@ -35,19 +35,28 @@ export const LightboxKeyboardHint = ({ isOpen }: LightboxKeyboardHintProps) => {
       return;
     }
 
-    queueMicrotask(() => setVisible(true));
-    try {
-      localStorage.setItem(STORAGE_KEY, '1');
-    } catch {
-      // Ignore localStorage write failures.
-    }
-
-    const timer = window.setTimeout(() => {
-      setVisible(false);
-    }, HINT_DURATION_MS);
+    let active = true;
+    let timer: number | null = null;
+    queueMicrotask(() => {
+      if (!active) {
+        return;
+      }
+      setVisible(true);
+      try {
+        localStorage.setItem(STORAGE_KEY, '1');
+      } catch {
+        // Ignore localStorage write failures.
+      }
+      timer = window.setTimeout(() => {
+        setVisible(false);
+      }, HINT_DURATION_MS);
+    });
 
     return () => {
-      window.clearTimeout(timer);
+      active = false;
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
     };
   }, [isOpen]);
 

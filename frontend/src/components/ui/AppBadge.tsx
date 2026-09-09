@@ -72,7 +72,8 @@ const sizeClasses: Record<'xs' | 'sm', string> = {
   xs: 'px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]',
 };
 
-const filledBase = 'inline-flex items-center gap-1.5 rounded-full font-semibold backdrop-blur-md shadow-lg';
+const filledBase =
+  'inline-flex items-center gap-1.5 rounded-full font-semibold backdrop-blur-md shadow-lg';
 const subtleBase = 'inline-flex items-center gap-1.5 rounded-full font-semibold border';
 
 /* ------------------------------------------------------------------ */

@@ -60,10 +60,7 @@ export function CommandPalette({
     [navigate, toggleTheme, logout, onOpenShortcuts, onOpenChange],
   );
 
-  const staticCommands = useMemo(
-    () => createStaticCommands(performers),
-    [performers],
-  );
+  const staticCommands = useMemo(() => createStaticCommands(performers), [performers]);
 
   const { projects, shareLinks, isLoading, error } = useCommandItems({ enabled: open });
 
@@ -112,12 +109,7 @@ export function CommandPalette({
     >
       <AppDialogTitle className="sr-only">Command palette</AppDialogTitle>
 
-      <Command
-        label="Global command palette"
-        shouldFilter
-        loop
-        className="flex flex-col"
-      >
+      <Command label="Global command palette" shouldFilter loop className="flex flex-col">
         <Command.Input
           ref={inputRef}
           value={search}
@@ -146,80 +138,48 @@ export function CommandPalette({
 
           <Command.Group heading="Navigation" className={groupHeadingClass}>
             {navCommands.map((cmd) => (
-              <CommandItem
-                key={cmd.id}
-                command={cmd}
-                onSelect={() => handleSelect(cmd)}
-              />
+              <CommandItem key={cmd.id} command={cmd} onSelect={() => handleSelect(cmd)} />
             ))}
           </Command.Group>
 
           <Command.Group heading="Actions" className={groupHeadingClass}>
             {actionCommands.map((cmd) => (
-              <CommandItem
-                key={cmd.id}
-                command={cmd}
-                onSelect={() => handleSelect(cmd)}
-              />
+              <CommandItem key={cmd.id} command={cmd} onSelect={() => handleSelect(cmd)} />
             ))}
           </Command.Group>
 
           {projects.length > 0 && (
             <Command.Group heading="Recent projects" className={groupHeadingClass}>
               {projects.map((cmd) => (
-                <CommandItem
-                  key={cmd.id}
-                  command={cmd}
-                  onSelect={() => handleSelect(cmd)}
-                />
+                <CommandItem key={cmd.id} command={cmd} onSelect={() => handleSelect(cmd)} />
               ))}
             </Command.Group>
           )}
 
           {shareLinks.length > 0 && (
-            <Command.Group
-              heading="Active share links"
-              className={groupHeadingClass}
-            >
+            <Command.Group heading="Active share links" className={groupHeadingClass}>
               {shareLinks.map((cmd) => (
-                <CommandItem
-                  key={cmd.id}
-                  command={cmd}
-                  onSelect={() => handleSelect(cmd)}
-                />
+                <CommandItem key={cmd.id} command={cmd} onSelect={() => handleSelect(cmd)} />
               ))}
             </Command.Group>
           )}
 
           <Command.Group heading="Theme" className={groupHeadingClass}>
             {themeCommands.map((cmd) => (
-              <CommandItem
-                key={cmd.id}
-                command={cmd}
-                onSelect={() => handleSelect(cmd)}
-              />
+              <CommandItem key={cmd.id} command={cmd} onSelect={() => handleSelect(cmd)} />
             ))}
           </Command.Group>
 
           <Command.Group heading="Settings" className={groupHeadingClass}>
             {settingsCommands.map((cmd) => (
-              <CommandItem
-                key={cmd.id}
-                command={cmd}
-                onSelect={() => handleSelect(cmd)}
-              />
+              <CommandItem key={cmd.id} command={cmd} onSelect={() => handleSelect(cmd)} />
             ))}
           </Command.Group>
 
-          {isLoading && (
-            <Command.Loading label="Loading command results">Loading…</Command.Loading>
-          )}
+          {isLoading && <Command.Loading label="Loading command results">Loading…</Command.Loading>}
 
           {error && !isLoading && (
-            <div
-              role="alert"
-              className="px-3 py-2 text-xs text-danger"
-            >
+            <div role="alert" className="px-3 py-2 text-xs text-danger">
               {error}
             </div>
           )}

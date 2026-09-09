@@ -35,9 +35,15 @@ export const KeyboardShortcutsDialog = ({ open, onClose }: KeyboardShortcutsDial
     >
       <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-4">
         <div>
-          <AppDialogTitle className="text-xl font-bold text-text">Keyboard shortcuts</AppDialogTitle>
+          <AppDialogTitle className="text-xl font-bold text-text">
+            Keyboard shortcuts
+          </AppDialogTitle>
           <AppDialogDescription className="mt-1 text-sm text-muted">
-            Press <kbd className="rounded border border-border/60 bg-surface-1 px-1.5 py-0.5 text-xs font-semibold dark:bg-surface-dark-1">?</kbd> from anywhere to reopen this dialog.
+            Press{' '}
+            <kbd className="rounded border border-border/60 bg-surface-1 px-1.5 py-0.5 text-xs font-semibold dark:bg-surface-dark-1">
+              ?
+            </kbd>{' '}
+            from anywhere to reopen this dialog.
           </AppDialogDescription>
         </div>
         <button

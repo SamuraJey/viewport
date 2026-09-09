@@ -32,7 +32,9 @@ export interface UseKeyboardShortcutsResult {
  * - `g s` navigates to share links.
  * - Page-specific actions (`n`, `u`, `/`) are invoked through the provided callbacks.
  */
-export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}): UseKeyboardShortcutsResult => {
+export const useKeyboardShortcuts = (
+  options: UseKeyboardShortcutsOptions = {},
+): UseKeyboardShortcutsResult => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);

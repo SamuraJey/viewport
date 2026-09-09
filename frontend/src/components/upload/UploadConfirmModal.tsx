@@ -1,20 +1,24 @@
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type DragEvent,
-} from 'react';
-import { TriangleAlert, CircleCheckBig, Images, LoaderCircle, Shrink, Upload, X } from 'lucide-react';
+  TriangleAlert,
+  CircleCheckBig,
+  Images,
+  LoaderCircle,
+  Shrink,
+  Upload,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import type { PhotoUploadResponse } from '../../types';
 import { usePhotoUpload } from '../../hooks/usePhotoUpload';
 import { resizeImageForUpload } from '../../lib/imageResize';
 import { formatFileSize } from '../../lib/utils';
 import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
-import { isResizableOversizedImage, extractFilesFromEvent, transferUploadSourcePath } from './uploadUtils';
+import {
+  isResizableOversizedImage,
+  extractFilesFromEvent,
+  transferUploadSourcePath,
+} from './uploadUtils';
 import { PasteHandler } from './PasteHandler';
 import { UploadQueueList } from './UploadQueueList';
 import { UploadProgressContent } from '../upload-confirm/UploadProgressContent';
@@ -289,187 +293,191 @@ export const UploadConfirmModal = memo(
           backdropClassName="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
           panelClassName="relative my-4 flex min-h-0 max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-3xl bg-surface shadow-2xl sm:my-8 sm:max-h-[calc(100dvh-4rem)] dark:bg-surface-foreground"
         >
-        <div className="shrink-0 border-b border-border/45 bg-surface px-5 py-5 sm:px-7 dark:bg-surface-foreground">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-accent">
-                  {result ? (
-                    <CircleCheckBig className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : isUploading ? (
-                    <Upload className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : (
-                    <Images className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
-                  {result ? 'Transfer summary' : isUploading ? 'Uploading' : 'Upload queue'}
-                </span>
-                <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
-                  {files.length} file{files.length === 1 ? '' : 's'} · {formatFileSize(totalSize)}
-                </span>
+          <div className="shrink-0 border-b border-border/45 bg-surface px-5 py-5 sm:px-7 dark:bg-surface-foreground">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-accent">
+                    {result ? (
+                      <CircleCheckBig className="h-3.5 w-3.5" aria-hidden="true" />
+                    ) : isUploading ? (
+                      <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                    ) : (
+                      <Images className="h-3.5 w-3.5" aria-hidden="true" />
+                    )}
+                    {result ? 'Transfer summary' : isUploading ? 'Uploading' : 'Upload queue'}
+                  </span>
+                  <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
+                    {files.length} file{files.length === 1 ? '' : 's'} · {formatFileSize(totalSize)}
+                  </span>
+                </div>
+                <AppDialogTitle className="font-oswald text-2xl font-bold uppercase text-text sm:text-3xl">
+                  {result
+                    ? 'Upload finished'
+                    : isUploading
+                      ? 'Keep this window open'
+                      : 'Review files'}
+                </AppDialogTitle>
+                <AppDialogDescription className="mt-2 max-w-2xl text-sm font-medium leading-6 text-muted">
+                  {result
+                    ? 'Successful files are being processed. Retry only the files that need attention.'
+                    : isUploading
+                      ? 'Progress updates below are live for every file in the queue.'
+                      : 'Drop more files here, or use the grips to set the upload order.'}
+                </AppDialogDescription>
               </div>
-              <AppDialogTitle className="font-oswald text-2xl font-bold uppercase text-text sm:text-3xl">
-                {result
-                  ? 'Upload finished'
-                  : isUploading
-                    ? 'Keep this window open'
-                    : 'Review files'}
-              </AppDialogTitle>
-              <AppDialogDescription className="mt-2 max-w-2xl text-sm font-medium leading-6 text-muted">
-                {result
-                  ? 'Successful files are being processed. Retry only the files that need attention.'
-                  : isUploading
-                    ? 'Progress updates below are live for every file in the queue.'
-                    : 'Drop more files here, or use the grips to set the upload order.'}
-              </AppDialogDescription>
-            </div>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-1 text-muted transition-colors hover:bg-surface-2 hover:text-text focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
-              aria-label="Close upload dialog"
-            >
-              <X className="h-5 w-5" aria-hidden="true" />
-            </button>
-          </div>
-          {progress && (
-            <div className="mt-4 border-t border-border/40 pt-4">
-              <UploadProgressContent progress={progress} totalCount={files.length} />
-            </div>
-          )}
-        </div>
-
-        {showCancelWarning && (
-          <UploadCancelWarning
-            isUploading={isUploading}
-            onConfirmClose={handleForceClose}
-            onCancelClose={() => setShowCancelWarning(false)}
-          />
-        )}
-
-        <div
-          data-lenis-prevent
-          data-testid="upload-scroll-region"
-          className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6"
-        >
-          <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-            {liveMessage}
-          </div>
-
-          {result && !isUploading && (
-            <div className="mb-5">
-              <UploadResultContent result={result} />
-            </div>
-          )}
-
-          {!result && resizableJobs.length > 0 && (
-            <div className="mb-5 flex flex-col gap-3 rounded-2xl bg-warning/10 p-4 sm:flex-row sm:items-center">
-              <TriangleAlert className="h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
-              <p className="min-w-0 flex-1 text-sm font-semibold leading-6 text-text">
-                {validUploadCount === 0
-                  ? 'All selected files exceed the maximum size. Resize the images below or remove them.'
-                  : `${resizableJobs.length} oversized image${resizableJobs.length === 1 ? '' : 's'} can be compressed to ≤ ${MAX_UPLOAD_FILE_SIZE_MB} MB before upload.`}
-              </p>
               <button
                 type="button"
-                onClick={() => void handleResizeAll()}
-                disabled={isResizingAll || isUploading}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-warning/15 px-4 text-xs font-bold text-amber-800 transition-colors hover:bg-warning/25 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-warning dark:text-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
-                aria-label="Resize all oversized images"
+                onClick={handleClose}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-1 text-muted transition-colors hover:bg-surface-2 hover:text-text focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+                aria-label="Close upload dialog"
               >
-                {isResizingAll ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Shrink className="h-4 w-4" aria-hidden="true" />
-                )}
-                Resize all
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
+            {progress && (
+              <div className="mt-4 border-t border-border/40 pt-4">
+                <UploadProgressContent progress={progress} totalCount={files.length} />
+              </div>
+            )}
+          </div>
+
+          {showCancelWarning && (
+            <UploadCancelWarning
+              isUploading={isUploading}
+              onConfirmClose={handleForceClose}
+              onCancelClose={() => setShowCancelWarning(false)}
+            />
           )}
 
-          <UploadQueueList
-            jobs={jobs}
-            reorderDisabled={isUploading || isResizingAll || resizingJobId !== null || Boolean(result)}
-            actionsDisabled={isUploading || isResizingAll || resizingJobId !== null || Boolean(result)}
-            retryDisabled={isUploading || isResizingAll || resizingJobId !== null}
-            resizingJobId={resizingJobId}
-            onReorder={handleReorderJobs}
-            onRetry={(jobId) => void handleRetryFile(jobId)}
-            onRemove={handleRemoveJob}
-            onResize={(jobId) => void handleResize(jobId)}
-          />
-        </div>
-
-        {(isDragOver || isScanningDrop) && (
           <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-3 z-30 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-surface/95 px-6 text-center text-accent dark:bg-surface-foreground/95"
+            data-lenis-prevent
+            data-testid="upload-scroll-region"
+            className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6"
           >
-            {isScanningDrop ? (
-              <LoaderCircle className="mb-3 h-8 w-8 animate-spin" aria-hidden="true" />
-            ) : (
-              <Upload className="mb-3 h-8 w-8" aria-hidden="true" />
-            )}
-            <p className="text-base font-bold">
-              {isScanningDrop ? 'Scanning folder' : 'Drop to add files'}
-            </p>
-            <p className="mt-1 max-w-md text-sm font-medium text-muted">
-              {isScanningDrop
-                ? 'Collecting photos and videos from the folder.'
-                : 'They will join the current queue without changing its order.'}
-            </p>
-          </div>
-        )}
+            <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+              {liveMessage}
+            </div>
 
-        <div className="flex flex-col gap-3 border-t border-border/45 bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7 dark:bg-surface-foreground">
-          <p className="text-sm font-semibold text-muted">
-            {result
-              ? result.failed_uploads > 0
-                ? 'Retry failed files from their row, then finish.'
-                : 'All files transferred successfully.'
-              : hasValidFiles
-                ? `${validUploadCount} ready to upload`
-                : 'Fix or remove files with errors to continue.'}
-          </p>
-          <div className="flex items-center justify-end gap-2">
-            {!result && (
-              <button
-                type="button"
-                onClick={handleClose}
-                disabled={isUploading}
-                className="inline-flex h-11 items-center rounded-xl px-5 text-sm font-bold text-muted transition-colors hover:bg-surface-1 hover:text-text focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:opacity-45 dark:hover:bg-surface-dark-1"
-              >
-                Cancel
-              </button>
+            {result && !isUploading && (
+              <div className="mb-5">
+                <UploadResultContent result={result} />
+              </div>
             )}
-            {result ? (
-              <button
-                type="button"
-                onClick={handleClose}
-                disabled={isUploading}
-                className="inline-flex h-11 items-center rounded-xl bg-accent px-6 text-sm font-bold text-white transition-colors hover:bg-accent/90 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-45"
-              >
-                Done
-              </button>
-            ) : (
-              <button
-                ref={uploadButtonRef}
-                type="button"
-                onClick={() => void handleUpload()}
-                disabled={
-                  !hasValidFiles || isUploading || isResizingAll || resizingJobId !== null
-                }
-                className="inline-flex h-11 min-w-32 items-center justify-center gap-2 rounded-xl bg-text px-6 text-sm font-bold text-surface transition-colors hover:bg-text/90 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                {isUploading ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Upload className="h-4 w-4" aria-hidden="true" />
-                )}
-                {isUploading ? 'Uploading' : 'Upload'}
-              </button>
+
+            {!result && resizableJobs.length > 0 && (
+              <div className="mb-5 flex flex-col gap-3 rounded-2xl bg-warning/10 p-4 sm:flex-row sm:items-center">
+                <TriangleAlert className="h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
+                <p className="min-w-0 flex-1 text-sm font-semibold leading-6 text-text">
+                  {validUploadCount === 0
+                    ? 'All selected files exceed the maximum size. Resize the images below or remove them.'
+                    : `${resizableJobs.length} oversized image${resizableJobs.length === 1 ? '' : 's'} can be compressed to ≤ ${MAX_UPLOAD_FILE_SIZE_MB} MB before upload.`}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleResizeAll()}
+                  disabled={isResizingAll || isUploading}
+                  className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-warning/15 px-4 text-xs font-bold text-amber-800 transition-colors hover:bg-warning/25 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-warning dark:text-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
+                  aria-label="Resize all oversized images"
+                >
+                  {isResizingAll ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Shrink className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  Resize all
+                </button>
+              </div>
             )}
+
+            <UploadQueueList
+              jobs={jobs}
+              reorderDisabled={
+                isUploading || isResizingAll || resizingJobId !== null || Boolean(result)
+              }
+              actionsDisabled={
+                isUploading || isResizingAll || resizingJobId !== null || Boolean(result)
+              }
+              retryDisabled={isUploading || isResizingAll || resizingJobId !== null}
+              resizingJobId={resizingJobId}
+              onReorder={handleReorderJobs}
+              onRetry={(jobId) => void handleRetryFile(jobId)}
+              onRemove={handleRemoveJob}
+              onResize={(jobId) => void handleResize(jobId)}
+            />
           </div>
-        </div>
+
+          {(isDragOver || isScanningDrop) && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-3 z-30 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-surface/95 px-6 text-center text-accent dark:bg-surface-foreground/95"
+            >
+              {isScanningDrop ? (
+                <LoaderCircle className="mb-3 h-8 w-8 animate-spin" aria-hidden="true" />
+              ) : (
+                <Upload className="mb-3 h-8 w-8" aria-hidden="true" />
+              )}
+              <p className="text-base font-bold">
+                {isScanningDrop ? 'Scanning folder' : 'Drop to add files'}
+              </p>
+              <p className="mt-1 max-w-md text-sm font-medium text-muted">
+                {isScanningDrop
+                  ? 'Collecting photos and videos from the folder.'
+                  : 'They will join the current queue without changing its order.'}
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 border-t border-border/45 bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7 dark:bg-surface-foreground">
+            <p className="text-sm font-semibold text-muted">
+              {result
+                ? result.failed_uploads > 0
+                  ? 'Retry failed files from their row, then finish.'
+                  : 'All files transferred successfully.'
+                : hasValidFiles
+                  ? `${validUploadCount} ready to upload`
+                  : 'Fix or remove files with errors to continue.'}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              {!result && (
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  disabled={isUploading}
+                  className="inline-flex h-11 items-center rounded-xl px-5 text-sm font-bold text-muted transition-colors hover:bg-surface-1 hover:text-text focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:opacity-45 dark:hover:bg-surface-dark-1"
+                >
+                  Cancel
+                </button>
+              )}
+              {result ? (
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  disabled={isUploading}
+                  className="inline-flex h-11 items-center rounded-xl bg-accent px-6 text-sm font-bold text-white transition-colors hover:bg-accent/90 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-45"
+                >
+                  Done
+                </button>
+              ) : (
+                <button
+                  ref={uploadButtonRef}
+                  type="button"
+                  onClick={() => void handleUpload()}
+                  disabled={
+                    !hasValidFiles || isUploading || isResizingAll || resizingJobId !== null
+                  }
+                  className="inline-flex h-11 min-w-32 items-center justify-center gap-2 rounded-xl bg-text px-6 text-sm font-bold text-surface transition-colors hover:bg-text/90 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {isUploading ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Upload className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {isUploading ? 'Uploading' : 'Upload'}
+                </button>
+              )}
+            </div>
+          </div>
         </AppDialog>
       </>
     );

@@ -7,11 +7,7 @@ import type { GalleryPhoto } from './photo';
 export type GalleryPhotoSortBy = 'uploaded_at' | 'original_filename' | 'file_size';
 export type SortOrder = 'asc' | 'desc';
 export type GalleryListSortBy =
-  | 'created_at'
-  | 'shooting_date'
-  | 'name'
-  | 'photo_count'
-  | 'total_size_bytes';
+  'created_at' | 'shooting_date' | 'name' | 'photo_count' | 'total_size_bytes';
 export type ProjectVisibility = 'listed' | 'direct_only';
 
 export type CoverDisplayOption = 'centered_title' | 'text_block' | 'minimalist';

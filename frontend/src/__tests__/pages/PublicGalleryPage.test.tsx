@@ -438,7 +438,9 @@ describe('PublicGalleryPage', () => {
       url: 'http://localhost/share/abc123',
     });
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Share Public Gallery' })).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole('dialog', { name: 'Share Public Gallery' }),
+      ).not.toBeInTheDocument(),
     );
   });
 
@@ -706,7 +708,9 @@ describe('PublicGalleryPage', () => {
     view.rerender(wrapper('/share/abc123/galleries/gallery-2'));
 
     await waitFor(() => {
-      expect(screen.getByRole('status', { name: 'Loading next gallery photos' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('status', { name: 'Loading next gallery photos' }),
+      ).toBeInTheDocument();
     });
     const loadingStatus = screen.getByRole('status', {
       name: 'Loading next gallery photos',

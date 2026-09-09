@@ -177,11 +177,7 @@ describe('usePublicGalleryGrid', () => {
     await flushAnimationFrames();
 
     const cards = screen.getAllByTestId('card');
-    expect(cards.map((card) => card.dataset.photoId)).toEqual([
-      'landscape',
-      'portrait',
-      'square',
-    ]);
+    expect(cards.map((card) => card.dataset.photoId)).toEqual(['landscape', 'portrait', 'square']);
     cards.forEach((card) => fireEvent.load(card.querySelector('img') as HTMLImageElement));
     await flushAnimationFrames();
 
@@ -236,9 +232,7 @@ describe('usePublicGalleryGrid', () => {
   });
 
   it('does not invalidate React geometry when API dimensions are authoritative', async () => {
-    await renderHookHarness([
-      { ...createPhoto('api-sized', 100, 100), width: 320, height: 160 },
-    ]);
+    await renderHookHarness([{ ...createPhoto('api-sized', 100, 100), width: 320, height: 160 }]);
     await flushAnimationFrames();
     const renderCountBeforeLoad = Number(screen.getByTestId('render-count').textContent);
 
@@ -273,9 +267,7 @@ describe('usePublicGalleryGrid', () => {
     await flushAnimationFrames();
     const renderCountBeforeLoads = Number(screen.getByTestId('render-count').textContent);
 
-    screen
-      .getAllByRole('img')
-      .forEach((image) => fireEvent.load(image as HTMLImageElement));
+    screen.getAllByRole('img').forEach((image) => fireEvent.load(image as HTMLImageElement));
     await flushAnimationFrames();
 
     const renderCountAfterLoads = Number(screen.getByTestId('render-count').textContent);

@@ -29,7 +29,8 @@ export const PublicGallerySelectionBar = ({
     config.limit_enabled && typeof config.limit_value === 'number' && config.limit_value > 0
       ? config.limit_value
       : null;
-  const progress = limit === null ? null : Math.min(100, Math.max(0, (selectedCount / limit) * 100));
+  const progress =
+    limit === null ? null : Math.min(100, Math.max(0, (selectedCount / limit) * 100));
   const canFinish = session.status === 'in_progress';
 
   return (

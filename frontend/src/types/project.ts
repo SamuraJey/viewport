@@ -7,12 +7,7 @@ import type {
 } from './gallery';
 
 export type ProjectListSortBy =
-  | 'manual_order'
-  | 'created_at'
-  | 'shooting_date'
-  | 'name'
-  | 'photo_count'
-  | 'total_size_bytes';
+  'manual_order' | 'created_at' | 'shooting_date' | 'name' | 'photo_count' | 'total_size_bytes';
 
 export interface ProjectListQueryOptions {
   search?: string;

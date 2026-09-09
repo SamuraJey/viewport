@@ -12,11 +12,7 @@ interface CommandItemProps {
   valuePrefix?: string;
 }
 
-export function CommandItem({
-  command,
-  onSelect,
-  valuePrefix,
-}: CommandItemProps): ReactElement {
+export function CommandItem({ command, onSelect, valuePrefix }: CommandItemProps): ReactElement {
   const Icon = command.icon;
 
   return (

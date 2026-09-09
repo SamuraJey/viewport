@@ -19,8 +19,9 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
     const [error, setError] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const [lastOpenKey, setLastOpenKey] = useState<string | null>(null);
-    if (isOpen && lastOpenKey !== `${isOpen}|${currentFilename}`) {
-      setLastOpenKey(`${isOpen}|${currentFilename}`);
+    const openKey = `open|${currentFilename}`;
+    if (isOpen && lastOpenKey !== openKey) {
+      setLastOpenKey(openKey);
       const lastDotIndex = currentFilename.lastIndexOf('.');
       if (lastDotIndex > 0) {
         setNameWithoutExtension(currentFilename.slice(0, lastDotIndex));
@@ -30,6 +31,8 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
         setExtension('');
       }
       setError(null);
+    } else if (!isOpen && lastOpenKey !== null) {
+      setLastOpenKey(null);
     }
 
     useEffect(() => {

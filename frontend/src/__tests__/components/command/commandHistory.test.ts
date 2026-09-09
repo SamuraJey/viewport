@@ -53,13 +53,7 @@ describe('commandHistory', () => {
         pushCommandHistory(id);
       }
       // After pushing 6 distinct, only the 5 newest (6,5,4,3,2) remain
-      expect(pushCommandHistory('anything')).toEqual([
-        'anything',
-        '6',
-        '5',
-        '4',
-        '3',
-      ]);
+      expect(pushCommandHistory('anything')).toEqual(['anything', '6', '5', '4', '3']);
       expect(COMMAND_HISTORY_MAX).toBe(5);
     });
   });

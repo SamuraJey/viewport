@@ -340,13 +340,9 @@ describe('PhotoUploader', () => {
       }),
     );
     const validFile = new File(['valid'], 'valid.jpg', { type: 'image/jpeg' });
-    const largeFile = new File(
-      [new ArrayBuffer(MAX_UPLOAD_FILE_SIZE_BYTES + 1)],
-      'large.jpg',
-      {
-        type: 'image/jpeg',
-      },
-    );
+    const largeFile = new File([new ArrayBuffer(MAX_UPLOAD_FILE_SIZE_BYTES + 1)], 'large.jpg', {
+      type: 'image/jpeg',
+    });
 
     render(
       <StrictMode>
@@ -512,9 +508,8 @@ describe('PhotoUploader', () => {
     });
 
     it('keeps two files with the same basename from different source paths', async () => {
-      const { setUploadSourcePath, getUploadFileKey } = await import(
-        '../../components/upload/uploadUtils'
-      );
+      const { setUploadSourcePath, getUploadFileKey } =
+        await import('../../components/upload/uploadUtils');
       // Use different content sizes so the files are distinct even without
       // source path, then verify the source path makes the keys different.
       const first = new File(['aa'], 'photo.jpg', { type: 'image/jpeg' });
