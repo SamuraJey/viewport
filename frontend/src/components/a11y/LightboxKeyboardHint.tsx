@@ -10,10 +10,17 @@ const HINT_DURATION_MS = 4000;
 
 export const LightboxKeyboardHint = ({ isOpen }: LightboxKeyboardHintProps) => {
   const [visible, setVisible] = useState(false);
+  const [wasOpen, setWasOpen] = useState(false);
+
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (!isOpen) {
+      setVisible(false);
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) {
-      setVisible(false);
       return;
     }
 
@@ -28,7 +35,7 @@ export const LightboxKeyboardHint = ({ isOpen }: LightboxKeyboardHintProps) => {
       return;
     }
 
-    setVisible(true);
+    queueMicrotask(() => setVisible(true));
     try {
       localStorage.setItem(STORAGE_KEY, '1');
     } catch {

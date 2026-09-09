@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect, type ReactElement, type RefObject } from 'react';
+import { useMemo, useRef, useState, type ReactElement, type RefObject } from 'react';
 import { useNavigate } from 'react-router';
 import { Command } from 'cmdk';
 import { cn } from '../../lib/utils';
@@ -27,13 +27,14 @@ export function CommandPalette({
   const logout = useAuthStore((s) => s.logout);
   const inputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
-  const [historyIds, setHistoryIds] = useState<string[]>([]);
 
-  useEffect(() => {
+  const [lastOpenState, setLastOpenState] = useState(open);
+  if (lastOpenState !== open) {
+    setLastOpenState(open);
     if (!open) {
       setSearch('');
     }
-  }, [open]);
+  }
 
   const performers = useMemo(
     () => ({
@@ -66,9 +67,10 @@ export function CommandPalette({
 
   const { projects, shareLinks, isLoading, error } = useCommandItems({ enabled: open });
 
-  useEffect(() => {
-    setHistoryIds(open && search.trim() === '' ? readCommandHistory() : []);
-  }, [open, search]);
+  const historyIds = useMemo(
+    () => (open && search.trim() === '' ? readCommandHistory() : []),
+    [open, search],
+  );
 
   const recentCommands = useMemo(() => {
     if (historyIds.length === 0) return [];

@@ -150,7 +150,13 @@ export const DashboardPage = () => {
   });
 
   useEffect(() => {
-    void fetchProjects();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchProjects();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [fetchProjects]);
 
   useEffect(() => {
@@ -160,9 +166,11 @@ export const DashboardPage = () => {
     return () => window.clearInterval(intervalId);
   }, [fetchProjects]);
 
-  useEffect(() => {
+  const [lastSyncedSearch, setLastSyncedSearch] = useState(activeSearch);
+  if (lastSyncedSearch !== activeSearch) {
+    setLastSyncedSearch(activeSearch);
     setSearchInput(activeSearch);
-  }, [activeSearch]);
+  }
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {

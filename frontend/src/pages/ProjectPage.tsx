@@ -79,7 +79,11 @@ export const ProjectPage = () => {
   const [isRenamingGallery, setIsRenamingGallery] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
-  const [folderPickerSupported, setFolderPickerSupported] = useState(false);
+  const [folderPickerSupported] = useState(() => {
+    if (typeof document === 'undefined') return false;
+    const input = document.createElement('input');
+    return 'webkitdirectory' in input;
+  });
   const [isUploadingFolder, setUploadingFolder] = useState(false);
   const projectNameInputRef = useRef<HTMLInputElement | null>(null);
   const projectTitleRef = useRef<HTMLHeadingElement | null>(null);
@@ -95,12 +99,11 @@ export const ProjectPage = () => {
 
   const [activeTab, setActiveTab] = useState<'galleries' | 'appearance'>('galleries');
 
-  useEffect(() => {
-    activeProjectIdRef.current = projectId;
-    projectPhotosRequestIdRef.current += 1;
-    projectLoadRequestIdRef.current += 1;
-    galleryReorderRequestIdRef.current += 1;
-    activeGalleryOrderRef.current = null;
+  // Reset per-project state during render when navigating between projects,
+  // so the stale project payload never flashes before effects run.
+  const [lastProjectId, setLastProjectId] = useState(projectId);
+  if (lastProjectId !== projectId) {
+    setLastProjectId(projectId);
     setProject(null);
     setShareLinks([]);
     setWarningShareLinks([]);
@@ -109,6 +112,14 @@ export const ProjectPage = () => {
     setProjectPhotos([]);
     setIsLoadingProjectPhotos(false);
     setIsReorderingGallery(null);
+  }
+
+  useEffect(() => {
+    activeProjectIdRef.current = projectId;
+    projectPhotosRequestIdRef.current += 1;
+    projectLoadRequestIdRef.current += 1;
+    galleryReorderRequestIdRef.current += 1;
+    activeGalleryOrderRef.current = null;
   }, [projectId]);
 
   const loadProjectPhotos = useCallback(async () => {
@@ -176,17 +187,16 @@ export const ProjectPage = () => {
   }, [loadProjectPhotos, projectId]);
 
   useEffect(() => {
-    void loadProject();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void loadProject();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadProject]);
 
   useDocumentTitle(project?.name ? `${project.name} · Project · Viewport` : 'Project · Viewport');
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const input = document.createElement('input');
-    input.type = 'file';
-    setFolderPickerSupported('webkitdirectory' in input);
-  }, []);
 
   useLayoutEffect(() => {
     const heading = projectTitleRef.current;

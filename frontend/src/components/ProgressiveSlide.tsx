@@ -50,10 +50,18 @@ export function ProgressiveSlide({ slide, children }: RenderSlideContainerProps)
     setZoomWrapperElement(wrapper);
   }, [isActiveImageSlide, typedSlide.src]);
 
+  // Reset load tracking whenever the active slide or its wrapper changes;
+  // the effect below upgrades to "loaded" for cached images.
+  const [lastLoadKey, setLastLoadKey] = useState<string | null>(null);
+  const loadKey = `${typedSlide.src}|${isActiveImageSlide}|${zoomWrapperElement ? '1' : '0'}`;
+  if (loadKey !== lastLoadKey) {
+    setLastLoadKey(loadKey);
+    setFullLoaded(false);
+    setThumbHidden(false);
+  }
+
   useEffect(() => {
     if (!isActiveImageSlide) {
-      setFullLoaded(false);
-      setThumbHidden(false);
       return;
     }
 
@@ -62,19 +70,16 @@ export function ProgressiveSlide({ slide, children }: RenderSlideContainerProps)
     ) as HTMLImageElement | null;
 
     if (!fullImage) {
-      setFullLoaded(false);
-      setThumbHidden(false);
       return;
     }
 
     if (fullImage.complete && fullImage.naturalWidth > 0) {
-      setFullLoaded(true);
-      setThumbHidden(true);
+      queueMicrotask(() => {
+        setFullLoaded(true);
+        setThumbHidden(true);
+      });
       return;
     }
-
-    setFullLoaded(false);
-    setThumbHidden(false);
 
     const handleLoad = () => {
       setFullLoaded(true);

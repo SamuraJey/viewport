@@ -116,11 +116,14 @@ const GalleryPhotoSectionComponent = ({
     previousLoadingPhotosRef.current = state.isLoadingPhotos;
   }, [state.isLoadingPhotos]);
 
-  React.useEffect(() => {
+  const [lastSkeletonKey, setLastSkeletonKey] = React.useState<string | null>(null);
+  const skeletonKey = `${pagination.page}|${state.activeSearchTerm}|${shouldShowGridSkeleton}`;
+  if (skeletonKey !== lastSkeletonKey) {
+    setLastSkeletonKey(skeletonKey);
     if (shouldShowGridSkeleton) {
       setSkeletonRenderNonce((value) => value + 1);
     }
-  }, [pagination.page, state.activeSearchTerm, shouldShowGridSkeleton]);
+  }
 
   return (
     <section className="px-0 py-0" data-photos-section aria-label="Gallery photos">

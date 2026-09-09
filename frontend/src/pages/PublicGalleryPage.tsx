@@ -140,13 +140,17 @@ export const PublicGalleryPage = () => {
       return;
     }
 
-    navigate(favoritesPath);
-    setOpenFavoritesAfterStart(false);
+    queueMicrotask(() => {
+      navigate(favoritesPath);
+      setOpenFavoritesAfterStart(false);
+    });
   }, [favoritesPath, navigate, openFavoritesAfterStart]);
 
-  useEffect(() => {
+  const [lastSessionNote, setLastSessionNote] = useState(selection.session?.client_note ?? '');
+  if (lastSessionNote !== (selection.session?.client_note ?? '')) {
+    setLastSessionNote(selection.session?.client_note ?? '');
     setSessionNoteDraft(selection.session?.client_note ?? '');
-  }, [selection.session?.client_note]);
+  }
 
   useEffect(() => {
     if (!shareId || !isFavoritesView) {
@@ -285,11 +289,13 @@ export const PublicGalleryPage = () => {
     loadMorePhotosRef.current = loadMorePhotos;
   }, [loadMorePhotos]);
 
-  useEffect(() => {
+  const [lastDownloadKey, setLastDownloadKey] = useState('');
+  if (lastDownloadKey !== `${activeGalleryId}|${shareId}`) {
+    setLastDownloadKey(`${activeGalleryId}|${shareId}`);
     setDownloadError('');
     setIsDownloadPasswordRequired(false);
     setIsDownloadExpired(false);
-  }, [activeGalleryId, shareId]);
+  }
 
   useEffect(() => {
     if (isFavoritesView) {

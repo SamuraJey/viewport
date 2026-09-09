@@ -80,9 +80,12 @@ const ShareLinksSectionComponent = ({
     [],
   );
 
-  useEffect(() => {
+  // Collapse the list whenever a new set of links arrives.
+  const [lastLinkCount, setLastLinkCount] = useState(shareLinks.length);
+  if (lastLinkCount !== shareLinks.length) {
+    setLastLinkCount(shareLinks.length);
     setIsExpanded(false);
-  }, [shareLinks.length]);
+  }
 
   const copyToClipboard = async (text: string) => {
     const copied = await copyTextToClipboard(text);

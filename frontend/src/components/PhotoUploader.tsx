@@ -75,11 +75,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
     const [error, setError] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [isUploadBusy, setIsUploadBusy] = useState(false);
-    const [folderPickerSupported, setFolderPickerSupported] = useState(false);
-
-    useEffect(() => {
-      setFolderPickerSupported(supportsDirectoryPicker());
-    }, []);
+    const [folderPickerSupported] = useState(supportsDirectoryPicker);
 
     const openModal = useCallback(() => {
       setShowConfirmModal(true);

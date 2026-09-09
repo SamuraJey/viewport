@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { SharedFolderShare, SharedProjectShare } from '../../types/sharelink';
 import type { PublicGalleryAppearance } from '../../types/sharelink';
@@ -101,11 +101,15 @@ export const PublicGalleryHero = ({
   const isVideo = cover?.media_type === 'video' && Boolean(cover?.playback_url);
   const shouldAutoplayVideo = isVideo && !prefersReducedMotion && !saveData && !videoAutoplayFailed;
 
-  // Reset videoAutoplayFailed when the cover identity changes so a failed
-  // autoplay only disables the current video and does not carry over.
-  useEffect(() => {
+  // Reset per-cover state during render when the cover identity changes, so a
+  // failed autoplay or stale load state never carries over between covers.
+  const [lastCoverKey, setLastCoverKey] = useState('');
+  const coverKey = `${cover?.playback_url ?? ''}|${heroUrl ?? ''}|${isVideo}`;
+  if (lastCoverKey !== coverKey) {
+    setLastCoverKey(coverKey);
     setVideoAutoplayFailed(false);
-  }, [cover?.playback_url]);
+    setIsHeroFullLoaded(false);
+  }
 
   const emptyTitleSizeClass = getTitleSizeClass(titleLength, 'pg-hero__empty-title', {
     medium: 46,
@@ -126,20 +130,8 @@ export const PublicGalleryHero = ({
     long: 60,
   });
 
-  // For image covers: preload and track load state
-  useLayoutEffect(() => {
-    if (!heroUrl || isVideo) {
-      setIsHeroFullLoaded(false);
-      return;
-    }
-
-    if (heroImgRef.current?.complete && heroImgRef.current?.naturalWidth > 0) {
-      setIsHeroFullLoaded(true);
-    } else {
-      setIsHeroFullLoaded(false);
-    }
-  }, [heroUrl, isVideo]);
-
+  // For image covers: preload and track load state. Cached images resolve in
+  // a microtask; freshly loaded ones via the load event.
   useEffect(() => {
     if (!heroUrl || isVideo) return;
 
@@ -147,7 +139,7 @@ export const PublicGalleryHero = ({
     preload.src = heroUrl;
 
     if (preload.complete && preload.naturalWidth > 0) {
-      setIsHeroFullLoaded(true);
+      queueMicrotask(() => setIsHeroFullLoaded(true));
       return;
     }
 

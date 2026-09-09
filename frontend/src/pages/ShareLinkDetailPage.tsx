@@ -154,8 +154,9 @@ export const ShareLinkDetailPage = () => {
     [],
   );
 
-  useEffect(() => {
-    selectedSessionRequestRef.current += 1;
+  const [lastShareLinkId, setLastShareLinkId] = useState(shareLinkId);
+  if (lastShareLinkId !== shareLinkId) {
+    setLastShareLinkId(shareLinkId);
     setAnalytics(null);
     setError('');
     setIsLoading(true);
@@ -169,6 +170,10 @@ export const ShareLinkDetailPage = () => {
     setSessionSearch('');
     setSessionStatusFilter('all');
     setSessionSort('recent');
+  }
+
+  useEffect(() => {
+    selectedSessionRequestRef.current += 1;
   }, [shareLinkId]);
 
   const fetchAnalytics = useCallback(async () => {
@@ -250,7 +255,13 @@ export const ShareLinkDetailPage = () => {
   );
 
   useEffect(() => {
-    void fetchAnalytics();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchAnalytics();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [fetchAnalytics]);
 
   useEffect(() => {
@@ -262,7 +273,13 @@ export const ShareLinkDetailPage = () => {
     ) {
       return;
     }
-    void fetchSelectionDetail();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchSelectionDetail();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [
     activeTab,
     fetchSelectionDetail,
@@ -319,8 +336,11 @@ export const ShareLinkDetailPage = () => {
     }
 
     selectedSessionRequestRef.current += 1;
-    setSelectedSessionId(visibleSelectionSessions[0]?.id ?? null);
-    setSelectedSessionDetail(null);
+    const nextSessionId = visibleSelectionSessions[0]?.id ?? null;
+    queueMicrotask(() => {
+      setSelectedSessionId(nextSessionId);
+      setSelectedSessionDetail(null);
+    });
   }, [activeTab, selectedSessionId, selectionDetail, visibleSelectionSessions]);
 
   useEffect(() => {
@@ -332,7 +352,13 @@ export const ShareLinkDetailPage = () => {
     ) {
       return;
     }
-    void fetchSelectedSessionDetail(selectedSessionId);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchSelectedSessionDetail(selectedSessionId);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [
     activeTab,
     fetchSelectedSessionDetail,

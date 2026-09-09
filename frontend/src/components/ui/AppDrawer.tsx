@@ -64,7 +64,6 @@ const useResolvedDirection = (side?: AppDrawerSide) => {
 
     const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY);
     const handleChange = (event: MediaQueryListEvent) => setIsDesktop(event.matches);
-    setIsDesktop(mediaQuery.matches);
     mediaQuery.addEventListener?.('change', handleChange);
 
     return () => mediaQuery.removeEventListener?.('change', handleChange);
@@ -113,18 +112,19 @@ export const AppDrawer = ({
   const resolvedSnapPoints = direction === 'bottom' ? snapPoints : undefined;
   const firstSnapPoint = resolvedSnapPoints?.[0] ?? null;
   const [activeSnapPoint, setActiveSnapPoint] = useState<number | string | null>(firstSnapPoint);
+  const [lastSnapResetKey, setLastSnapResetKey] = useState(`${open}|${firstSnapPoint}`);
+  if (lastSnapResetKey !== `${open}|${firstSnapPoint}`) {
+    setLastSnapResetKey(`${open}|${firstSnapPoint}`);
+    if (open && firstSnapPoint !== null) {
+      setActiveSnapPoint(firstSnapPoint);
+    }
+  }
 
   useLayoutEffect(() => {
     if (open) {
       previousFocusRef.current = document.activeElement as HTMLElement | null;
     }
   }, [open]);
-
-  useEffect(() => {
-    if (open && firstSnapPoint !== null) {
-      setActiveSnapPoint(firstSnapPoint);
-    }
-  }, [firstSnapPoint, open]);
 
   useEffect(() => {
     if (!nested || !registerWithParentDrawer) return;

@@ -88,10 +88,10 @@ export const ShareLinkSettingsModal = ({
     [],
   );
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
+  const [lastResetKey, setLastResetKey] = useState<string | null>(null);
+  const resetKey = isOpen ? `${isOpen}|${mode}|${link?.id ?? 'new'}` : null;
+  if (isOpen && lastResetKey !== resetKey) {
+    setLastResetKey(resetKey);
 
     setError('');
     setSelectionSaveError('');
@@ -107,16 +107,15 @@ export const ShareLinkSettingsModal = ({
       setCustomExpiresAt(formatUtcDateTimeInputValue(link.expires_at));
       setPasswordMode(link.has_password ? 'keep' : 'none');
       setPassword('');
-      return;
+    } else {
+      setLabel('');
+      setIsActive(true);
+      setTtlPreset('none');
+      setCustomExpiresAt('');
+      setPasswordMode('none');
+      setPassword('');
     }
-
-    setLabel('');
-    setIsActive(true);
-    setTtlPreset('none');
-    setCustomExpiresAt('');
-    setPasswordMode('none');
-    setPassword('');
-  }, [isOpen, link, mode]);
+  }
 
   useEffect(() => {
     if (createdLink && copyButtonRef.current) {
