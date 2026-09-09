@@ -146,9 +146,10 @@ export const PublicGalleryPage = () => {
     });
   }, [favoritesPath, navigate, openFavoritesAfterStart]);
 
-  const [lastSessionNote, setLastSessionNote] = useState(selection.session?.client_note ?? '');
-  if (lastSessionNote !== (selection.session?.client_note ?? '')) {
-    setLastSessionNote(selection.session?.client_note ?? '');
+  const sessionSyncKey = `${selection.session?.id ?? ''}|${selection.session?.client_note ?? ''}`;
+  const [lastSessionSyncKey, setLastSessionSyncKey] = useState(sessionSyncKey);
+  if (lastSessionSyncKey !== sessionSyncKey) {
+    setLastSessionSyncKey(sessionSyncKey);
     setSessionNoteDraft(selection.session?.client_note ?? '');
   }
 

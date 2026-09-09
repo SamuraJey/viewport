@@ -355,9 +355,11 @@ export const UploadConfirmModal = memo(
             data-testid="upload-scroll-region"
             className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6"
           >
-            <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-              {liveMessage}
-            </div>
+            {!progress && (
+              <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+                {liveMessage}
+              </div>
+            )}
 
             {result && !isUploading && (
               <div className="mb-5">
