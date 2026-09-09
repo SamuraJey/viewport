@@ -106,7 +106,7 @@ describe('uploadUtils', () => {
     expect(getUploadValidationError(image)).toBe(
       'Image exceeds the 10 MB limit. Resize it before uploading.',
     );
-    expect(getUploadValidationError(video)).toBe('Video exceeds the 500 MB limit.');
+    expect(getUploadValidationError(video)).toBe('Video exceeds the 1500 MB limit.');
   });
 });
 

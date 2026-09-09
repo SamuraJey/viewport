@@ -49,7 +49,7 @@ describe('PhotoUploader', () => {
       expect.stringContaining('video/mp4'),
     );
     expect(
-      screen.getByText(/JPG \/ PNG \/ MP4 \/ MOV.*10 MB \(images\).*500 MB \(video\)/i),
+      screen.getByText(/JPG \/ PNG \/ MP4 \/ MOV.*10 MB \(images\).*1500 MB \(video\)/i),
     ).toBeInTheDocument();
   });
 

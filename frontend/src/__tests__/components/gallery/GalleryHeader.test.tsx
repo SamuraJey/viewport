@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type ReactNode, type RefObject } from 'react';
 import { Link, MemoryRouter } from 'react-router';
@@ -128,9 +128,11 @@ describe('GalleryHeader', () => {
     const listbox = await screen.findByRole('listbox');
     expect(listbox).toHaveClass('z-[60]');
 
-    await user.click(screen.getByRole('option', { name: 'Size (small to large)' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Size (small to large)' }));
 
-    expect(onPublicSortChange).toHaveBeenCalledWith({ sortBy: 'file_size', sortOrder: 'asc' });
+    await waitFor(() => {
+      expect(onPublicSortChange).toHaveBeenCalledWith({ sortBy: 'file_size', sortOrder: 'asc' });
+    });
   });
 
   it('opens the public sort popover from the global event without toggling it closed', async () => {

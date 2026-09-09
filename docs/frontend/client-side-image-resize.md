@@ -92,7 +92,7 @@ requests a fresh upload intent for that file only. Closing a populated or active
 queue requires confirmation; canceling an active run stops remaining work
 without undoing files that already completed. Images must be at most 10 MB after
 optional resize, while supported videos remain unmodified and may be up to
-500 MB. See [Photo upload UX](../photo-upload-ux.md) for the complete intake and
+1500 MB. See [Photo upload UX](../photo-upload-ux.md) for the complete intake and
 transfer contract.
 
 ## Performance considerations

@@ -495,7 +495,7 @@ export const UploadSelectionContent = ({
                 const allLarge = files.every((f) => isFileTooLarge(f));
                 const allInvalidType = files.every((f) => isFileTypeInvalid(f));
                 if (allLarge) {
-                  return 'All selected files exceed the maximum size. Images are limited to 10 MB and videos to 500 MB.';
+                  return 'All selected files exceed the maximum size. Images are limited to 10 MB and videos to 1500 MB.';
                 }
                 if (allInvalidType) {
                   return 'Only JPG, PNG and supported video formats are allowed. Please select valid files.';

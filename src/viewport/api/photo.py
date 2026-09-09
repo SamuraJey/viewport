@@ -32,7 +32,7 @@ from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, ch
 from viewport.video_metrics import VIDEO_QUEUE_DEPTH
 
 MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-MAX_VIDEO_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
+MAX_VIDEO_FILE_SIZE = 1500 * 1024 * 1024  # 1500 MB
 VIDEO_PART_SIZE = 16 * 1024 * 1024  # 16 MiB
 VIDEO_PART_PRESIGN_EXPIRY = 3600  # 1 hour — must cover slow uploads of all parts
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".mpeg", ".mpg", ".3gp"}

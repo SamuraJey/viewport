@@ -117,11 +117,11 @@ class TestBatchPresignedVideo:
         assert len(item["presigned_urls"]) == 2
         assert item["photo_id"] is not None
 
-    def test_rejects_video_over_500mb(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock]):
-        """Video > 500 MiB returns success=False with size error."""
+    def test_rejects_video_over_1500mb(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock]):
+        """Video > 1500 MiB returns success=False with size error."""
         gallery_id, _ = video_gallery
 
-        payload = {"files": [_video_file("huge.mp4", 501 * 1024 * 1024)]}
+        payload = {"files": [_video_file("huge.mp4", 1501 * 1024 * 1024)]}
         resp = authenticated_client.post(f"/galleries/{gallery_id}/photos/batch-presigned", json=payload)
         assert resp.status_code == 200, resp.text
         items = resp.json()["items"]

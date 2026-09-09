@@ -8,7 +8,7 @@
   - статичный AVIF-постер для сеток и карточек;
   - браузерную MP4-версию H.264/AAC для просмотра и видео-обложек.
 
-  Поддерживаемые входы v1: MP4, MOV, M4V, WebM, MKV, AVI, MPEG и 3GP; фактический формат проверяется через ffprobe, а не по MIME/расширению. Лимит: 500 МБ и 30 минут. В
+  Поддерживаемые входы v1: MP4, MOV, M4V, WebM, MKV, AVI, MPEG и 3GP; фактический формат проверяется через ffprobe, а не по MIME/расширению. Лимит: 1500 МБ и 30 минут. В
   квоту входит только оригинал.
 
   ## Implementation Changes
@@ -38,7 +38,7 @@
   Расширить текущий upload API в src/viewport/api/photo.py:139:
 
   - изображения продолжают использовать существующий single PUT и лимит 10 МБ;
-  - видео до 500 МБ загружаются multipart-частями по 16 MiB;
+  - видео до 1500 МБ загружаются multipart-частями по 16 MiB;
   - batch-presigned response получает discriminator upload_mode: single | multipart, upload_id, part_size и presigned part URLs;
   - добавить complete/abort endpoints с проверкой владельца, upload_id, ETag и суммарного размера;
   - отменённые и просроченные multipart uploads автоматически abort-ятся и освобождают reserved quota;
@@ -52,7 +52,7 @@
 
   - concurrency 1, настраиваемые CPU/RAM/temp-disk limits;
   - FFmpeg/ffprobe устанавливаются в backend image;
-  - worker скачивает оригинал во временный файл, не загружая 500 МБ в Python memory;
+  - worker скачивает оригинал во временный файл, не загружая 1500 МБ в Python memory;
   - ffprobe проверяет наличие видеопотока, duration ≤ 1800 секунд, dimensions, rotation и допустимое количество потоков;
   - delivery output: MP4, H.264, AAC 128 kbps, yuv420p, faststart, максимум 1280×720 без upscale, до 60 fps;
   - видео без аудио разрешено;
@@ -150,7 +150,7 @@
   ## Test Plan
 
   - Migration: существующие изображения backfill-ятся как image; upgrade/head/check и migration tests проходят.
-  - Upload: границы 10 МБ для изображений, 500 МБ для видео, multipart complete/abort/retry, неверные ETag и quota rollback.
+  - Upload: границы 10 МБ для изображений, 1500 МБ для видео, multipart complete/abort/retry, неверные ETag и quota rollback.
   - Processing: MP4/MOV/WebM/MKV/AVI, видео без звука, portrait/rotation, битый файл, spoofed MIME, отсутствие video stream, ровно 30:00 и превышение duration.
   - Idempotency: повтор confirm/task не удваивает quota и не создаёт лишние derivatives.
   - Cleanup: удаление media/галереи очищает original, poster, playback и cover FK.
