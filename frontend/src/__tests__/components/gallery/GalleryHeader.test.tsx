@@ -112,6 +112,27 @@ describe('GalleryHeader', () => {
     expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
   });
 
+  it('renders public sort options above the containing popover and selects every option', async () => {
+    const user = userEvent.setup();
+    const onPublicSortChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <GalleryHeader {...createProps()} onPublicSortChange={onPublicSortChange} />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /public sort/i }));
+    await user.click(screen.getByRole('button', { name: /public gallery sort/i }));
+
+    const listbox = await screen.findByRole('listbox');
+    expect(listbox).toHaveClass('z-[60]');
+
+    await user.click(screen.getByRole('option', { name: 'Size (small to large)' }));
+
+    expect(onPublicSortChange).toHaveBeenCalledWith({ sortBy: 'file_size', sortOrder: 'asc' });
+  });
+
   it('opens the public sort popover from the global event without toggling it closed', async () => {
     const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
 
