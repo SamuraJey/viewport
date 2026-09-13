@@ -2,7 +2,6 @@ import { useEffect, useRef, type KeyboardEvent, type MouseEvent, type ReactNode 
 import { Link } from 'react-router';
 import {
   ArrowLeft,
-  ArrowUpDown,
   SquareCheck,
   ChevronDown,
   Download,
@@ -12,13 +11,13 @@ import {
   Search,
   Share2,
   Settings,
-  SlidersHorizontal,
   Trash2,
   Upload,
 } from 'lucide-react';
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
 import type { GalleryDetail, GalleryPhotoSortBy, SortOrder } from '../../types';
-import { AppListbox, AppPopover } from '../ui';
+import { AppPopover } from '../ui';
+import { GallerySortControl } from './GallerySortControl';
 
 interface SortOption {
   value: `${GalleryPhotoSortBy}:${SortOrder}`;
@@ -31,7 +30,6 @@ const DEFAULT_PUBLIC_SORT_STATE = { sortBy: 'original_filename', sortOrder: 'asc
 const toSortValue = ({ sortBy, sortOrder }: { sortBy: GalleryPhotoSortBy; sortOrder: SortOrder }) =>
   `${sortBy}:${sortOrder}` as SortOption['value'];
 const DEFAULT_PRIVATE_SORT = toSortValue(DEFAULT_PRIVATE_SORT_STATE);
-const DEFAULT_PUBLIC_SORT = toSortValue(DEFAULT_PUBLIC_SORT_STATE);
 
 const SORT_OPTIONS: SortOption[] = [
   { value: 'original_filename:asc', label: 'Filename (A to Z)' },
@@ -237,8 +235,6 @@ export const GalleryHeader = ({
   const activeSortLabel =
     SORT_OPTIONS.find((option) => option.value === activeSortValue)?.label ||
     SORT_OPTIONS.find((option) => option.value === DEFAULT_PRIVATE_SORT)!.label;
-  const hasCustomPublicSort = activePublicSortValue !== DEFAULT_PUBLIC_SORT;
-  const isDefaultPrivateSort = activeSortValue === DEFAULT_PRIVATE_SORT;
 
   const resolvedTitle = title || gallery.name || `Gallery #${gallery.id}`;
   const shownPhotoCount = isLoadingPhotos
@@ -495,75 +491,25 @@ export const GalleryHeader = ({
             />
           </label>
 
-          <div className="flex items-center gap-3 lg:ml-auto">
-            <AppListbox
+          <div className="grid grid-cols-2 gap-2 lg:ml-auto lg:flex">
+            <GallerySortControl
+              label="My view"
+              ariaLabel="Sort photos"
+              description="Only changes your view of this gallery."
               value={activeSortValue}
-              onChange={(value) => onSortChange(parseSortValue(value, DEFAULT_PRIVATE_SORT_STATE))}
               options={SORT_OPTIONS}
-              className="min-w-0 flex-1 lg:w-64 lg:flex-none"
-              aria-label="Sort photos"
-              startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
-              buttonClassName={(open) =>
-                `h-11 border px-3 text-sm font-semibold transition-all duration-200 dark:bg-surface-dark-1 ${
-                  open || !isDefaultPrivateSort
-                    ? 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
-                    : 'border-border/40 bg-surface-1 text-text hover:border-accent/40 dark:border-border/30'
-                }`
-              }
-              optionsClassName="bg-surface p-1 dark:bg-surface-dark-1"
+              onChange={(value) => onSortChange(parseSortValue(value, DEFAULT_PRIVATE_SORT_STATE))}
             />
-
-            <AppPopover
-              className="relative shrink-0"
+            <GallerySortControl
+              label="Public view"
+              ariaLabel="Public sort"
+              description="Sets the photo order visitors see on shared links."
+              value={activePublicSortValue}
+              options={SORT_OPTIONS}
               buttonRef={filtersButtonRef}
-              buttonAriaLabel="Public sort"
-              buttonClassName={(open) =>
-                `inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface active:translate-y-0 dark:focus-visible:ring-offset-surface-dark ${
-                  open || hasCustomPublicSort
-                    ? 'border-accent/45 bg-accent/10 text-accent'
-                    : 'border-border/40 bg-surface-1 text-text hover:border-accent/40 hover:text-accent dark:border-border/30 dark:bg-surface-dark-1'
-                }`
-              }
-              buttonContent={(open) => (
-                <>
-                  <SlidersHorizontal className="h-4 w-4" />
-                  <span>Public sort</span>
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-                  />
-                </>
-              )}
-              panelClassName="w-80 rounded-2xl border border-border/50 bg-surface p-4 shadow-lg dark:border-border/40 dark:bg-surface-dark-1"
-              panel={
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="gallery-public-sort"
-                      className="text-xs font-bold uppercase tracking-wider text-muted"
-                    >
-                      Public gallery sort
-                    </label>
-                    <AppListbox
-                      value={activePublicSortValue}
-                      onChange={(value) =>
-                        onPublicSortChange(parseSortValue(value, DEFAULT_PUBLIC_SORT_STATE))
-                      }
-                      options={SORT_OPTIONS.map((option) => ({ ...option, value: option.value }))}
-                      aria-label="Public gallery sort"
-                      startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
-                      buttonClassName="h-10 border border-border/40 bg-surface-1 px-2.5 text-sm font-semibold text-text dark:border-border/30 dark:bg-surface-dark-2"
-                      optionsClassName="z-[60]"
-                    />
-                    {isSavingPublicSortSettings && (
-                      <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                        Saving public sorting...
-                      </p>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-muted">Changes are applied automatically.</p>
-                </div>
+              isSaving={isSavingPublicSortSettings}
+              onChange={(value) =>
+                onPublicSortChange(parseSortValue(value, DEFAULT_PUBLIC_SORT_STATE))
               }
             />
           </div>

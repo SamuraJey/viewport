@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type ReactNode, type RefObject } from 'react';
 import { Link, MemoryRouter } from 'react-router';
@@ -109,10 +109,10 @@ describe('GalleryHeader', () => {
 
     await user.click(screen.getByRole('button', { name: /public sort/i }));
 
-    expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /public sort/i })).toBeInTheDocument();
   });
 
-  it('renders public sort options above the containing popover and selects every option', async () => {
+  it('selects public sort directly and closes the popover', async () => {
     const user = userEvent.setup();
     const onPublicSortChange = vi.fn();
 
@@ -123,12 +123,12 @@ describe('GalleryHeader', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /public sort/i }));
-    await user.click(screen.getByRole('button', { name: /public gallery sort/i }));
-
-    const listbox = await screen.findByRole('listbox');
-    expect(listbox).toHaveClass('z-[60]');
-
-    fireEvent.click(screen.getByRole('option', { name: 'Size (small to large)' }));
+    expect(screen.getByRole('button', { name: 'Filename (A to Z)' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await user.click(screen.getByRole('button', { name: 'Size (small to large)' }));
+    expect(screen.queryByRole('group', { name: /public sort/i })).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(onPublicSortChange).toHaveBeenCalledWith({ sortBy: 'file_size', sortOrder: 'asc' });
@@ -157,14 +157,14 @@ describe('GalleryHeader', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: /public sort/i })).toBeInTheDocument();
     });
 
     await act(async () => {
       window.dispatchEvent(new Event('gallery:open-public-sort'));
     });
 
-    expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /public sort/i })).toBeInTheDocument();
   });
 
   it('keeps project settings and gallery navigation in the overflow menu', async () => {
