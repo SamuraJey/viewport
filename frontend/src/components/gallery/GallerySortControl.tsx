@@ -7,7 +7,7 @@ interface GallerySortControlProps {
   ariaLabel: string;
   description: string;
   value: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; shortLabel?: string }[];
   onChange: (value: string) => void;
   buttonRef?: RefObject<HTMLButtonElement | null>;
   isSaving?: boolean;
@@ -23,7 +23,8 @@ export const GallerySortControl = ({
   buttonRef,
   isSaving,
 }: GallerySortControlProps) => {
-  const currentLabel = options.find((option) => option.value === value)?.label;
+  const currentOption = options.find((option) => option.value === value);
+  const currentLabel = currentOption?.label;
   const isPublic = isSaving !== undefined;
   const Icon = isPublic ? Globe : ArrowUpDown;
 
@@ -33,7 +34,7 @@ export const GallerySortControl = ({
         buttonRef={buttonRef}
         buttonAriaLabel={`${ariaLabel}: ${currentLabel}`}
         buttonClassName={(open) =>
-          `flex min-h-14 w-full items-center gap-2 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+          `flex min-h-14 w-full items-center gap-1.5 rounded-xl px-2 py-2 sm:gap-2 sm:px-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
             open
               ? 'bg-accent/10 text-text'
               : 'bg-surface-1 text-text hover:bg-surface-foreground dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
@@ -44,11 +45,13 @@ export const GallerySortControl = ({
             {isSaving ? (
               <LoaderCircle aria-hidden className="h-4 w-4 shrink-0 animate-spin text-muted" />
             ) : (
-              <Icon aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+              <Icon aria-hidden className="hidden h-4 w-4 shrink-0 text-muted sm:block" />
             )}
             <span className="min-w-0 flex-1">
               <span className="block text-xs text-muted">{label}</span>
-              <span className="block text-sm font-medium leading-snug">{currentLabel}</span>
+              <span className="block truncate text-sm font-medium leading-snug">
+                {currentOption?.shortLabel ?? currentLabel}
+              </span>
             </span>
             <ChevronDown
               aria-hidden

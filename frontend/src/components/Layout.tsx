@@ -182,14 +182,14 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
       <main
         id="main-content"
         tabIndex={-1}
-        className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8"
+        className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-4 sm:pt-8 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8"
       >
         <NetworkStatus />
         {children}
       </main>
       <nav
         aria-label="Primary mobile navigation"
-        className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 rounded-3xl border border-border/60 bg-surface/95 p-2 shadow-2xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/95 md:hidden"
+        className="fixed inset-x-3 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 rounded-2xl border border-border/60 bg-surface/95 p-1 shadow-lg backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/95 md:hidden"
       >
         <div className="grid grid-cols-2 gap-1">
           {navItems.map(({ to, label, icon: Icon, active }) => (
@@ -197,7 +197,7 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
               key={to}
               to={to}
               aria-current={active ? 'page' : undefined}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 text-[11px] font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
+              className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
                 active
                   ? 'bg-accent text-accent-foreground shadow-sm'
                   : 'text-muted hover:bg-surface-1 hover:text-text dark:hover:bg-surface-dark-1'

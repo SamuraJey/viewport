@@ -98,6 +98,44 @@ const createProps = () => ({
 });
 
 describe('GalleryHeader', () => {
+  it('opens search with focus and clears the filter when closed', async () => {
+    const user = userEvent.setup();
+    const props = createProps();
+    render(
+      <MemoryRouter>
+        <GalleryHeader {...props} />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Search photos' }));
+    const search = screen.getByRole('searchbox', { name: 'Search by filename' });
+    expect(search).toHaveFocus();
+    await user.type(search, 'a');
+    expect(props.onSearchChange).toHaveBeenCalledWith('a');
+    await user.click(screen.getByRole('button', { name: 'Close photo search' }));
+    expect(props.onSearchChange).toHaveBeenLastCalledWith('');
+    expect(screen.getByRole('button', { name: 'Search photos' })).toHaveFocus();
+  });
+
+  it('keeps URL search visible and exposes gallery details on demand', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <GalleryHeader {...createProps()} searchValue="portrait" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('button', { name: 'Close photo search' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByRole('searchbox', { name: 'Search by filename' })).toHaveValue('portrait');
+    const details = screen.getByRole('button', { name: /Details/ });
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    await user.click(details);
+    expect(details).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText('Shooting date')).toBeInTheDocument();
+  });
+
   it('opens the public sort popover from the button', async () => {
     const user = userEvent.setup();
 
