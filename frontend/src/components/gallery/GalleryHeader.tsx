@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -85,6 +86,8 @@ interface GalleryHeaderProps {
   onPublicSortChange: (value: { sortBy: GalleryPhotoSortBy; sortOrder: SortOrder }) => void;
   isSavingPublicSortSettings: boolean;
   searchValue: string;
+  searchOpen: boolean;
+  onSearchOpenChange: (open: boolean) => void;
   sortBy: GalleryPhotoSortBy;
   sortOrder: SortOrder;
   onDeleteGallery: () => void;
@@ -130,6 +133,8 @@ export const GalleryHeader = ({
   onPublicSortChange,
   isSavingPublicSortSettings,
   searchValue,
+  searchOpen,
+  onSearchOpenChange,
   sortBy,
   sortOrder,
   onDeleteGallery,
@@ -146,7 +151,8 @@ export const GalleryHeader = ({
   onSortChange,
 }: GalleryHeaderProps) => {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const titleSectionRef = useRef<HTMLElement | null>(null);
+  const toolbarRef = useRef<HTMLElement | null>(null);
   const searchButtonRef = useRef<HTMLButtonElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const isSearchVisible = searchOpen || searchValue.length > 0;
@@ -248,6 +254,23 @@ export const GalleryHeader = ({
     if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
 
+  useLayoutEffect(() => {
+    const titleSection = titleSectionRef.current;
+    const toolbar = toolbarRef.current;
+    if (!titleSection || !toolbar) return;
+
+    const updateTitleHeight = () => {
+      toolbar.style.setProperty(
+        '--gallery-title-height',
+        `${titleSection.getBoundingClientRect().height}px`,
+      );
+    };
+    updateTitleHeight();
+    const observer = new ResizeObserver(updateTitleHeight);
+    observer.observe(titleSection);
+    return () => observer.disconnect();
+  }, []);
+
   const activeSortValue = `${sortBy}:${sortOrder}` as SortOption['value'];
   const activePublicSortValue = `${publicSortBy}:${publicSortOrder}` as SortOption['value'];
   const activeSortLabel =
@@ -279,7 +302,10 @@ export const GalleryHeader = ({
 
   return (
     <div className="contents sm:relative sm:z-20 sm:-mx-2 sm:block" data-gallery-header>
-      <section className="relative z-20 rounded-2xl border border-border/45 bg-surface/96 px-4 py-3 shadow-xs backdrop-blur-md dark:border-border/35 dark:bg-surface-dark/94 sm:sticky sm:top-19 sm:px-5">
+      <section
+        ref={titleSectionRef}
+        className="relative z-20 rounded-2xl border border-border/45 bg-surface/96 px-4 py-3 shadow-xs backdrop-blur-md dark:border-border/35 dark:bg-surface-dark/94 sm:sticky sm:top-19 sm:px-5"
+      >
         <div className="flex min-h-14 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-3">
@@ -312,28 +338,6 @@ export const GalleryHeader = ({
                 className={`h-3.5 w-3.5 ${detailsOpen ? 'rotate-180' : ''}`}
               />
             </button>
-            <div
-              id="gallery-metadata"
-              className={`${detailsOpen ? 'flex' : 'hidden'} mt-2 min-w-0 flex-wrap items-center gap-x-3 gap-y-2 pl-1 text-sm font-medium text-muted sm:flex`}
-            >
-              <span>{metaLine}</span>
-              <label
-                htmlFor="gallery-shooting-date"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border/35 bg-surface-1/65 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted transition-colors focus-within:border-accent/50 dark:border-border/30 dark:bg-surface-dark-1/70"
-              >
-                <span>Shooting</span>
-                <input
-                  id="gallery-shooting-date"
-                  type="date"
-                  value={shootingDateInput}
-                  onChange={(event) => onShootingDateChange(event.target.value)}
-                  className="gallery-date-input h-5 min-w-0 border-none bg-transparent px-0 text-base font-bold normal-case tracking-normal text-text focus:outline-hidden sm:text-xs"
-                  aria-label="Shooting date"
-                />
-                {isSavingShootingDate && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
-              </label>
-              {subtitle ? <div className="min-w-0 truncate">{subtitle}</div> : null}
-            </div>
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
@@ -508,8 +512,32 @@ export const GalleryHeader = ({
         </div>
       </section>
 
+      <div
+        id="gallery-metadata"
+        className={`${detailsOpen ? 'flex' : 'hidden'} mt-2 min-w-0 flex-wrap items-center gap-x-3 gap-y-2 pl-1 text-sm font-medium text-muted sm:flex`}
+      >
+        <span>{metaLine}</span>
+        <label
+          htmlFor="gallery-shooting-date"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border/35 bg-surface-1/65 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted transition-colors focus-within:border-accent/50 dark:border-border/30 dark:bg-surface-dark-1/70"
+        >
+          <span>Shooting</span>
+          <input
+            id="gallery-shooting-date"
+            type="date"
+            value={shootingDateInput}
+            onChange={(event) => onShootingDateChange(event.target.value)}
+            className="gallery-date-input h-5 min-w-0 border-none bg-transparent px-0 text-base font-bold normal-case tracking-normal text-text focus:outline-hidden sm:text-xs"
+            aria-label="Shooting date"
+          />
+          {isSavingShootingDate && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
+        </label>
+        {subtitle ? <div className="min-w-0 truncate">{subtitle}</div> : null}
+      </div>
+
       <section
-        className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-20 mt-3 rounded-2xl border border-border/40 bg-surface/95 p-3 shadow-xs backdrop-blur-md dark:border-border/30 dark:bg-surface-dark/92 sm:top-[9.3rem]"
+        ref={toolbarRef}
+        className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-20 mt-3 rounded-2xl border border-border/40 bg-surface/95 p-3 shadow-xs backdrop-blur-md dark:border-border/30 dark:bg-surface-dark/92 sm:top-[calc(4.75rem+var(--gallery-title-height,0px)+0.75rem)]"
         aria-label="Gallery photo controls"
       >
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
@@ -540,10 +568,10 @@ export const GalleryHeader = ({
               onClick={() => {
                 if (isSearchVisible) {
                   onSearchChange('');
-                  setSearchOpen(false);
+                  onSearchOpenChange(false);
                   searchButtonRef.current?.focus();
                 } else {
-                  setSearchOpen(true);
+                  onSearchOpenChange(true);
                 }
               }}
               className={`flex h-11 w-11 items-center justify-center rounded-xl focus-visible:outline-2 focus-visible:outline-accent sm:hidden ${isSearchVisible ? 'bg-accent/10 text-text' : 'bg-surface-1 text-muted dark:bg-surface-dark-1'}`}

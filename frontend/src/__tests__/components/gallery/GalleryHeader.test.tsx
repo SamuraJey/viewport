@@ -87,6 +87,8 @@ const createProps = () => ({
   onPublicSortChange: vi.fn(),
   isSavingPublicSortSettings: false,
   searchValue: '',
+  searchOpen: false,
+  onSearchOpenChange: vi.fn(),
   sortBy: 'uploaded_at' as const,
   sortOrder: 'desc' as const,
   onDeleteGallery: vi.fn(),
@@ -98,9 +100,15 @@ describe('GalleryHeader', () => {
   it('opens search with focus and clears the filter when closed', async () => {
     const user = userEvent.setup();
     const props = createProps();
+    const ControlledHeader = () => {
+      const [searchOpen, setSearchOpen] = useState(false);
+      return (
+        <GalleryHeader {...props} searchOpen={searchOpen} onSearchOpenChange={setSearchOpen} />
+      );
+    };
     render(
       <MemoryRouter>
-        <GalleryHeader {...props} />
+        <ControlledHeader />
       </MemoryRouter>,
     );
 

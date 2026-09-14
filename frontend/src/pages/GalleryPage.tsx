@@ -115,6 +115,7 @@ export const GalleryPage = () => {
   const sortOrder: SortOrder = isSortOrder(orderParam) ? orderParam : DEFAULT_SORT_ORDER;
 
   const [searchInput, setSearchInput] = useState(urlSearch);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [publicSortByInput, setPublicSortByInput] =
     useState<GalleryPhotoSortBy>(DEFAULT_PUBLIC_SORT_BY);
   const [publicSortOrderInput, setPublicSortOrderInput] =
@@ -931,6 +932,7 @@ export const GalleryPage = () => {
         event.key === '/'
       ) {
         event.preventDefault();
+        setSearchOpen(true);
         searchElement?.focus();
         searchElement?.select();
         return;
@@ -1233,6 +1235,8 @@ export const GalleryPage = () => {
             }}
             isSavingPublicSortSettings={isSavingPublicSortSettings}
             searchValue={searchInput}
+            searchOpen={searchOpen}
+            onSearchOpenChange={setSearchOpen}
             sortBy={sortBy}
             sortOrder={sortOrder}
             onDeleteGallery={handleDeleteGallery}

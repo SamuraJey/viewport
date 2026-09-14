@@ -326,6 +326,20 @@ describe('GalleryPage', () => {
     expect(screen.getAllByRole('img')).toHaveLength(3);
   });
 
+  it('opens collapsed photo search with slash and focuses it', async () => {
+    const user = userEvent.setup();
+    render(<GalleryPageWrapper />);
+    const toggle = await screen.findByRole('button', { name: 'Search photos' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    await user.keyboard('/');
+    expect(screen.getByRole('button', { name: 'Close photo search' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByRole('searchbox', { name: 'Search by filename' })).toHaveFocus();
+  });
+
   it('delays the initial gallery skeleton to avoid flashing on fast requests', async () => {
     vi.useFakeTimers();
     const { galleryService } = await import('../../services/galleryService');

@@ -100,3 +100,9 @@ confirmation dialogs, with long names and increased text size.
 - The mobile navigation dock uses a single row of icons and labels with at least
   44px-high targets. Content bottom padding and the dock retain safe-area spacing;
   the gallery no longer adds a second redundant bottom spacer.
+
+Gallery search visibility is owned by `GalleryPage`: the `/` shortcut opens the
+collapsed mobile search before focus, with focus restored after the field becomes
+visible. At `sm` and wider, the photo toolbar sits below the measured title/action
+section height (updated by ResizeObserver), with a 12px gap. Gallery metadata stays
+outside both sticky sections and scrolls away.
