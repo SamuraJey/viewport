@@ -7,6 +7,7 @@ describe('photoAspectRatioCache', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     window.sessionStorage.clear();
+    vi.clearAllMocks();
     vi.resetModules();
   });
 

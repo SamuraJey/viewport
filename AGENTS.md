@@ -131,6 +131,7 @@
     - Preserve isolation by keeping per-test DB cleanup (`TRUNCATE ... CASCADE`) and per-test S3 bucket isolation in place for tests that touch those resources.
     - If adding new integration tests, reuse existing container fixtures first; introduce new testcontainers only when mocking cannot validate required behavior.
 - Frontend checks: `cd frontend && npm run lint:fix && npm run test:run`. The frontend is linted with [oxlint](https://oxc.rs/) (configured via `frontend/.oxlintrc.json`) and compiled with [TypeScript 7](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/) (native Go-based `tsc`); use `npm run lint:fix` to apply auto-fixes when needed.
+- Frontend Vitest uses isolated `threads` capped at 12 available CPUs, with `dom` (jsdom + browser setup) and `unit` (Node-only, explicit `nodeTestFiles` list) projects. Keep their include/exclude lists disjoint, preserve file isolation, and await asynchronous React work instead of suppressing warnings. See `docs/frontend-testing.md` for targeted runs and performance checks.
 - Frontend production build requires `VITE_API_URL` in the environment; run it as `VITE_API_URL=https://... npm run build` or the Vite config will fail fast.
 
 ## Service Architecture

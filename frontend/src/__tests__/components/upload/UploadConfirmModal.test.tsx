@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UploadConfirmModal } from '../../../components/upload/UploadConfirmModal';
@@ -89,21 +89,23 @@ describe('UploadConfirmModal', () => {
     });
   });
 
-  it('keeps the aggregate progress above the scrollable queue', () => {
+  it('keeps the aggregate progress above the scrollable queue', async () => {
     const files = Array.from(
       { length: 5 },
       (_, index) => new File(['image'], `photo-${index + 1}.jpg`, { type: 'image/jpeg' }),
     );
 
-    render(
-      <UploadConfirmModal
-        isOpen
-        onClose={vi.fn()}
-        files={files}
-        galleryId="gallery-1"
-        onUploadComplete={vi.fn()}
-      />,
-    );
+    await act(async () => {
+      render(
+        <UploadConfirmModal
+          isOpen
+          onClose={vi.fn()}
+          files={files}
+          galleryId="gallery-1"
+          onUploadComplete={vi.fn()}
+        />,
+      );
+    });
 
     const overallStatus = screen.getByTestId('upload-overall-status');
     const scrollRegion = screen.getByTestId('upload-scroll-region');
