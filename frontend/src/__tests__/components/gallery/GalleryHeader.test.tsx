@@ -8,11 +8,8 @@ type MockPopoverCloseTarget = HTMLElement | RefObject<HTMLElement | null>;
 type MockPopoverClose = (focusableElement?: MockPopoverCloseTarget) => void;
 type MockPopoverPanel = ReactNode | ((close: MockPopoverClose) => ReactNode);
 
-vi.mock('../../../components/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../components/ui')>();
-
+vi.mock('../../../components/ui/AppPopover', () => {
   return {
-    ...actual,
     AppPopover: ({
       className,
       buttonClassName,

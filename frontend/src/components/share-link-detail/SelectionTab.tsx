@@ -20,7 +20,7 @@ import type {
   SelectionItem,
   SelectionSession,
 } from '../../types';
-import { AppSwitch } from '../ui';
+import { AppSwitch } from '../ui/AppSwitch';
 import { SETTINGS_SWITCH_CLASS, SETTINGS_SWITCH_THUMB_CLASS } from './constants';
 import { SelectionMetricCard } from './SelectionMetricCard';
 import { SessionStatusBadge } from './SessionStatusBadge';

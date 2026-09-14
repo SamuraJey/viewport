@@ -9,7 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 
-import { AppPopover } from '../ui';
+import { AppPopover } from '../ui/AppPopover';
 
 interface ProjectCardContextMenuProps {
   projectName: string;

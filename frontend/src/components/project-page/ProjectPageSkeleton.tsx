@@ -1,4 +1,4 @@
-import { Skeleton } from '../ui';
+import { Skeleton } from '../ui/Skeleton';
 
 const METRIC_KEYS = ['galleries', 'photos', 'storage', 'links'] as const;
 const GALLERY_KEYS = ['gallery-one', 'gallery-two', 'gallery-three'] as const;

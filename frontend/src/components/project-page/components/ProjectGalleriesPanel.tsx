@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 
 import { EnhancedGalleryCard } from '../../dashboard/EnhancedGalleryCard';
-import { AppBadge, AppPopover } from '../../ui';
+import { AppBadge } from '../../ui/AppBadge';
+import { AppPopover } from '../../ui/AppPopover';
 import type { Gallery, ProjectGallerySummary } from '../../../types';
 import { VISIBILITY_ACTION_BUTTON_CLASS, cardVariants } from '../constants';
 import { ProjectGuidanceItem } from '../ProjectGuidanceItem';

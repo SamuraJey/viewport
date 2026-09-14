@@ -62,3 +62,36 @@ For 94 files / 694 tests on the same 18-logical-CPU machine:
 
 The normal run improved by about 29%. Both final full runs completed without
 stderr diagnostics. These are local measurements, not a CI performance threshold.
+
+## Keep UI imports narrow
+
+Import UI primitives from their own files in both application code and tests:
+
+```ts
+import { AppDialog, AppDialogTitle } from '../ui/AppDialog';
+import { Skeleton } from '../ui/Skeleton';
+```
+
+The `components/ui/index.ts` compatibility barrel re-exports every primitive.
+Loading it during a test also loads unrelated drawers, dialogs and their Vaul,
+Headless UI and animation dependencies, even for a badge or skeleton. Production
+bundler tree-shaking does not make those test-time imports free.
+
+Mock the same leaf path used by the component, such as
+`vi.mock('../../components/ui/AppPopover', ...)`. When replacing that module's
+only export, return the mock directly; do not call `importOriginal` on the entire
+UI barrel just to spread exports that the test does not use.
+
+After replacing 43 UI-barrel imports and two broad mocks, a local before/after
+comparison gave:
+
+| Scope | Before | After |
+| --- | ---: | ---: |
+| Full suite wall time | 17.28 s | 16.86 s |
+| Full suite summed import time | 37.70 s | 32.71 s |
+| AppBadge + Skeleton + PhotoCard wall time | 1.89 s | 1.45 s |
+| Those three files' summed import time | 1.66 s | 0.365 s |
+
+The focused comparison used `--maxWorkers=1`; both full runs passed all 694 tests
+without stderr output. The full-suite wall-time difference is small and subject
+to normal run-to-run noise; the import reduction is most useful for focused tests.

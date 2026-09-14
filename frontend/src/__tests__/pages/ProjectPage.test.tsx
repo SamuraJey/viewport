@@ -5,11 +5,8 @@ import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('../../components/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../components/ui')>();
-
+vi.mock('../../components/ui/AppPopover', () => {
   return {
-    ...actual,
     AppPopover: ({
       buttonAriaLabel,
       buttonClassName,

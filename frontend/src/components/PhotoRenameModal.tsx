@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { FileText, Check, LoaderCircle } from 'lucide-react';
 import { sanitizeFilenameStem, isValidFilenameStem } from '../lib/filenameUtils';
 import { toast } from 'sonner';
-import { AppDrawer, AppDrawerSection } from './ui';
+import { AppDrawer } from './ui/AppDrawer';
+import { AppDrawerSection } from './ui/AppDrawerSection';
 
 export interface PhotoRenameModalProps {
   isOpen: boolean;

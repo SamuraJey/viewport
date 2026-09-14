@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
 import type { GalleryDetail, GalleryPhotoSortBy, SortOrder } from '../../types';
-import { AppPopover } from '../ui';
+import { AppPopover } from '../ui/AppPopover';
 import { GallerySortControl } from './GallerySortControl';
 
 interface SortOption {

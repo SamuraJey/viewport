@@ -1,4 +1,4 @@
-import { Skeleton } from '../ui';
+import { Skeleton } from '../ui/Skeleton';
 
 const HEALTH_KEYS = ['health', 'engagement', 'selection', 'signal'] as const;
 const META_KEYS = ['expires', 'updated', 'source', 'download-rate'] as const;

@@ -1,7 +1,7 @@
 import QRCode from 'react-qr-code';
 import { Check, Copy, Mail, MessageCircle, QrCode, Share2, Smartphone } from 'lucide-react';
 
-import { AppDrawer } from '../ui';
+import { AppDrawer } from '../ui/AppDrawer';
 
 interface PublicGalleryShareDrawerProps {
   open: boolean;

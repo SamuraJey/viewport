@@ -3,7 +3,7 @@ import { Link2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '../../lib/utils';
-import { AppBadge } from '../ui';
+import { AppBadge } from '../ui/AppBadge';
 
 interface CollectionCardProps extends Pick<
   HTMLMotionProps<'article'>,

@@ -13,7 +13,8 @@ import {
 import type { GalleryPhoto } from '../../types/photo';
 import type { PublicPhoto } from '../../types/sharelink';
 import type { PhotoSpacing, PublicColorScheme } from '../../types/gallery';
-import { AppBadge, AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
+import { AppBadge } from '../ui/AppBadge';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui/AppDialog';
 import {
   getPublicGalleryThemeClassName,
   normalizePublicGalleryAppearance,

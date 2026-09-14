@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { PaginationControls } from '../components/PaginationControls';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
-import { AppPopover } from '../components/ui';
+import { AppPopover } from '../components/ui/AppPopover';
 import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusBadge';
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
 import { useConfirmation } from '../hooks/useConfirmation';

@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
 import { LoaderCircle } from 'lucide-react';
-import { Skeleton } from '../ui';
+import { Skeleton } from '../ui/Skeleton';
 
 interface GalleryLoadErrorStateProps {
   error: string;

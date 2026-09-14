@@ -1,5 +1,5 @@
 import { CircleHelp } from 'lucide-react';
-import { AppPopover } from '../ui';
+import { AppPopover } from '../ui/AppPopover';
 
 interface AppearanceInfoTooltipProps {
   text: string;

@@ -19,7 +19,7 @@ import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySele
 import { GalleryDropZone } from '../components/gallery/GalleryDropZone';
 import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
 import { GalleryAppearanceSection } from '../components/gallery-appearance/GalleryAppearanceSection';
-import { AppTabs } from '../components/ui';
+import { AppTabs } from '../components/ui/AppTabs';
 import {
   GalleryInitialLoadingState,
   GalleryLoadErrorState,

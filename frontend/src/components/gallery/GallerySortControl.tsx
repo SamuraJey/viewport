@@ -1,6 +1,6 @@
 import type { RefObject } from 'react';
 import { ArrowUpDown, Check, ChevronDown, Globe, LoaderCircle } from 'lucide-react';
-import { AppPopover } from '../ui';
+import { AppPopover } from '../ui/AppPopover';
 
 interface GallerySortControlProps {
   label: string;

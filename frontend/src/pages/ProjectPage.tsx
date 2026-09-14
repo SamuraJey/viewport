@@ -22,7 +22,8 @@ import {
 } from 'lucide-react';
 import { MetricCard } from '../components/dashboard/MetricCard';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
-import { AppDialog, AppDialogDescription, AppDialogTitle, AppTabs } from '../components/ui';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui/AppDialog';
+import { AppTabs } from '../components/ui/AppTabs';
 import { GALLERY_NAME_MAX_LENGTH } from '../constants/gallery';
 import { filterTopLevelFiles, isSupportedUploadFile } from '../components/upload/uploadUtils';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';

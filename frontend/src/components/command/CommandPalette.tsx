@@ -7,7 +7,7 @@ import type { Command as CommandType } from './CommandRegistry';
 import { CommandItem } from './CommandItem';
 import { readCommandHistory, pushCommandHistory } from './commandHistory';
 import { useCommandItems } from '../../hooks/useCommandItems';
-import { AppDialog, AppDialogTitle } from '../ui';
+import { AppDialog, AppDialogTitle } from '../ui/AppDialog';
 import { useThemeStore } from '../../stores/themeStore';
 import { useAuthStore } from '../../stores/authStore';
 

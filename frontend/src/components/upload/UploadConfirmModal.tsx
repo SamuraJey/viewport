@@ -24,7 +24,7 @@ import { UploadQueueList } from './UploadQueueList';
 import { UploadProgressContent } from '../upload-confirm/UploadProgressContent';
 import { UploadResultContent } from '../upload-confirm/UploadResultContent';
 import { UploadCancelWarning } from '../upload-confirm/UploadModalActions';
-import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui/AppDialog';
 
 export interface UploadConfirmModalProps {
   isOpen: boolean;
