@@ -7,7 +7,7 @@ import { PhotoCard } from './PhotoCard';
 import { PhotoSelectionBar } from './PhotoSelectionBar';
 import type { PhotoUploaderHandle } from '../PhotoUploader';
 import { formatFileSize } from '../../lib/utils';
-import type { GalleryPhoto } from '../../types';
+import type { GalleryPhoto, PhotoRotationDirection } from '../../types';
 import { Skeleton } from '../ui/Skeleton';
 
 interface GalleryPagination {
@@ -54,6 +54,7 @@ interface GalleryPhotoSectionProps {
     onClearCover: () => void;
     onRenamePhoto: (photoId: string, filename: string) => void;
     onDownloadPhoto: (photoId: string) => void;
+    onRotatePhoto: (photoId: string, direction: PhotoRotationDirection) => void;
     onDeletePhoto: (photoId: string) => void;
     onDownloadSelectedPhotos: () => void;
     onClearSearch: () => void;
@@ -78,7 +79,7 @@ const GalleryPhotoGridSkeleton = ({ page, renderNonce }: { page: number; renderN
       <span className="text-sm font-bold uppercase tracking-wide">Loading photos</span>
       <span className="text-xs font-semibold text-muted/70">Page {page}</span>
     </div>
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 sm:gap-4">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3 sm:gap-4">
       {Array.from({ length: PHOTO_GRID_SKELETON_CARDS }).map((_, index) => (
         <div
           key={`photo-skeleton-${renderNonce}-${index}`}
@@ -174,7 +175,7 @@ const GalleryPhotoSectionComponent = ({
         <GalleryPhotoGridSkeleton page={pagination.page} renderNonce={skeletonRenderNonce} />
       ) : state.photoUrls.length > 0 ? (
         <div
-          className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 pt-4 sm:gap-4"
+          className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3 pt-4 sm:gap-4"
           ref={gridRef}
         >
           {state.photoUrls.map((photo, index) => (
@@ -191,6 +192,7 @@ const GalleryPhotoSectionComponent = ({
               onClearCover={actions.onClearCover}
               onRenamePhoto={actions.onRenamePhoto}
               onDownloadPhoto={actions.onDownloadPhoto}
+              onRotatePhoto={actions.onRotatePhoto}
               onDeletePhoto={actions.onDeletePhoto}
             />
           ))}

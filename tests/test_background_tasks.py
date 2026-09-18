@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import pytest
 from botocore.exceptions import ClientError, ConnectionClosedError, ConnectTimeoutError, EndpointConnectionError, ReadTimeoutError, SSLError
-from PIL import Image
+from PIL import Image, ImageOps
 from sqlalchemy import delete
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -30,6 +30,7 @@ from viewport.background_tasks import (
     notify_selection_submitted_task,
     reconcile_storage_quotas_task,
     reconcile_successful_uploads_task,
+    rotate_photo_task,
 )
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
@@ -156,6 +157,49 @@ def test_create_thumbnails_batch_task_creates_thumbnail(engine: Engine, s3_conta
             bucket = S3Settings().bucket
             response = s3_client.head_object(Bucket=bucket, Key=updated_photo.thumbnail_object_key)
             assert response["ContentLength"] > 0
+
+
+def test_rotate_photo_task_replaces_original_and_thumbnail(engine: Engine, s3_container) -> None:
+    content = _create_dummy_jpeg_bytes(width=640, height=480)
+    with photo_context(
+        engine,
+        "rotation-test",
+        "rotation-original.jpg",
+        content=content,
+        status=PhotoUploadStatus.PROCESSING,
+    ) as ctx:
+        payload = {
+            "photo_id": str(ctx.photo_id),
+            "gallery_id": str(ctx.gallery_id),
+            "owner_id": str(ctx.user_id),
+            "object_key": ctx.object_key,
+            "thumbnail_object_key": ctx.object_key,
+            "source_content_type": "image/jpeg",
+            "operation_id": "rotationtest",
+            "clockwise": True,
+        }
+
+        result = rotate_photo_task.run(payload)
+
+        assert result["status"] == "success"
+        with session_scope(engine) as session:
+            updated_photo = session.get(Photo, ctx.photo_id)
+            assert updated_photo is not None
+            assert updated_photo.status == PhotoUploadStatus.SUCCESSFUL
+            assert updated_photo.object_key != ctx.object_key
+            assert updated_photo.thumbnail_object_key != ctx.object_key
+            assert (updated_photo.width, updated_photo.height) == (480, 640)
+
+            s3_client = get_s3_client()
+            bucket = S3Settings().bucket
+            rotated_response = s3_client.get_object(Bucket=bucket, Key=updated_photo.object_key)
+            with Image.open(io.BytesIO(rotated_response["Body"].read())) as rotated:
+                assert rotated.size == (640, 480)
+                assert rotated.getexif().get(274) == 6
+                assert ImageOps.exif_transpose(rotated).size == (480, 640)
+            assert s3_client.head_object(Bucket=bucket, Key=updated_photo.thumbnail_object_key)["ContentLength"] > 0
+            with pytest.raises(ClientError):
+                s3_client.head_object(Bucket=bucket, Key=ctx.object_key)
 
 
 def test_create_thumbnails_batch_task_skips_missing_object(engine: Engine, s3_container) -> None:

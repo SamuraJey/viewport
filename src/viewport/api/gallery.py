@@ -368,6 +368,14 @@ async def get_gallery_detail(
 def _build_gallery_zip_response(gallery_id: uuid.UUID, photos: list, archive_name: str) -> StreamingResponse:
     if not photos:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No photos found")
+    if any(photo.status in (PhotoUploadStatus.PENDING, PhotoUploadStatus.PROCESSING) for photo in photos):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="One or more photos are still processing. Try the download again shortly.",
+        )
+    photos = [photo for photo in photos if photo.status == PhotoUploadStatus.SUCCESSFUL]
+    if not photos:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No photos found")
 
     settings = get_s3_settings()
     z = zipstream.ZipStream()

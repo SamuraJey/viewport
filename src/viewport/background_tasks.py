@@ -15,6 +15,7 @@ from botocore.exceptions import ClientError, ConnectionClosedError, ConnectTimeo
 from celery.exceptions import SoftTimeLimitExceeded
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy.exc import OperationalError
 
 from viewport.auth_metrics import REFRESH_SESSION_CLEANUP_DURATION, REFRESH_SESSION_CLEANUP_ROWS
 from viewport.celery_app import celery_app
@@ -22,7 +23,7 @@ from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus
 from viewport.models.refresh_token_session import RefreshTokenSession
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
-from viewport.s3_utils import create_thumbnail, create_thumbnail_from_path, generate_playback_object_key, generate_thumbnail_object_key, get_s3_client, get_s3_settings
+from viewport.s3_utils import create_thumbnail, create_thumbnail_from_path, generate_playback_object_key, generate_thumbnail_object_key, get_s3_client, get_s3_settings, rotate_image_file
 from viewport.services.redis_service import RedisService
 from viewport.task_utils import BatchTaskResult, task_db_session
 from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, chunk_thumbnail_task_payloads, to_thumbnail_task_payloads
@@ -65,11 +66,28 @@ class VideoTransientError(Exception):
     """Retryable transient video processing error."""
 
 
+class RotationTransientError(Exception):
+    """Retryable failure while replacing an image with a rotated version."""
+
+
 class VideoTaskPayload(TypedDict):
     """JSON-serializable wire payload consumed by the video processing Celery task."""
 
     photo_id: str
     object_key: str
+
+
+class RotationTaskPayload(TypedDict):
+    """Idempotent payload for one persisted image quarter-turn."""
+
+    photo_id: str
+    gallery_id: str
+    owner_id: str
+    object_key: str
+    thumbnail_object_key: str
+    source_content_type: str | None
+    operation_id: str
+    clockwise: bool
 
 
 def _is_retryable_s3_error(error: Exception) -> bool:
@@ -347,8 +365,6 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
                 Photo.object_key,
                 Photo.thumbnail_object_key,
                 Photo.playback_object_key,
-                Photo.file_size,
-                Photo.status,
                 Photo.media_type,
             ).where(Photo.id == photo_uuid, Photo.gallery_id == gallery_uuid),
         ).one_or_none()
@@ -357,7 +373,7 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
             logger.warning("Photo %s not found in gallery %s", photo_id, gallery_id)
             return {"deleted": False, "reason": "Photo not found"}
 
-        object_key, thumbnail_object_key, playback_object_key, file_size, status, media_type = photo
+        object_key, thumbnail_object_key, playback_object_key, media_type = photo
 
     s3_client = get_s3_client()
     bucket = get_s3_settings().bucket
@@ -389,10 +405,38 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
                 raise
 
     with task_db_session() as db:
-        if status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
-            db.execute(update(User).where(User.id == owner_uuid).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
-        elif status == PhotoUploadStatus.PENDING:
-            db.execute(update(User).where(User.id == owner_uuid).values(storage_reserved=func.greatest(User.storage_reserved - file_size, 0)))
+        # Lock and re-read after S3 cleanup. A processor such as photo rotation
+        # may have atomically switched to versioned keys since the first read;
+        # deleting those current keys here prevents replacement-object orphans.
+        current = db.execute(
+            select(
+                Photo.object_key,
+                Photo.thumbnail_object_key,
+                Photo.playback_object_key,
+                Photo.file_size,
+                Photo.status,
+            )
+            .where(Photo.id == photo_uuid, Photo.gallery_id == gallery_uuid)
+            .with_for_update()
+        ).one_or_none()
+        if current is None:
+            return {"deleted": False, "reason": "Photo not found"}
+
+        current_object_key, current_thumbnail_key, current_playback_key, current_file_size, current_status = current
+        current_keys = [current_object_key, current_thumbnail_key, current_playback_key]
+        stale_keys = {object_key, thumbnail_object_key, playback_object_key}
+        replacement_keys = [key for key in current_keys if key and key not in stale_keys]
+        for replacement_key in dict.fromkeys(replacement_keys):
+            try:
+                s3_client.delete_object(Bucket=bucket, Key=replacement_key)
+            except ClientError as error:
+                if error.response.get("Error", {}).get("Code") != "NoSuchKey":
+                    raise
+
+        if current_status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
+            db.execute(update(User).where(User.id == owner_uuid).values(storage_used=func.greatest(User.storage_used - current_file_size, 0)))
+        elif current_status == PhotoUploadStatus.PENDING:
+            db.execute(update(User).where(User.id == owner_uuid).values(storage_reserved=func.greatest(User.storage_reserved - current_file_size, 0)))
 
         db.execute(delete(Photo).where(Photo.id == photo_uuid))
 
@@ -536,6 +580,217 @@ def create_thumbnails_batch_task(self, photos: list[ThumbnailTaskPayload]) -> di
 
     logger.info("Batch completion: %s success, %s skipped, %s failed", result_tracker.successful, result_tracker.skipped, result_tracker.failed)
     return result_tracker.to_dict()
+
+
+# --- Persisted image rotation -------------------------------------------------
+
+
+def _rotation_object_key(object_key: str, operation_id: str) -> str:
+    stem, suffix = os.path.splitext(object_key)
+    base_stem = stem.split("_rotated_", 1)[0]
+    return f"{base_stem}_rotated_{operation_id}{suffix.lower()}"
+
+
+def _finish_rotation_failure(payload: RotationTaskPayload, message: str) -> None:
+    """Restore the still-valid old original after a rotation failure."""
+
+    with task_db_session() as db:
+        db.execute(
+            update(Photo)
+            .where(
+                Photo.id == uuid.UUID(payload["photo_id"]),
+                Photo.gallery_id == uuid.UUID(payload["gallery_id"]),
+                Photo.object_key == payload["object_key"],
+                Photo.status == PhotoUploadStatus.PROCESSING,
+            )
+            .values(
+                status=PhotoUploadStatus.SUCCESSFUL,
+                processing_error=message,
+            )
+        )
+
+
+def _delete_rotation_objects(s3_client: "S3Client", bucket: str, object_keys: list[str]) -> None:
+    for object_key in dict.fromkeys(key for key in object_keys if key):
+        try:
+            s3_client.delete_object(Bucket=bucket, Key=object_key)
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") != "NoSuchKey":
+                logger.warning("Failed to delete superseded rotation object %s: %s", object_key, error)
+        except Exception as error:
+            logger.warning("Failed to delete superseded rotation object %s: %s", object_key, error)
+
+
+def _rotate_photo_impl(payload: RotationTaskPayload) -> dict[str, Any]:
+    photo_id = uuid.UUID(payload["photo_id"])
+    gallery_id = uuid.UUID(payload["gallery_id"])
+    owner_id = uuid.UUID(payload["owner_id"])
+    old_object_key = payload["object_key"]
+    old_thumbnail_key = payload["thumbnail_object_key"]
+    new_object_key = _rotation_object_key(old_object_key, payload["operation_id"])
+    new_thumbnail_key = generate_thumbnail_object_key(new_object_key)
+    suffix = os.path.splitext(old_object_key)[1].lower()
+
+    if suffix not in {".jpg", ".jpeg", ".png"}:
+        raise ValueError("Only JPEG and PNG images can be rotated")
+
+    s3_client = get_s3_client()
+    bucket = get_s3_settings().bucket
+
+    with task_db_session() as db:
+        current = db.execute(
+            select(Photo.object_key, Photo.status)
+            .join(Photo.gallery)
+            .where(
+                Photo.id == photo_id,
+                Photo.gallery_id == gallery_id,
+                Gallery.owner_id == owner_id,
+                Gallery.is_deleted.is_(False),
+            )
+        ).one_or_none()
+
+    if current is None:
+        return {"status": "skipped", "reason": "Photo no longer exists"}
+    if current.object_key == new_object_key and current.status == PhotoUploadStatus.SUCCESSFUL:
+        _delete_rotation_objects(s3_client, bucket, [old_object_key, old_thumbnail_key])
+        return {"status": "success", "photo_id": payload["photo_id"], "idempotent": True}
+    if current.object_key != old_object_key or current.status != PhotoUploadStatus.PROCESSING:
+        return {"status": "skipped", "reason": "Rotation operation is no longer active"}
+
+    with tempfile.TemporaryDirectory(prefix="viewport-rotate-") as temp_dir:
+        output_path = os.path.join(temp_dir, f"rotated{suffix}")
+        try:
+            with _stream_s3_object_to_tempfile(s3_client, bucket, old_object_key) as source_path:
+                _rotated_width, _rotated_height, new_file_size = rotate_image_file(
+                    source_path,
+                    output_path,
+                    clockwise=payload["clockwise"],
+                )
+            thumbnail_bytes, thumbnail_width, thumbnail_height = create_thumbnail_from_path(output_path)
+        except (ThumbnailScratchError, ThumbnailSourceError) as error:
+            cause = error.__cause__ if isinstance(error.__cause__, Exception) else error
+            if _is_retryable_s3_error(cause):
+                raise RotationTransientError("Retryable rotation source failure") from error
+            raise
+
+        content_type = payload["source_content_type"] or ("image/png" if suffix == ".png" else "image/jpeg")
+        if content_type == "image/jpg":
+            content_type = "image/jpeg"
+
+        try:
+            s3_client.upload_file(
+                output_path,
+                bucket,
+                new_object_key,
+                ExtraArgs={"ContentType": content_type},
+            )
+            s3_client.put_object(
+                Body=thumbnail_bytes,
+                Bucket=bucket,
+                Key=new_thumbnail_key,
+                ContentType="image/avif",
+                CacheControl="public, max-age=31536000, immutable",
+            )
+        except Exception as error:
+            if _is_retryable_s3_error(error):
+                raise RotationTransientError("Retryable rotation upload failure") from error
+            raise
+        finally:
+            del thumbnail_bytes
+
+    quota_failed = False
+    switched = False
+    with task_db_session() as db:
+        photo_row = db.execute(
+            select(Photo)
+            .join(Photo.gallery)
+            .where(
+                Photo.id == photo_id,
+                Photo.gallery_id == gallery_id,
+                Gallery.owner_id == owner_id,
+                Gallery.is_deleted.is_(False),
+                Photo.object_key == old_object_key,
+                Photo.status == PhotoUploadStatus.PROCESSING,
+            )
+            .with_for_update()
+        ).scalar_one_or_none()
+
+        if photo_row is not None:
+            size_delta = new_file_size - photo_row.file_size
+            user_update = update(User).where(User.id == owner_id)
+            if size_delta > 0:
+                user_update = user_update.where(
+                    (User.storage_quota - User.storage_used - User.storage_reserved) >= size_delta,
+                )
+            user_id = db.execute(
+                user_update.values(
+                    storage_used=func.greatest(User.storage_used + size_delta, 0),
+                ).returning(User.id)
+            ).scalar_one_or_none()
+
+            if user_id is None:
+                quota_failed = True
+                photo_row.status = PhotoUploadStatus.SUCCESSFUL
+                photo_row.processing_error = "Rotation needs more available storage. Free some space and try again."
+            else:
+                photo_row.object_key = new_object_key
+                photo_row.thumbnail_object_key = new_thumbnail_key
+                photo_row.file_size = new_file_size
+                photo_row.width = thumbnail_width
+                photo_row.height = thumbnail_height
+                photo_row.status = PhotoUploadStatus.SUCCESSFUL
+                photo_row.processing_error = None
+                switched = True
+
+    if not switched:
+        _delete_rotation_objects(s3_client, bucket, [new_object_key, new_thumbnail_key])
+        if quota_failed:
+            return {"status": "error", "photo_id": payload["photo_id"], "reason": "Storage quota exceeded"}
+        return {"status": "skipped", "reason": "Photo changed while rotation was running"}
+
+    _delete_rotation_objects(s3_client, bucket, [old_object_key, old_thumbnail_key])
+    logger.info(
+        "Rotated photo %s (%s) and replaced stored original",
+        photo_id,
+        "clockwise" if payload["clockwise"] else "counterclockwise",
+    )
+    return {
+        "status": "success",
+        "photo_id": payload["photo_id"],
+        "object_key": new_object_key,
+        "thumbnail_object_key": new_thumbnail_key,
+        "width": thumbnail_width,
+        "height": thumbnail_height,
+    }
+
+
+@celery_app.task(
+    name="rotate_photo",
+    bind=True,
+    max_retries=5,
+    acks_late=True,
+)
+def rotate_photo_task(self, payload: RotationTaskPayload) -> dict[str, Any]:
+    """Persist a quarter-turn in a new original object, then atomically switch DB keys."""
+
+    try:
+        return _rotate_photo_impl(payload)
+    except (RotationTransientError, OperationalError) as error:
+        if self.request.retries >= self.max_retries:
+            logger.exception("Rotation retries exhausted for photo %s", payload["photo_id"])
+            _finish_rotation_failure(payload, "Rotation could not be completed. Please try again.")
+            return {"status": "error", "photo_id": payload["photo_id"], "reason": "Retries exhausted"}
+        raise self.retry(exc=error, countdown=min(2 ** (self.request.retries + 1), 120)) from error
+    except Exception:
+        logger.exception("Rotation failed for photo %s", payload["photo_id"])
+        _finish_rotation_failure(payload, "Rotation failed. The original photo was kept unchanged.")
+        new_object_key = _rotation_object_key(payload["object_key"], payload["operation_id"])
+        _delete_rotation_objects(
+            get_s3_client(),
+            get_s3_settings().bucket,
+            [new_object_key, generate_thumbnail_object_key(new_object_key)],
+        )
+        return {"status": "error", "photo_id": payload["photo_id"], "reason": "Rotation failed"}
 
 
 # --- Video processing ---------------------------------------------------------

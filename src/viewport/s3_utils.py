@@ -1,12 +1,15 @@
 import io
 import logging
 import os
+import shutil
+import subprocess
 import tempfile
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 import boto3
 from botocore.client import Config
+from PIL import Image
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Configure logging - set botocore to WARNING level to reduce noise
@@ -186,6 +189,80 @@ def create_thumbnail_from_path(
     except Exception as error:
         logger.error("Failed to create thumbnail: %s", error)
         raise
+
+
+def rotate_image_file(
+    source_path: str | os.PathLike[str],
+    output_path: str | os.PathLike[str],
+    *,
+    clockwise: bool,
+) -> tuple[int, int, int]:
+    """Persist one quarter-turn without lossy JPEG recompression.
+
+    JPEG scan data is copied unchanged and only EXIF Orientation is composed
+    with the requested turn. PNG has no comparably portable orientation
+    contract, so its pixels are rotated and saved with lossless compression.
+    """
+
+    source = os.fspath(source_path)
+    output = os.fspath(output_path)
+    suffix = os.path.splitext(output)[1].lower()
+
+    try:
+        if suffix in {".jpg", ".jpeg"}:
+            return _rotate_jpeg_exif_orientation(source, output, clockwise=clockwise)
+        if suffix != ".png":
+            raise ValueError(f"Unsupported image extension for rotation: {suffix or '<none>'}")
+
+        pyvips = _get_pyvips()
+        # Quarter-turns change scanline order, so libvips needs random access
+        # to the disk-backed source rather than a sequential decoder contract.
+        image = pyvips.Image.new_from_file(source, access="random", fail_on="error")
+        image = image.autorot().rot("d90" if clockwise else "d270")
+        image.pngsave(output, compression=6, keep=31)
+
+        return image.width, image.height, os.path.getsize(output)
+    except Exception as error:
+        logger.error("Failed to rotate image: %s", error)
+        raise
+
+
+_CLOCKWISE_EXIF_ORIENTATION = {1: 6, 2: 7, 3: 8, 4: 5, 5: 2, 6: 3, 7: 4, 8: 1}
+_COUNTERCLOCKWISE_EXIF_ORIENTATION = {1: 8, 2: 5, 3: 6, 4: 7, 5: 4, 6: 1, 7: 2, 8: 3}
+
+
+def _rotate_jpeg_exif_orientation(source: str, output: str, *, clockwise: bool) -> tuple[int, int, int]:
+    """Copy a JPEG and compose its EXIF orientation without touching scan data."""
+
+    with Image.open(source) as image:
+        if image.format != "JPEG":
+            raise ValueError("JPEG rotation source is not a JPEG image")
+        raw_width, raw_height = image.size
+        current_orientation = image.getexif().get(274, 1)
+
+    if not isinstance(current_orientation, int) or current_orientation not in range(1, 9):
+        current_orientation = 1
+    orientation_map = _CLOCKWISE_EXIF_ORIENTATION if clockwise else _COUNTERCLOCKWISE_EXIF_ORIENTATION
+    new_orientation = orientation_map[current_orientation]
+
+    shutil.copyfile(source, output)
+    subprocess.run(
+        [
+            "exiftool",
+            "-overwrite_original",
+            f"-EXIF:Orientation#={new_orientation}",
+            output,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    if new_orientation in {5, 6, 7, 8}:
+        width, height = raw_height, raw_width
+    else:
+        width, height = raw_width, raw_height
+    return width, height, os.path.getsize(output)
 
 
 def create_thumbnail(

@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { PhotoCard } from '../../../components/gallery/PhotoCard';
 import type { GalleryPhoto } from '../../../types';
@@ -38,6 +38,7 @@ describe('PhotoCard', () => {
         onClearCover={vi.fn()}
         onRenamePhoto={vi.fn()}
         onDownloadPhoto={vi.fn()}
+        onRotatePhoto={vi.fn()}
         onDeletePhoto={vi.fn()}
       />,
     );
@@ -49,5 +50,53 @@ describe('PhotoCard', () => {
     });
 
     expect(container.querySelector('.animate-pulse')).not.toBeInTheDocument();
+  });
+
+  it('offers persisted rotation in both directions for successful images', () => {
+    const onRotatePhoto = vi.fn();
+    render(
+      <PhotoCard
+        photo={createPhoto()}
+        index={0}
+        isSelectionMode={false}
+        isSelected={false}
+        isCover={false}
+        onToggleSelection={vi.fn()}
+        onOpenPhoto={vi.fn()}
+        onSetCover={vi.fn()}
+        onClearCover={vi.fn()}
+        onRenamePhoto={vi.fn()}
+        onDownloadPhoto={vi.fn()}
+        onRotatePhoto={onRotatePhoto}
+        onDeletePhoto={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rotate photo counterclockwise' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rotate photo clockwise' }));
+    expect(onRotatePhoto).toHaveBeenNthCalledWith(1, 'photo-1', 'counterclockwise');
+    expect(onRotatePhoto).toHaveBeenNthCalledWith(2, 'photo-1', 'clockwise');
+  });
+
+  it('does not show a native tooltip over the photo', () => {
+    render(
+      <PhotoCard
+        photo={createPhoto()}
+        index={0}
+        isSelectionMode={false}
+        isSelected={false}
+        isCover={false}
+        onToggleSelection={vi.fn()}
+        onOpenPhoto={vi.fn()}
+        onSetCover={vi.fn()}
+        onClearCover={vi.fn()}
+        onRenamePhoto={vi.fn()}
+        onDownloadPhoto={vi.fn()}
+        onRotatePhoto={vi.fn()}
+        onDeletePhoto={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'photo.jpg' })).not.toHaveAttribute('title');
   });
 });

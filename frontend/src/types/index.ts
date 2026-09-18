@@ -32,6 +32,7 @@ export type {
 export type {
   MediaType,
   MediaStatus,
+  PhotoRotationDirection,
   PhotoResponse,
   GalleryPhoto,
   PhotoUploadResult,

@@ -194,6 +194,39 @@ describe('extractFilesFromEvent', () => {
     expect(getUploadSourcePath(files[0])).toBe('dir/photo.jpg');
   });
 
+  it('snapshots every loose file before the browser releases the drop data store', async () => {
+    const droppedFiles = Array.from({ length: 12 }, (_, index) => file(`photo-${index}.jpg`));
+    let dataStoreOpen = true;
+    const items = droppedFiles.map((droppedFile, index) => {
+      const entry = makeFileEntry(`photo-${index}.jpg`, droppedFile);
+      return {
+        kind: 'file',
+        type: droppedFile.type,
+        getAsFile: () => (dataStoreOpen ? droppedFile : null),
+        getAsEntry: () => (dataStoreOpen ? entry : null),
+        webkitGetAsEntry: () => (dataStoreOpen ? entry : null),
+      } as unknown as DataTransferItem;
+    });
+
+    // Browser drag data is protected again once extraction yields. This
+    // reproduces Chromium drops where resolving the first FileSystemEntry
+    // asynchronously made every later DataTransferItem return null.
+    const firstItemEntry = (
+      items[0] as DataTransferItem & { getAsEntry: () => FileSystemFileEntry }
+    ).getAsEntry();
+    const originalFile = firstItemEntry.file;
+    firstItemEntry.file = ((success: (file: File) => void) => {
+      queueMicrotask(() => {
+        dataStoreOpen = false;
+        originalFile.call(firstItemEntry, success);
+      });
+    }) as FileSystemFileEntry['file'];
+
+    const { files } = await extractFilesFromEvent(makeDropEvent(items));
+
+    expect(files).toEqual(droppedFiles);
+  });
+
   it('reads only top-level files from a directory entry (no recursion)', async () => {
     const deepFile = file('deep.jpg');
     const shallowFile = file('shallow.jpg');

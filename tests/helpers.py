@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import requests
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageOps
 
 
 def register_and_login(client: TestClient, email: str, password: str, invite_code: str) -> str:
@@ -44,8 +44,9 @@ def create_test_thumbnail_from_path(
 
     del quality
     with Image.open(image_path) as image:
-        image.thumbnail(max_size)
-        return b"test-avif-thumbnail", image.width, image.height
+        display_image = ImageOps.exif_transpose(image)
+        display_image.thumbnail(max_size)
+        return b"test-avif-thumbnail", display_image.width, display_image.height
 
 
 def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:

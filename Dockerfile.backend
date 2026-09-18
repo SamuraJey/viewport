@@ -41,7 +41,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg libheif-plugin-aomenc libvips42t64 libx264-164
+    apt-get install -y --no-install-recommends ffmpeg libheif-plugin-aomenc libimage-exiftool-perl libvips42t64 libx264-164
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH" \
@@ -51,7 +51,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONFAULTHANDLER=1
 
 COPY --from=build --chown=appuser:appgroup /app/.venv /app/.venv
-RUN python -c "import pyvips; image = pyvips.Image.black(2, 2, bands=3).copy(interpretation='srgb'); encoded = bytes(image.heifsave_buffer(compression='av1', Q=70)); assert encoded[4:12] == b'ftypavif'"
+RUN exiftool -ver && \
+    python -c "import pyvips; image = pyvips.Image.black(2, 2, bands=3).copy(interpretation='srgb'); encoded = bytes(image.heifsave_buffer(compression='av1', Q=70)); assert encoded[4:12] == b'ftypavif'"
 
 COPY --from=build --chown=appuser:appgroup /app/src /app/src
 

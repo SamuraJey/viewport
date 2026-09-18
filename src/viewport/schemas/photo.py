@@ -275,6 +275,12 @@ class PhotoRenameRequest(BaseModel):
     filename: str = Field(..., min_length=1, max_length=255, description="New filename for the photo")
 
 
+class PhotoRotateRequest(BaseModel):
+    """Request one persisted quarter-turn of an image original."""
+
+    direction: Literal["clockwise", "counterclockwise"]
+
+
 class PhotoUploadIntentRequest(BaseModel):
     """Request to initiate photo upload via presigned URL"""
 

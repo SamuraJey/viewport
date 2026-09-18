@@ -4,6 +4,7 @@
 
 export type MediaType = 'image' | 'video';
 export type MediaStatus = 'pending' | 'processing' | 'successful' | 'failed';
+export type PhotoRotationDirection = 'clockwise' | 'counterclockwise';
 
 export interface PhotoResponse {
   id: string;

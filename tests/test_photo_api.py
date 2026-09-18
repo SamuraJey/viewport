@@ -396,6 +396,85 @@ class TestPhotoAPI:
         assert "width" in data
         assert "height" in data
 
+    @pytest.mark.asyncio
+    async def test_rotate_photo_claims_image_and_enqueues_persisted_rotation(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        db_session: AsyncSession,
+        monkeypatch,
+    ):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rotate", "rotate.jpg")
+        captured: dict[str, object] = {}
+
+        def fake_delay(payload: dict) -> None:
+            captured.update(payload)
+
+        monkeypatch.setattr("viewport.api.photo.rotate_photo_task.delay", fake_delay)
+
+        response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rotate",
+            json={"direction": "clockwise"},
+        )
+
+        assert response.status_code == 202
+        assert response.json()["status"] == "processing"
+        assert captured["photo_id"] == photo_id
+        assert captured["gallery_id"] == gallery_id_fixture
+        assert captured["clockwise"] is True
+        assert isinstance(captured["operation_id"], str)
+
+        status_response = authenticated_client.get(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}",
+        )
+        assert status_response.status_code == 200
+        assert status_response.json()["status"] == "processing"
+
+        db_session.expire_all()
+        photo = await db_session.get(Photo, UUID(photo_id))
+        assert photo is not None
+        assert photo.status == PhotoUploadStatus.PROCESSING
+
+    def test_rotate_photo_rejects_a_second_in_flight_rotation(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        monkeypatch,
+    ):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rotate", "rotate.jpg")
+        monkeypatch.setattr("viewport.api.photo.rotate_photo_task.delay", lambda _payload: None)
+
+        first = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rotate",
+            json={"direction": "counterclockwise"},
+        )
+        second = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rotate",
+            json={"direction": "clockwise"},
+        )
+
+        assert first.status_code == 202
+        assert second.status_code == 409
+
+    def test_single_download_waits_for_rotation_completion(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        monkeypatch,
+    ):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rotate", "rotate.jpg")
+        monkeypatch.setattr("viewport.api.photo.rotate_photo_task.delay", lambda _payload: None)
+        rotate_response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rotate",
+            json={"direction": "clockwise"},
+        )
+        assert rotate_response.status_code == 202
+
+        download_response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/download",
+        )
+        assert download_response.status_code == 409
+
     def test_rename_photo_succeeds_when_cache_invalidation_fails(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
         photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rename", "rename.jpg")
 
