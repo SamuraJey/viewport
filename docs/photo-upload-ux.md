@@ -44,6 +44,12 @@ three event shapes:
    resolves each via `getAsEntry()` / `webkitGetAsEntry()`, and reads the
    directory's immediate file entries (no recursion into subdirectories).
 
+For every drop, all direct `File` objects and Entry-API references are
+snapshotted synchronously before the first asynchronous directory read. Browser
+drag data stores become protected again after the drop handler yields; reading
+items one-by-one across `await` boundaries can otherwise retain the first file
+and silently lose the rest of a multi-file drop.
+
 Directory read details:
 
 - `createReader().readEntries()` is called repeatedly until it returns an

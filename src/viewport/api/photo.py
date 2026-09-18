@@ -3,10 +3,11 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
+from sqlalchemy import update
 from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import get_current_user, get_current_user_for_download
-from viewport.background_tasks import create_thumbnails_batch_task, delete_photos_batch_task, process_videos_batch_task
+from viewport.background_tasks import create_thumbnails_batch_task, delete_photos_batch_task, process_videos_batch_task, rotate_photo_task
 from viewport.dependencies import get_gallery_repository, get_s3_client, get_user_repository
 from viewport.filename_utils import build_content_disposition, resolve_photo_filename, sanitize_filename, split_name_and_ext
 from viewport.models.gallery import MediaType, Photo, PhotoUploadStatus
@@ -26,6 +27,7 @@ from viewport.schemas.photo import (
     CompleteMultipartUploadRequest,
     PhotoRenameRequest,
     PhotoResponse,
+    PhotoRotateRequest,
     PresignedUploadData,
 )
 from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, chunk_thumbnail_task_payloads, to_thumbnail_task_payloads
@@ -169,6 +171,8 @@ async def download_photo(
     photo = await repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
+    if photo.status != PhotoUploadStatus.SUCCESSFUL:
+        raise HTTPException(status_code=409, detail="Photo is still processing")
 
     filename = resolve_photo_filename(photo)
     download_url = await s3_client.generate_presigned_url_async(
@@ -180,6 +184,25 @@ async def download_photo(
         ),
     )
     return RedirectResponse(download_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/{gallery_id}/photos/{photo_id}", response_model=PhotoResponse)
+async def get_photo(
+    gallery_id: UUID,
+    photo_id: UUID,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
+) -> PhotoResponse:
+    """Return one owner photo, including current background-processing state."""
+
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+    photo = await repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return await PhotoResponse.from_db_photo(photo, s3_client)
 
 
 @router.post("/{gallery_id}/photos/batch-presigned", response_model=BatchPresignedUploadsResponse)
@@ -626,6 +649,85 @@ async def rename_photo(
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
     await _invalidate_presigned_cache_safely(s3_client, [photo.object_key], "rename")
+    return await PhotoResponse.from_db_photo(photo, s3_client)
+
+
+@router.post(
+    "/{gallery_id}/photos/{photo_id}/rotate",
+    response_model=PhotoResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def rotate_photo(
+    gallery_id: UUID,
+    photo_id: UUID,
+    request: PhotoRotateRequest,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
+) -> PhotoResponse:
+    """Queue a pixel-level quarter-turn that replaces the stored image original."""
+
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+
+    photo = await repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    if photo.media_type != MediaType.IMAGE.value:
+        raise HTTPException(status_code=400, detail="Only images can be rotated")
+
+    operation_id = uuid4().hex
+    claimed = (
+        await repo.db.execute(
+            update(Photo)
+            .where(
+                Photo.id == photo_id,
+                Photo.gallery_id == gallery_id,
+                Photo.media_type == MediaType.IMAGE.value,
+                Photo.status == PhotoUploadStatus.SUCCESSFUL,
+            )
+            .values(
+                status=PhotoUploadStatus.PROCESSING,
+                processing_error=None,
+            )
+            .returning(Photo.id)
+        )
+    ).scalar_one_or_none()
+    if claimed is None:
+        await repo.db.rollback()
+        raise HTTPException(status_code=409, detail="Photo is already being processed")
+
+    await repo.db.commit()
+    await repo.db.refresh(photo)
+    payload = {
+        "photo_id": str(photo.id),
+        "gallery_id": str(gallery_id),
+        "owner_id": str(current_user.id),
+        "object_key": photo.object_key,
+        "thumbnail_object_key": photo.thumbnail_object_key,
+        "source_content_type": photo.source_content_type,
+        "operation_id": operation_id,
+        "clockwise": request.direction == "clockwise",
+    }
+
+    try:
+        await run_in_threadpool(rotate_photo_task.delay, payload)
+    except Exception as exc:
+        logger.error("Failed to enqueue rotation for photo %s: %s", photo_id, exc)
+        await repo.db.execute(
+            update(Photo)
+            .where(
+                Photo.id == photo_id,
+                Photo.gallery_id == gallery_id,
+                Photo.object_key == photo.object_key,
+                Photo.status == PhotoUploadStatus.PROCESSING,
+            )
+            .values(status=PhotoUploadStatus.SUCCESSFUL)
+        )
+        await repo.db.commit()
+        raise HTTPException(status_code=503, detail="Failed to enqueue photo rotation") from exc
+
     return await PhotoResponse.from_db_photo(photo, s3_client)
 
 

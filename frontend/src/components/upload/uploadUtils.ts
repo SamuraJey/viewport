@@ -243,23 +243,37 @@ const readFileEntry = (entry: AnyEntry): Promise<File> => {
   });
 };
 
-const extractFilesFromItem = async (item: DataTransferItem): Promise<File[]> => {
+interface DropItemSnapshot {
+  entry: FileSystemEntry | null | undefined;
+  file: File | null;
+}
+
+const snapshotDropItem = (item: DataTransferItem): DropItemSnapshot => {
   const entry = getAsEntry(item);
-  // `null` (no Entry API) and `undefined` (the Entry API threw) both fall back
-  // to `getAsFile()` so a dropped file is never silently lost.
-  if (entry === undefined || entry === null) {
-    const file = item.getAsFile();
-    return file ? [file] : [];
+  let file: File | null = null;
+  try {
+    file = item.getAsFile();
+  } catch {
+    // A retained FileSystemEntry can still be read after the drop handler even
+    // when the browser refuses a direct File snapshot.
   }
-  if (entry.isDirectory) {
+  return { entry, file };
+};
+
+const extractFilesFromSnapshot = async ({ entry, file }: DropItemSnapshot): Promise<File[]> => {
+  if (entry?.isDirectory) {
     return readTopLevelFiles(entry as AnyEntry);
   }
-  if (entry.isFile) {
-    const file = await readFileEntry(entry as AnyEntry);
-    setUploadSourcePath(file, entry.fullPath);
-    return [file];
+  if (entry?.isFile) {
+    if (file) {
+      setUploadSourcePath(file, entry.fullPath);
+      return [file];
+    }
+    const entryFile = await readFileEntry(entry as AnyEntry);
+    setUploadSourcePath(entryFile, entry.fullPath);
+    return [entryFile];
   }
-  return [];
+  return file ? [file] : [];
 };
 
 export const extractFilesFromEvent = async (
@@ -278,17 +292,19 @@ export const extractFilesFromEvent = async (
     return { files: Array.from(dataTransfer.files ?? []), hadDirectory: false };
   }
 
+  // The browser protects the drag data store again as soon as the drop
+  // handler yields. Snapshot every DataTransferItem synchronously before any
+  // directory or FileSystemEntry read awaits, otherwise a multi-file drop can
+  // retain only its first file while later getAsFile/getAsEntry calls return
+  // null.
+  const snapshots = items
+    .filter((item) => item.kind === 'file')
+    .map((item) => snapshotDropItem(item));
+  const hadDirectory = snapshots.some(({ entry }) => Boolean(entry?.isDirectory));
   const files: File[] = [];
-  let hadDirectory = false;
   try {
-    for (const item of items) {
-      if (item.kind !== 'file') continue;
-      // Resolve the entry only to flag directory drops; `extractFilesFromItem`
-      // re-resolves it and falls back to `getAsFile()` when the Entry API is
-      // unavailable or throws, so every file item is preserved.
-      const entry = getAsEntry(item);
-      if (entry && entry.isDirectory) hadDirectory = true;
-      const extracted = await extractFilesFromItem(item);
+    for (const snapshot of snapshots) {
+      const extracted = await extractFilesFromSnapshot(snapshot);
       files.push(...extracted);
     }
   } catch (error) {

@@ -3149,6 +3149,40 @@ class DemoServiceStore {
     };
   }
 
+  async rotatePhoto(
+    galleryId: string,
+    photoId: string,
+    _direction: 'clockwise' | 'counterclockwise',
+  ): Promise<PhotoResponse> {
+    const state = this.getGalleryState(galleryId);
+    const existing = state.photos.find((photo) => photo.id === photoId);
+
+    if (!existing) {
+      throw this.createNotFoundError('Photo not found');
+    }
+    if (existing.media_type !== 'image') {
+      throw this.createValidationError('Only images can be rotated');
+    }
+
+    [existing.width, existing.height] = [existing.height, existing.width];
+    this.persistState();
+
+    return {
+      ...existing,
+      gallery_id: galleryId,
+    };
+  }
+
+  async getPhoto(galleryId: string, photoId: string): Promise<PhotoResponse> {
+    const existing = this.getGalleryState(galleryId).photos.find(
+      (photo) => photo.id === photoId,
+    );
+    if (!existing) {
+      throw this.createNotFoundError('Photo not found');
+    }
+    return { ...existing, gallery_id: galleryId };
+  }
+
   async uploadPhotosPresigned(
     galleryId: string,
     files: UploadPreparedFile[],

@@ -6,14 +6,15 @@ import {
   LoaderCircle,
   Pencil,
   Play,
-  Search,
+  RotateCcw,
+  RotateCw,
   Square,
   Star,
   StarOff,
   Trash2,
   VideoOff,
 } from 'lucide-react';
-import type { GalleryPhoto } from '../../types';
+import type { GalleryPhoto, PhotoRotationDirection } from '../../types';
 import { AppBadge } from '../ui/AppBadge';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
 import { formatDuration } from '../../lib/utils';
@@ -30,6 +31,7 @@ interface PhotoCardProps {
   onClearCover: () => void;
   onRenamePhoto: (photoId: string, filename: string) => void;
   onDownloadPhoto: (photoId: string) => void;
+  onRotatePhoto: (photoId: string, direction: PhotoRotationDirection) => void;
   onDeletePhoto: (photoId: string) => void;
 }
 
@@ -45,6 +47,7 @@ const PhotoCardComponent = ({
   onClearCover,
   onRenamePhoto,
   onDownloadPhoto,
+  onRotatePhoto,
   onDeletePhoto,
 }: PhotoCardProps) => {
   const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
@@ -171,20 +174,8 @@ const PhotoCardComponent = ({
             </div>
           )}
 
-        {/* Action Panel - overlay at the bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-100 pointer-events-auto translate-y-0 can-hover:opacity-0 can-hover:pointer-events-none can-hover:translate-y-4 can-hover:group-hover:opacity-100 can-hover:group-hover:pointer-events-auto can-hover:group-hover:translate-y-0 can-hover:group-focus-within:opacity-100 can-hover:group-focus-within:pointer-events-auto can-hover:group-focus-within:translate-y-0">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenPhoto(index);
-            }}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-white/40 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-white"
-            title="Open photo"
-            aria-label="Open photo"
-          >
-            <Search className="h-4 w-4" />
-          </button>
+        {/* Compact action dock. Opening the photo remains the primary image action. */}
+        <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 flex items-center justify-center gap-1 bg-linear-to-t from-black/85 via-black/45 to-transparent px-2 pb-3 pt-12 transition-[opacity,transform] duration-200 can-hover:pointer-events-none can-hover:translate-y-2 can-hover:opacity-0 can-hover:group-focus-within:pointer-events-auto can-hover:group-focus-within:translate-y-0 can-hover:group-focus-within:opacity-100 can-hover:group-hover:pointer-events-auto can-hover:group-hover:translate-y-0 can-hover:group-hover:opacity-100 motion-reduce:transition-none">
           {isCover ? (
             <button
               type="button"
@@ -192,8 +183,7 @@ const PhotoCardComponent = ({
                 e.stopPropagation();
                 onClearCover();
               }}
-              className="p-2.5 rounded-xl bg-amber-500/80 hover:bg-amber-500 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-amber-500"
-              title="Remove cover"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/80 text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-amber-500 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-amber-400 motion-reduce:hover:scale-100"
               aria-label="Remove cover"
             >
               <StarOff className="h-4 w-4" />
@@ -205,8 +195,7 @@ const PhotoCardComponent = ({
                 e.stopPropagation();
                 onSetCover(photo.id);
               }}
-              className="p-2.5 rounded-xl bg-white/20 hover:bg-amber-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-amber-500"
-              title="Set as cover"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-amber-500/80 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-amber-400 motion-reduce:hover:scale-100"
               aria-label="Set as cover"
             >
               <Star className="h-4 w-4" />
@@ -218,17 +207,44 @@ const PhotoCardComponent = ({
               e.stopPropagation();
               onRenamePhoto(photo.id, photo.filename);
             }}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-white/40 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-white"
-            title="Rename photo"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-white/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-white motion-reduce:hover:scale-100"
             aria-label="Rename photo"
           >
             <Pencil className="h-4 w-4" />
           </button>
+          {photo.media_type === 'image' && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRotatePhoto(photo.id, 'counterclockwise');
+                }}
+                disabled={photo.status !== 'successful'}
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-sky-500/80 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 motion-reduce:hover:scale-100"
+                aria-label="Rotate photo counterclockwise"
+              >
+                <RotateCcw className="h-[18px] w-[18px]" />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRotatePhoto(photo.id, 'clockwise');
+                }}
+                disabled={photo.status !== 'successful'}
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-sky-500/80 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 motion-reduce:hover:scale-100"
+                aria-label="Rotate photo clockwise"
+              >
+                <RotateCw className="h-[18px] w-[18px]" />
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={handleDownload}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-green-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-green-500"
-            title="Download photo"
+            disabled={photo.status !== 'successful'}
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-green-500/80 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-green-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 motion-reduce:hover:scale-100"
             aria-label="Download photo"
           >
             <Download className="h-4 w-4" />
@@ -239,8 +255,7 @@ const PhotoCardComponent = ({
               e.stopPropagation();
               onDeletePhoto(photo.id);
             }}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-red-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-red-500"
-            title="Delete photo"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-red-500/80 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-red-400 motion-reduce:hover:scale-100"
             aria-label="Delete photo"
           >
             <Trash2 className="h-4 w-4" />
@@ -266,11 +281,6 @@ const PhotoCardComponent = ({
           }}
           className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0 rounded-2xl focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-accent"
           aria-label={accessiblePhotoName}
-          title={
-            isSelectionMode
-              ? 'Click to toggle selection. Use Shift+Click to select range.'
-              : 'Click to view, double-click to rename'
-          }
         >
           {imageState === 'error' || photo.status === 'failed' ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-linear-to-br from-surface-1 via-surface to-surface-1/80 p-6 text-center dark:from-surface-dark-2 dark:via-surface-dark-1 dark:to-surface-dark-2">

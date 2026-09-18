@@ -7,7 +7,7 @@ from PIL import Image
 
 from viewport import background_tasks
 from viewport.background_tasks import ThumbnailScratchError, _is_valid_image, _stream_s3_object_to_tempfile
-from viewport.s3_utils import _get_pyvips, create_thumbnail_from_path
+from viewport.s3_utils import _get_pyvips, create_thumbnail_from_path, rotate_image_file
 
 
 class _StreamingBody(io.BytesIO):
@@ -113,3 +113,42 @@ def test_path_thumbnail_applies_exif_orientation(tmp_path: Path) -> None:
     assert (width, height) == (500, 1000)
     with Image.open(io.BytesIO(thumbnail)) as output:
         assert output.size == (500, 1000)
+
+
+def _jpeg_scan_data(image_path: Path) -> bytes:
+    content = image_path.read_bytes()
+    scan_offset = content.index(b"\xff\xda")
+    return content[scan_offset:]
+
+
+def test_persisted_jpeg_rotation_changes_only_exif_orientation(tmp_path: Path) -> None:
+    source_path = tmp_path / "oriented.jpg"
+    output_path = tmp_path / "rotated.jpg"
+    exif = Image.Exif()
+    exif[274] = 6
+    exif[315] = "Viewport test"
+    Image.new("RGB", (1200, 600), "blue").save(source_path, exif=exif)
+
+    width, height, file_size = rotate_image_file(source_path, output_path, clockwise=True)
+
+    assert (width, height) == (1200, 600)
+    assert file_size == output_path.stat().st_size
+    assert _jpeg_scan_data(output_path) == _jpeg_scan_data(source_path)
+    with Image.open(output_path) as output:
+        assert output.size == (1200, 600)
+        assert output.getexif().get(274) == 3
+        assert output.getexif().get(315) == "Viewport test"
+
+
+def test_persisted_jpeg_rotation_adds_orientation_without_reencoding(tmp_path: Path) -> None:
+    source_path = tmp_path / "plain.jpg"
+    output_path = tmp_path / "rotated.jpg"
+    Image.new("RGB", (1200, 600), "blue").save(source_path)
+
+    width, height, _file_size = rotate_image_file(source_path, output_path, clockwise=True)
+
+    assert (width, height) == (600, 1200)
+    assert _jpeg_scan_data(output_path) == _jpeg_scan_data(source_path)
+    with Image.open(output_path) as output:
+        assert output.size == (1200, 600)
+        assert output.getexif().get(274) == 6

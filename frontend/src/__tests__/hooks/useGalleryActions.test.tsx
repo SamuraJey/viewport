@@ -36,6 +36,8 @@ vi.mock('../../services/photoService', () => ({
     deletePhotos: vi.fn(),
     deletePhoto: vi.fn(),
     renamePhoto: vi.fn(),
+    rotatePhoto: vi.fn(),
+    getPhoto: vi.fn(),
     uploadPhotosPresigned: vi.fn(),
     retryFailedUploads: vi.fn(),
     downloadGalleryZip: vi.fn(),

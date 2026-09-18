@@ -15,6 +15,7 @@ import type {
   BatchPresignedUploadsResponse,
   ConfirmPhotoUploadItem,
   BatchConfirmUploadResponse,
+  PhotoRotationDirection,
 } from '../types';
 import {
   MAX_CONCURRENT_FILE_UPLOADS,
@@ -145,6 +146,31 @@ const renamePhoto = async (
       filename,
     },
   );
+  return response.data;
+};
+
+const rotatePhoto = async (
+  galleryId: string,
+  photoId: string,
+  direction: PhotoRotationDirection,
+): Promise<PhotoResponse> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().rotatePhoto(galleryId, photoId, direction);
+  }
+
+  const response = await api.post<PhotoResponse>(
+    `/galleries/${galleryId}/photos/${photoId}/rotate`,
+    { direction },
+  );
+  return response.data;
+};
+
+const getPhoto = async (galleryId: string, photoId: string): Promise<PhotoResponse> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getPhoto(galleryId, photoId);
+  }
+
+  const response = await api.get<PhotoResponse>(`/galleries/${galleryId}/photos/${photoId}`);
   return response.data;
 };
 
@@ -976,6 +1002,8 @@ export const photoService = {
   deletePhotos,
   deletePhoto,
   renamePhoto,
+  rotatePhoto,
+  getPhoto,
   downloadGalleryZip,
   downloadSelectedPhotosZip,
   downloadPhoto,

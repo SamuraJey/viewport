@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { galleryService } from '../services/galleryService';
 import { photoService } from '../services/photoService';
@@ -16,6 +16,7 @@ import type {
   ShareLinkCreateRequest,
   ShareLinkUpdateRequest,
   SortOrder,
+  PhotoRotationDirection,
 } from '../types';
 
 interface UseGalleryActionsProps {
@@ -63,6 +64,7 @@ export const useGalleryActions = ({
   const [actionInfo, setActionInfo] = useState('');
   const [isCreatingLink, setIsCreatingLink] = useState(false);
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
+  const [rotatingPhotoIds, setRotatingPhotoIds] = useState<Set<string>>(() => new Set());
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
   const [isSavingPublicSortSettings, setIsSavingPublicSortSettings] = useState(false);
@@ -397,6 +399,117 @@ export const useGalleryActions = ({
     [clearError, galleryId, handleError],
   );
 
+  const handleRotatePhoto = useCallback(
+    async (photoId: string, direction: PhotoRotationDirection) => {
+      clearError();
+      setActionInfo('');
+
+      try {
+        const processingPhoto = await photoService.rotatePhoto(galleryId, photoId, direction);
+        setPhotoUrls((current) =>
+          current.map((photo) =>
+            photo.id === photoId
+              ? {
+                  ...photo,
+                  ...processingPhoto,
+                }
+              : photo,
+          ),
+        );
+        setRotatingPhotoIds((current) => new Set(current).add(photoId));
+        toast.info('Rotating the stored photo…');
+      } catch (err) {
+        handleError(err);
+        toast.error(handleApiError(err).message);
+      }
+    },
+    [clearError, galleryId, handleError],
+  );
+
+  useEffect(() => {
+    if (rotatingPhotoIds.size === 0) return;
+
+    let requestInFlight = false;
+    const pollRotationStatus = async () => {
+      if (requestInFlight) return;
+      requestInFlight = true;
+      try {
+        const photoIds = Array.from(rotatingPhotoIds);
+        const statusResults = await Promise.allSettled(
+          photoIds.map((photoId) => photoService.getPhoto(galleryId, photoId)),
+        );
+        const completedIds: string[] = [];
+
+        statusResults.forEach((result, index) => {
+          const photoId = photoIds[index];
+          if (result.status === 'rejected') {
+            if (handleApiError(result.reason).statusCode === 404) completedIds.push(photoId);
+            return;
+          }
+
+          const photo = result.value;
+          setPhotoUrls((current) =>
+            current.map((entry) => (entry.id === photo.id ? { ...entry, ...photo } : entry)),
+          );
+          if (photo.status === 'processing') return;
+          completedIds.push(photoId);
+          if (photo.processing_error) {
+            toast.error(photo.processing_error);
+          } else if (photo.status === 'successful') {
+            toast.success('Photo rotated');
+          }
+        });
+
+        if (completedIds.length > 0) {
+          const offset = (page - 1) * pageSize;
+          const galleryData = await galleryService.getGallery(galleryId, {
+            limit: pageSize,
+            offset,
+            search: filters.search,
+            sort_by: filters.sort_by,
+            order: filters.order,
+          });
+          latestGalleryRef.current = galleryData;
+          setPhotoUrls(galleryData.photos || []);
+          setTotal(galleryData.total_photos);
+          setGallery((current) =>
+            current
+              ? {
+                  ...current,
+                  total_size_bytes: galleryData.total_size_bytes,
+                  cover_photo_thumbnail_url: galleryData.cover_photo_thumbnail_url,
+                }
+              : current,
+          );
+          setRotatingPhotoIds((current) => {
+            const next = new Set(current);
+            completedIds.forEach((photoId) => next.delete(photoId));
+            return next;
+          });
+        }
+      } catch {
+        // Keep polling; a transient refresh error should not hide the in-flight operation.
+      } finally {
+        requestInFlight = false;
+      }
+    };
+
+    void pollRotationStatus();
+    const intervalId = window.setInterval(() => {
+      void pollRotationStatus();
+    }, 1500);
+    return () => window.clearInterval(intervalId);
+  }, [
+    filters.order,
+    filters.search,
+    filters.sort_by,
+    galleryId,
+    page,
+    pageSize,
+    rotatingPhotoIds,
+    setTotal,
+  ]);
+
   const handleSetCover = async (photoId: string) => {
     try {
       const updatedGallery = await galleryService.setCoverPhoto(galleryId, photoId);
@@ -641,6 +754,7 @@ export const useGalleryActions = ({
     handleDownloadGallery,
     handleDownloadSelectedPhotos,
     handleDownloadPhoto,
+    handleRotatePhoto,
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,

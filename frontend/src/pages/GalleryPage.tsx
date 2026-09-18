@@ -257,6 +257,7 @@ export const GalleryPage = () => {
     handleDownloadGallery,
     handleDownloadSelectedPhotos,
     handleDownloadPhoto,
+    handleRotatePhoto,
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,
@@ -1118,6 +1119,9 @@ export const GalleryPage = () => {
               onClearCover: handleClearCover,
               onRenamePhoto: handleRenamePhoto,
               onDownloadPhoto: handleDownloadPhoto,
+              onRotatePhoto: (photoId, direction) => {
+                void handleRotatePhoto(photoId, direction);
+              },
               onDeletePhoto: handleDeletePhoto,
               onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
               onClearSearch: () => {
