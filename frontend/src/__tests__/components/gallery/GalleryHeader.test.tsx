@@ -135,10 +135,13 @@ describe('GalleryHeader', () => {
     );
     expect(screen.getByRole('searchbox', { name: 'Search by filename' })).toHaveValue('portrait');
     const details = screen.getByRole('button', { name: /Details/ });
+    const metadata = document.getElementById('gallery-metadata');
+
+    expect(metadata).toHaveClass('hidden');
     expect(details).toHaveAttribute('aria-expanded', 'false');
     await user.click(details);
     expect(details).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByLabelText('Shooting date')).toBeInTheDocument();
+    expect(metadata).not.toHaveClass('hidden');
   });
 
   it('opens the public sort popover from the button', async () => {
