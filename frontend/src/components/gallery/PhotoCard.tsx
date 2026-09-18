@@ -14,7 +14,7 @@ import {
   VideoOff,
 } from 'lucide-react';
 import type { GalleryPhoto } from '../../types';
-import { AppBadge } from '../ui';
+import { AppBadge } from '../ui/AppBadge';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
 import { formatDuration } from '../../lib/utils';
 

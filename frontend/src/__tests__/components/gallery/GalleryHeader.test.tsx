@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type ReactNode, type RefObject } from 'react';
 import { Link, MemoryRouter } from 'react-router';
@@ -8,11 +8,8 @@ type MockPopoverCloseTarget = HTMLElement | RefObject<HTMLElement | null>;
 type MockPopoverClose = (focusableElement?: MockPopoverCloseTarget) => void;
 type MockPopoverPanel = ReactNode | ((close: MockPopoverClose) => ReactNode);
 
-vi.mock('../../../components/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../components/ui')>();
-
+vi.mock('../../../components/ui/AppPopover', () => {
   return {
-    ...actual,
     AppPopover: ({
       className,
       buttonClassName,
@@ -90,6 +87,8 @@ const createProps = () => ({
   onPublicSortChange: vi.fn(),
   isSavingPublicSortSettings: false,
   searchValue: '',
+  searchOpen: false,
+  onSearchOpenChange: vi.fn(),
   sortBy: 'uploaded_at' as const,
   sortOrder: 'desc' as const,
   onDeleteGallery: vi.fn(),
@@ -98,6 +97,50 @@ const createProps = () => ({
 });
 
 describe('GalleryHeader', () => {
+  it('opens search with focus and clears the filter when closed', async () => {
+    const user = userEvent.setup();
+    const props = createProps();
+    const ControlledHeader = () => {
+      const [searchOpen, setSearchOpen] = useState(false);
+      return (
+        <GalleryHeader {...props} searchOpen={searchOpen} onSearchOpenChange={setSearchOpen} />
+      );
+    };
+    render(
+      <MemoryRouter>
+        <ControlledHeader />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Search photos' }));
+    const search = screen.getByRole('searchbox', { name: 'Search by filename' });
+    expect(search).toHaveFocus();
+    await user.type(search, 'a');
+    expect(props.onSearchChange).toHaveBeenCalledWith('a');
+    await user.click(screen.getByRole('button', { name: 'Close photo search' }));
+    expect(props.onSearchChange).toHaveBeenLastCalledWith('');
+    expect(screen.getByRole('button', { name: 'Search photos' })).toHaveFocus();
+  });
+
+  it('keeps URL search visible and exposes gallery details on demand', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <GalleryHeader {...createProps()} searchValue="portrait" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('button', { name: 'Close photo search' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByRole('searchbox', { name: 'Search by filename' })).toHaveValue('portrait');
+    const details = screen.getByRole('button', { name: /Details/ });
+    expect(details).toHaveAttribute('aria-expanded', 'false');
+    await user.click(details);
+    expect(details).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText('Shooting date')).toBeInTheDocument();
+  });
+
   it('opens the public sort popover from the button', async () => {
     const user = userEvent.setup();
 
@@ -109,10 +152,10 @@ describe('GalleryHeader', () => {
 
     await user.click(screen.getByRole('button', { name: /public sort/i }));
 
-    expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /public sort/i })).toBeInTheDocument();
   });
 
-  it('renders public sort options above the containing popover and selects every option', async () => {
+  it('selects public sort directly and closes the popover', async () => {
     const user = userEvent.setup();
     const onPublicSortChange = vi.fn();
 
@@ -123,12 +166,12 @@ describe('GalleryHeader', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /public sort/i }));
-    await user.click(screen.getByRole('button', { name: /public gallery sort/i }));
-
-    const listbox = await screen.findByRole('listbox');
-    expect(listbox).toHaveClass('z-[60]');
-
-    fireEvent.click(screen.getByRole('option', { name: 'Size (small to large)' }));
+    expect(screen.getByRole('button', { name: 'Filename (A to Z)' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await user.click(screen.getByRole('button', { name: 'Size (small to large)' }));
+    expect(screen.queryByRole('group', { name: /public sort/i })).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(onPublicSortChange).toHaveBeenCalledWith({ sortBy: 'file_size', sortOrder: 'asc' });
@@ -157,14 +200,14 @@ describe('GalleryHeader', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: /public sort/i })).toBeInTheDocument();
     });
 
     await act(async () => {
       window.dispatchEvent(new Event('gallery:open-public-sort'));
     });
 
-    expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /public sort/i })).toBeInTheDocument();
   });
 
   it('keeps project settings and gallery navigation in the overflow menu', async () => {

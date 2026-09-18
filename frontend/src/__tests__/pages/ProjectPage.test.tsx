@@ -5,11 +5,8 @@ import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('../../components/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../components/ui')>();
-
+vi.mock('../../components/ui/AppPopover', () => {
   return {
-    ...actual,
     AppPopover: ({
       buttonAriaLabel,
       buttonClassName,
@@ -280,20 +277,29 @@ describe('ProjectPage', () => {
     });
   });
   it('shows an error banner when deleting a project share link fails', async () => {
-    const user = userEvent.setup();
-    const { shareLinkService } = await import('../../services/shareLinkService');
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const user = userEvent.setup();
+      const { shareLinkService } = await import('../../services/shareLinkService');
 
-    vi.mocked(shareLinkService.deleteProjectShareLink).mockRejectedValueOnce(
-      new Error('Delete failed'),
-    );
+      vi.mocked(shareLinkService.deleteProjectShareLink).mockRejectedValueOnce(
+        new Error('Delete failed'),
+      );
 
-    renderProjectPage();
+      renderProjectPage();
 
-    await screen.findByText('Client proofing');
-    await user.click(screen.getByRole('button', { name: /delete link/i }));
-    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+      await screen.findByText('Client proofing');
+      await user.click(screen.getByRole('button', { name: /delete link/i }));
+      await user.click(screen.getByRole('button', { name: /^delete$/i }));
 
-    expect(await screen.findByText('Delete failed')).toBeInTheDocument();
+      expect(await screen.findByText('Delete failed')).toBeInTheDocument();
+      expect(errorLog).toHaveBeenCalledExactlyOnceWith(
+        'Confirmation action failed:',
+        expect.objectContaining({ message: 'Delete failed' }),
+      );
+    } finally {
+      errorLog.mockRestore();
+    }
   });
   it('lets project share creation expose selection settings', async () => {
     const user = userEvent.setup();

@@ -6,7 +6,8 @@ import { getAvatarInitials, stringToHue } from '../lib/avatar';
 import { ProfileInfoSection } from './profile/ProfileInfoSection';
 import { ProfilePasswordSection } from './profile/ProfilePasswordSection';
 import { ProfileDangerZoneSection } from './profile/ProfileDangerZoneSection';
-import { AppDrawer, AppTabs } from './ui';
+import { AppDrawer } from './ui/AppDrawer';
+import { AppTabs } from './ui/AppTabs';
 
 type TabId = 'profile' | 'security' | 'account';
 const TABS: { id: TabId; label: string; Icon: React.ElementType }[] = [

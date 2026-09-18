@@ -1,4 +1,4 @@
-import { AppBadge } from '../ui';
+import { AppBadge } from '../ui/AppBadge';
 import type { ShareLinkComputedStatus } from './shareLinkStatus';
 
 interface ShareLinkStatusBadgeProps {

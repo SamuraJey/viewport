@@ -261,25 +261,31 @@ describe('useGalleryActions', () => {
   });
 
   it('shows toast.error on share link creation failure', async () => {
-    vi.mocked(shareLinkService.createShareLink).mockRejectedValue(
-      new ApiError(500, 'Server error'),
-    );
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      vi.mocked(shareLinkService.createShareLink).mockRejectedValue(
+        new ApiError(500, 'Server error'),
+      );
 
-    const { result } = renderUseGalleryActions();
+      const { result } = renderUseGalleryActions();
 
-    await act(async () => {
-      await result.current.fetchGalleryDetails(1, true);
-    });
+      await act(async () => {
+        await result.current.fetchGalleryDetails(1, true);
+      });
 
-    await act(async () => {
-      try {
-        await result.current.handleCreateShareLink({ label: 'Preview' });
-      } catch {
-        // expected — handler rethrows
-      }
-    });
+      await act(async () => {
+        try {
+          await result.current.handleCreateShareLink({ label: 'Preview' });
+        } catch {
+          // expected — handler rethrows
+        }
+      });
 
-    expect(toastMock.error).toHaveBeenCalled();
+      expect(toastMock.error).toHaveBeenCalled();
+      expect(errorLog).toHaveBeenCalledExactlyOnceWith('Error handled:', expect.any(ApiError));
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 
   it('does not fire toast.success on photo rename (modal handles it)', async () => {

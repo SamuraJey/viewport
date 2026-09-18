@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
-import { AppListbox } from '../../../components/ui';
+import { AppListbox } from '../../../components/ui/AppListbox';
 
 const OPTIONS = [
   { value: 'created_at', label: 'Date created' },

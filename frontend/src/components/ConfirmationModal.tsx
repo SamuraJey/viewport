@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, TriangleAlert, Check } from 'lucide-react';
-import { AppDialog, AppDialogDescription, AppDialogTitle } from './ui';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from './ui/AppDialog';
 
 export interface ConfirmationModalProps {
   isOpen: boolean;

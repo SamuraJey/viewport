@@ -8,7 +8,7 @@ import { PhotoSelectionBar } from './PhotoSelectionBar';
 import type { PhotoUploaderHandle } from '../PhotoUploader';
 import { formatFileSize } from '../../lib/utils';
 import type { GalleryPhoto } from '../../types';
-import { Skeleton } from '../ui';
+import { Skeleton } from '../ui/Skeleton';
 
 interface GalleryPagination {
   page: number;

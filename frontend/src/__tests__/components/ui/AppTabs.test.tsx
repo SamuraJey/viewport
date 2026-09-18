@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AppTabs } from '../../../components/ui';
+import { AppTabs } from '../../../components/ui/AppTabs';
 
 const AppTabsFormHarness = ({ onSubmit }: { onSubmit: () => void }) => {
   const [selectedKey, setSelectedKey] = useState<'first' | 'second'>('first');

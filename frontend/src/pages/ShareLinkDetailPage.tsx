@@ -36,7 +36,7 @@ import {
 } from '../components/share-link-detail/utils';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
-import { AppTabs } from '../components/ui';
+import { AppTabs } from '../components/ui/AppTabs';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { copyTextToClipboard } from '../lib/clipboard';

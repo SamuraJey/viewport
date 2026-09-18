@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui/AppDialog';
 import { isMacPlatform } from '../../lib/platform';
 
 interface KeyboardShortcutsDialogProps {

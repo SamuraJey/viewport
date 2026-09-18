@@ -7,7 +7,8 @@ import {
   type ReadabilityLineSpacing,
   useReadabilityStore,
 } from '../stores/readabilityStore';
-import { AppDialog, AppDialogDescription, AppDialogTitle, AppSwitch } from './ui';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from './ui/AppDialog';
+import { AppSwitch } from './ui/AppSwitch';
 
 interface ReadabilitySettingsButtonProps {
   variant?: 'floating' | 'inline' | 'public-gallery';

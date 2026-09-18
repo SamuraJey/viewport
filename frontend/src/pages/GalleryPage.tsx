@@ -19,7 +19,7 @@ import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySele
 import { GalleryDropZone } from '../components/gallery/GalleryDropZone';
 import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
 import { GalleryAppearanceSection } from '../components/gallery-appearance/GalleryAppearanceSection';
-import { AppTabs } from '../components/ui';
+import { AppTabs } from '../components/ui/AppTabs';
 import {
   GalleryInitialLoadingState,
   GalleryLoadErrorState,
@@ -115,6 +115,7 @@ export const GalleryPage = () => {
   const sortOrder: SortOrder = isSortOrder(orderParam) ? orderParam : DEFAULT_SORT_ORDER;
 
   const [searchInput, setSearchInput] = useState(urlSearch);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [publicSortByInput, setPublicSortByInput] =
     useState<GalleryPhotoSortBy>(DEFAULT_PUBLIC_SORT_BY);
   const [publicSortOrderInput, setPublicSortOrderInput] =
@@ -931,6 +932,7 @@ export const GalleryPage = () => {
         event.key === '/'
       ) {
         event.preventDefault();
+        setSearchOpen(true);
         searchElement?.focus();
         searchElement?.select();
         return;
@@ -1070,7 +1072,7 @@ export const GalleryPage = () => {
   }
 
   const contentTabClassName = ({ selected }: { selected: boolean }): string =>
-    `inline-flex h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
+    `inline-flex h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
       selected
         ? 'border-accent/60 bg-accent/12 text-accent shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_12px_24px_-18px_rgba(56,189,248,0.9)]'
         : 'border-border/70 bg-surface/70 text-text hover:border-accent/35 hover:text-text'
@@ -1080,7 +1082,7 @@ export const GalleryPage = () => {
     {
       key: 'project' as const,
       tabClassName: contentTabClassName,
-      tab: 'Project',
+      tab: 'Photos',
       panel: (
         <div className="space-y-8">
           <GalleryPhotoSection
@@ -1200,7 +1202,7 @@ export const GalleryPage = () => {
         onModalStateChange={setIsUploadModalOpen}
       />
       <div
-        className="relative min-h-screen pb-20"
+        className="relative min-h-screen"
         aria-label={isSelectionMode ? 'Selection mode active' : undefined}
       >
         <div className="space-y-4">
@@ -1233,6 +1235,8 @@ export const GalleryPage = () => {
             }}
             isSavingPublicSortSettings={isSavingPublicSortSettings}
             searchValue={searchInput}
+            searchOpen={searchOpen}
+            onSearchOpenChange={setSearchOpen}
             sortBy={sortBy}
             sortOrder={sortOrder}
             onDeleteGallery={handleDeleteGallery}

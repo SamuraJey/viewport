@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import { defineConfig, loadEnv } from 'vite';
+import { availableParallelism } from 'node:os';
 import type { ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -25,6 +26,21 @@ const assertProductionApiUrl = (mode: string, apiUrl: string | undefined) => {
     invalidUrlMessage: API_URL_VALIDATION_MESSAGES.absoluteHttps,
   });
 };
+
+const nodeTestFiles = [
+  'src/__tests__/services/authService.test.ts',
+  'src/__tests__/services/galleryService.test.ts',
+  'src/__tests__/services/projectService.test.ts',
+  'src/__tests__/components/upload/uploadUtils.test.ts',
+  'src/__tests__/lib/avatar.test.ts',
+  'src/__tests__/lib/utils.test.ts',
+  'src/__tests__/lib/errorHandling.test.ts',
+  'src/__tests__/lib/publicPhotoGridLayout.test.ts',
+  'src/__tests__/lib/pendingFilesQueue.test.ts',
+  'src/__tests__/components/share-links/shareLinkDateTime.test.ts',
+  'src/__tests__/components/share-link-detail/nextOwnerAction.test.ts',
+  'src/__tests__/components/upload-confirm/uploadConfirmUtils.test.ts',
+];
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -152,7 +168,27 @@ export default defineConfig(({ mode }) => {
     test: {
       globals: true,
       environment: 'jsdom',
-      setupFiles: './src/setupTests.ts',
+      maxWorkers: Math.min(12, availableParallelism()),
+      pool: 'threads',
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'dom',
+            include: ['src/**/*.test.{ts,tsx}'],
+            exclude: nodeTestFiles,
+            setupFiles: './src/setupTests.ts',
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'unit',
+            environment: 'node',
+            include: nodeTestFiles,
+          },
+        },
+      ],
       css: true,
       typecheck: {
         tsconfig: './tsconfig.vitest.json',

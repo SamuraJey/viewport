@@ -22,7 +22,8 @@ import { getAccessiblePhotoName } from '../../lib/accessibility';
 import { formatDuration } from '../../lib/utils';
 import type { PublicPhoto, SelectionSession } from '../../types';
 import { LazyImage } from '../LazyImage';
-import { AppBadge, AppPopover } from '../ui';
+import { AppBadge } from '../ui/AppBadge';
+import { AppPopover } from '../ui/AppPopover';
 import { PublicGalleryGridControls } from './PublicGalleryGridControls';
 
 interface PublicGalleryPhotoSectionProps {

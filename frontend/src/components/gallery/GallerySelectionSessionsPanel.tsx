@@ -2,7 +2,7 @@ import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { LayoutGrid, List, LoaderCircle, Lock, LockOpen } from 'lucide-react';
 import { PaginationControls } from '../PaginationControls';
 import type { SelectionItem, SelectionSession } from '../../types';
-import { AppTabs } from '../ui';
+import { AppTabs } from '../ui/AppTabs';
 
 interface FavoritesUserTab {
   key: string;

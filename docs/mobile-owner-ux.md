@@ -82,3 +82,27 @@ appearance and cover, then create/edit a share link with a password and custom
 expiry. Focus lower fields, open/close the keyboard, scroll to actions, rotate
 the phone, and repeat in both themes. Also check photo upload review and nested
 confirmation dialogs, with long names and increased text size.
+
+## Gallery browsing on phones
+
+- The gallery header shows the name, a compact photo-count/size summary, and an
+  action row. **Details** reveals creation metadata, the shooting-date editor,
+  and project context. Desktop metadata remains visible.
+- **Photos** is the gallery content tab (formerly **Project**); the internal tab
+  key is unchanged so existing navigation continues to work.
+- The mobile photo toolbar sticks below the shell header while the gallery
+  metadata scrolls away. **My view** and **Public view** show short sort labels;
+  menus and accessible names retain the full ordering descriptions.
+- Search opens from its labeled icon button and focuses the input. An existing
+  URL search is always visible. Closing search clears the filter through the
+  existing debounced URL flow and returns focus to the button. Desktop search
+  remains visible. The outer field shell owns the single focus indicator.
+- The mobile navigation dock uses a single row of icons and labels with at least
+  44px-high targets. Content bottom padding and the dock retain safe-area spacing;
+  the gallery no longer adds a second redundant bottom spacer.
+
+Gallery search visibility is owned by `GalleryPage`: the `/` shortcut opens the
+collapsed mobile search before focus, with focus restored after the field becomes
+visible. At `sm` and wider, the photo toolbar sits below the measured title/action
+section height (updated by ResizeObserver), with a 12px gap. Gallery metadata stays
+outside both sticky sections and scrolls away.

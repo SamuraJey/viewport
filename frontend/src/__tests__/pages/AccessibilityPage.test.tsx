@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AccessibilityPage } from '../../pages/AccessibilityPage';
@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore';
 
 describe('AccessibilityPage', () => {
   afterEach(() => {
+    cleanup();
     useAuthStore.setState({
       user: null,
       tokens: null,

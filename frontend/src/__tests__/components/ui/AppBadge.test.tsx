@@ -1,7 +1,7 @@
 // No snapshot tests — the codebase convention is explicit assertions.
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { AppBadge } from '../../../components/ui';
+import { AppBadge } from '../../../components/ui/AppBadge';
 
 const ALL_TONES = ['success', 'warning', 'info', 'danger', 'accent', 'neutral'] as const;
 

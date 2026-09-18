@@ -1,7 +1,7 @@
 import { useTheme } from '../hooks/useTheme';
 import { Sun, Moon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { AppSwitch } from './ui';
+import { AppSwitch } from './ui/AppSwitch';
 
 type ThemeSwitchVariant = 'floating' | 'inline';
 

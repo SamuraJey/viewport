@@ -14,7 +14,7 @@ import {
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
 import { LightboxKeyboardHint } from '../components/a11y/LightboxKeyboardHint';
 import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
-import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui/AppDialog';
 import {
   normalizePublicGalleryAppearance,
   getPublicGalleryThemeClassName,

@@ -2,7 +2,8 @@ import { useId, type FormEvent, type RefObject } from 'react';
 import { CalendarDays, CircleCheckBig, FolderPlus, LoaderCircle, Sparkles } from 'lucide-react';
 
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
-import { AppDrawer, AppDrawerSection } from '../ui';
+import { AppDrawer } from '../ui/AppDrawer';
+import { AppDrawerSection } from '../ui/AppDrawerSection';
 
 interface CreateProjectModalProps {
   isOpen: boolean;

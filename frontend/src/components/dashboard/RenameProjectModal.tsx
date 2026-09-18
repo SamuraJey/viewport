@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { LoaderCircle } from 'lucide-react';
 
-import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui/AppDialog';
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
 
 interface RenameProjectModalProps {

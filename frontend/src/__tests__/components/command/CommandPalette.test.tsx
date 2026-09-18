@@ -1,4 +1,5 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { CommandPalette } from '../../../components/command/CommandPalette';
@@ -43,6 +44,7 @@ describe('CommandPalette', () => {
     } as ProjectListResponse);
 
     getOwnerShareLinks.mockResolvedValue({
+      summary: { views: 0, zip_downloads: 0, single_downloads: 0, active_links: 0 },
       share_links: [
         {
           id: 's1',
@@ -59,11 +61,17 @@ describe('CommandPalette', () => {
     const onOpenChange = vi.fn();
     const onOpenShortcuts = vi.fn();
 
-    render(
-      <MemoryRouter>
-        <CommandPalette open={true} onOpenChange={onOpenChange} onOpenShortcuts={onOpenShortcuts} />
-      </MemoryRouter>,
-    );
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <CommandPalette
+            open={true}
+            onOpenChange={onOpenChange}
+            onOpenShortcuts={onOpenShortcuts}
+          />
+        </MemoryRouter>,
+      );
+    });
 
     // Search input is visible
     expect(screen.getByPlaceholderText(/type a command or search/i)).toBeInTheDocument();
@@ -90,7 +98,7 @@ describe('CommandPalette', () => {
 
     // Filtering: typing 'dash' keeps 'Go to dashboard', hides 'Go to share links'
     const input = screen.getByPlaceholderText(/type a command or search/i);
-    fireEvent.change(input, { target: { value: 'dash' } });
+    await userEvent.type(input, 'dash');
 
     await waitFor(() => {
       expect(screen.getByRole('option', { name: /go to dashboard/i })).toBeInTheDocument();
@@ -98,7 +106,7 @@ describe('CommandPalette', () => {
     expect(screen.queryByRole('option', { name: /go to share links/i })).not.toBeInTheDocument();
 
     // Clicking 'Go to dashboard' closes the palette
-    fireEvent.click(screen.getByRole('option', { name: /go to dashboard/i }));
+    await userEvent.click(screen.getByRole('option', { name: /go to dashboard/i }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -106,11 +114,13 @@ describe('CommandPalette', () => {
     getProjects.mockRejectedValue(new Error('projects down'));
     getOwnerShareLinks.mockRejectedValue(new Error('sharelinks down'));
 
-    render(
-      <MemoryRouter>
-        <CommandPalette open={true} onOpenChange={vi.fn()} onOpenShortcuts={vi.fn()} />
-      </MemoryRouter>,
-    );
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <CommandPalette open={true} onOpenChange={vi.fn()} onOpenShortcuts={vi.fn()} />
+        </MemoryRouter>,
+      );
+    });
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
@@ -132,17 +142,20 @@ describe('CommandPalette', () => {
       size: 5,
     } as ProjectListResponse);
     getOwnerShareLinks.mockResolvedValue({
+      summary: { views: 0, zip_downloads: 0, single_downloads: 0, active_links: 0 },
       share_links: [],
       total: 0,
       page: 1,
       size: 20,
     } as ShareLinksDashboardResponse);
 
-    render(
-      <MemoryRouter>
-        <CommandPalette open={true} onOpenChange={vi.fn()} onOpenShortcuts={vi.fn()} />
-      </MemoryRouter>,
-    );
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <CommandPalette open={true} onOpenChange={vi.fn()} onOpenShortcuts={vi.fn()} />
+        </MemoryRouter>,
+      );
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Recent')).toBeInTheDocument();

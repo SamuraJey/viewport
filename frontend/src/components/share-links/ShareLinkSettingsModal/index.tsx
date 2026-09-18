@@ -13,7 +13,8 @@ import {
 } from 'lucide-react';
 import type { SelectionConfigUpdateRequest, ShareLink } from '../../../types';
 import { copyTextToClipboard } from '../../../lib/clipboard';
-import { AppDrawer, AppTabs } from '../../ui';
+import { AppDrawer } from '../../ui/AppDrawer';
+import { AppTabs } from '../../ui/AppTabs';
 import { formatUtcDateTimeInputValue, parseUtcDateTimeInputValue } from '../shareLinkDateTime';
 import type {
   PasswordMode,

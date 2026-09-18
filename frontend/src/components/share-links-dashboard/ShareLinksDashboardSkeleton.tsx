@@ -1,4 +1,4 @@
-import { Skeleton } from '../ui';
+import { Skeleton } from '../ui/Skeleton';
 
 const METRIC_KEYS = ['views', 'active', 'downloads', 'sessions', 'submitted'] as const;
 const MOBILE_ROW_KEYS = ['mobile-one', 'mobile-two', 'mobile-three'] as const;

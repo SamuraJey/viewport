@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { Skeleton } from '../../../components/ui';
+import { Skeleton } from '../../../components/ui/Skeleton';
 
 describe('Skeleton', () => {
   it('is a deterministic visual-only block with a static reduced-motion fallback', () => {

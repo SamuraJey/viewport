@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { GripVertical, ImageIcon, LoaderCircle, RotateCw, Shrink, Video, X } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AppBadge } from '../ui';
+import { AppBadge } from '../ui/AppBadge';
 import { formatFileSize } from '../../lib/utils';
 import { createImageThumbnail } from '../../lib/imageThumbnail';
 import {

@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AppDrawer } from '../../../components/ui';
+import { AppDrawer } from '../../../components/ui/AppDrawer';
 
 const setDesktopViewport = (matches: boolean) => {
   Object.defineProperty(window, 'matchMedia', {
