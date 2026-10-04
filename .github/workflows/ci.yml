@@ -50,7 +50,6 @@ jobs:
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     permissions:
       contents: read
-      actions: write
     steps:
       - uses: actions/checkout@v7.0.0
 
@@ -91,9 +90,10 @@ jobs:
       # Required for posting/updating PR comments and pushing the data branch on default branch
       pull-requests: write
       contents: write
-      actions: write
     steps:
       - uses: actions/checkout@v7.0.0
+        with:
+          persist-credentials: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.2.0
