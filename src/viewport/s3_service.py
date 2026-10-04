@@ -7,7 +7,10 @@ singleton via dependency injection.
 """
 
 import asyncio
+import hashlib
+import hmac
 import io
+import json
 import logging
 from collections.abc import Mapping
 from contextlib import AbstractAsyncContextManager
@@ -84,6 +87,12 @@ class AsyncS3Client:
         return cast(str, endpoint)
 
     @property
+    def presigned_cache_namespace(self) -> str:
+        """Isolate cached URLs by signing configuration without exposing credentials."""
+        context = json.dumps([self._endpoint_url, self.settings.access_key, self.settings.region, self.settings.signature_version])
+        return hmac.new(self.settings.secret_key.encode("utf-8"), context.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    @property
     def session(self) -> aioboto3.Session:
         """Get or create the shared aioboto3 session.
 
@@ -141,6 +150,19 @@ class AsyncS3Client:
             async with self._get_s3_client() as s3:
                 await s3.put_bucket_cors(Bucket=self.settings.bucket, CORSConfiguration=cors_config)
             logger.info("Bucket CORS configured with ETag exposure")
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "Unknown")
+            if code in {"InvalidAccessKeyId", "SignatureDoesNotMatch", "InvalidToken", "ExpiredToken"}:
+                logger.error(
+                    "S3 credential validation failed during bucket CORS setup (%s): endpoint=%s, bucket=%s. "
+                    "Check S3_ACCESS_KEY/S3_SECRET_KEY and the S3 endpoint routing, then restart backend and workers. "
+                    "Presigned URLs are generated locally and may fail until credentials are corrected.",
+                    code,
+                    self._endpoint_url,
+                    self.settings.bucket,
+                )
+            else:
+                logger.warning("Failed to configure bucket CORS (ETag exposure): %s", e)
         except Exception as e:
             logger.warning("Failed to configure bucket CORS (ETag exposure): %s", e)
 

@@ -146,7 +146,7 @@
   - Legacy Redis compatibility shim has been removed; import/use `RedisService` only.
 - **PresignedUrlCacheService** (`src/viewport/services/presigned_cache.py`):
   - Business logic for caching presigned S3 URLs
-  - Cache key format: `presign:{bucket}:{base64_object_key}:{disposition_hash}`
+  - Cache key format: `presign:{bucket}:{signing_namespace}:{base64_object_key}:{disposition_hash}`; the namespace fingerprints S3 signing settings so credential rotation bypasses stale URLs without Redis cleanup. See `docs/s3-credentials.md`.
   - TTL buffer: 10 minutes before actual URL expiry
   - Index sets for efficient invalidation by object key
   - Batch operations for performance
