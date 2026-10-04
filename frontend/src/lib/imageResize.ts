@@ -1,4 +1,4 @@
-import imageCompression, { type Options } from 'browser-image-compression';
+import type { Options } from 'browser-image-compression';
 import {
   MAX_UPLOAD_FILE_SIZE_BYTES,
   SUPPORTED_IMAGE_TYPES,
@@ -11,9 +11,7 @@ const SUPPORTED_RESIZE_TYPES = SUPPORTED_IMAGE_TYPES;
  * Resizes an image file to fit within the specified byte limit.
  * Uses browser-image-compression with Web Worker for off-main-thread processing.
  *
- * Bundle note: browser-image-compression is ~25KB gzipped. Offsetting factors:
- * - Only loaded with the upload modal code path (Vite code splitting)
- * - Web Worker offloads Canvas processing from the main thread
+ * The compression library loads only when an oversized supported image needs resizing.
  *
  * @param file - The image file to resize
  * @param maxBytes - Target maximum size in bytes (default: MAX_UPLOAD_FILE_SIZE_BYTES)
@@ -51,6 +49,7 @@ export async function resizeImageForUpload(
     if (quality !== undefined) {
       options.initialQuality = quality;
     }
+    const { default: imageCompression } = await import('browser-image-compression');
     const compressed = await imageCompression(compressionSource, options);
 
     // Guard: ensure the result retains file identity

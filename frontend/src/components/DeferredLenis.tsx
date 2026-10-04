@@ -1,39 +1,49 @@
-import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import type Lenis from 'lenis';
 
-type LenisWrapperProps = {
-  children: ReactNode;
-  root?: boolean;
-};
-
-export const DeferredLenis = ({ children }: { children: ReactNode }) => {
-  const [LenisComponent, setLenisComponent] = useState<ComponentType<LenisWrapperProps> | null>(
-    null,
-  );
-
+/** Enhance landing-page scrolling without changing or remounting the React tree. */
+export const DeferredLenis = ({ children }: { children?: ReactNode }) => {
   useEffect(() => {
-    let isMounted = true;
+    if (typeof window.matchMedia !== 'function') return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const coarsePointer = window.matchMedia('(pointer: coarse)');
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
+      .connection;
+    if (reducedMotion.matches || coarsePointer.matches || connection?.saveData) return;
 
-    const timeoutId = window.setTimeout(() => {
-      void import('lenis/react')
-        .then((module) => {
-          if (isMounted) {
-            setLenisComponent(() => module.ReactLenis);
+    let cancelled = false;
+    let instance: Lenis | undefined;
+    const load = () => {
+      void import('lenis')
+        .then(({ default: Lenis }) => {
+          if (!cancelled && !reducedMotion.matches && !coarsePointer.matches) {
+            instance = new Lenis({ autoRaf: true });
           }
         })
         .catch(() => {
-          // Smooth scrolling is progressive enhancement; keep native scrolling on load failure.
+          // Native scrolling remains available if the optional enhancement cannot load.
         });
-    }, 0);
-
+    };
+    const stop = () => {
+      cancelled = true;
+      instance?.destroy();
+      instance = undefined;
+    };
+    const onPreferenceChange = () => {
+      if (reducedMotion.matches || coarsePointer.matches) stop();
+    };
+    reducedMotion.addEventListener('change', onPreferenceChange);
+    coarsePointer.addEventListener('change', onPreferenceChange);
+    const idleId = window.requestIdleCallback?.(load, { timeout: 1500 });
+    const timeoutId = idleId === undefined ? window.setTimeout(load, 250) : undefined;
     return () => {
-      isMounted = false;
-      window.clearTimeout(timeoutId);
+      stop();
+      if (idleId !== undefined) window.cancelIdleCallback(idleId);
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      reducedMotion.removeEventListener('change', onPreferenceChange);
+      coarsePointer.removeEventListener('change', onPreferenceChange);
     };
   }, []);
 
-  if (!LenisComponent) {
-    return <>{children}</>;
-  }
-
-  return <LenisComponent root>{children}</LenisComponent>;
+  return children ?? null;
 };

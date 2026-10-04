@@ -1,7 +1,8 @@
+import { preloadRoute } from '../lib/preloadRoute';
 import type { ReactNode } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Camera, ChevronDown, Home, LogOut, Search, Settings, Share2 } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 
 import { getAvatarInitials, stringToHue } from '../lib/avatar';
@@ -11,7 +12,13 @@ import { NetworkStatus } from './ErrorDisplay';
 import { AppPopover } from './ui/AppPopover';
 import { ReadabilitySettingsButton } from './ReadabilitySettingsButton';
 import { SkipToContentLink } from './a11y/SkipToContentLink';
-import { ProfileModal } from './ProfileModal';
+import { OverlayLoading } from './ui/OverlayLoading';
+
+const ProfileModal = lazy(() =>
+  preloadRoute('ProfileModal', () => import('./ProfileModal')).then((module) => ({
+    default: module.ProfileModal,
+  })),
+);
 import { ThemeSwitch } from './ThemeSwitch';
 import { useAuthStore } from '../stores/authStore';
 
@@ -219,9 +226,19 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
           </Link>
         </div>
       </footer>
-      <AnimatePresence>
-        {isProfileOpen && <ProfileModal isOpen={isProfileOpen} onClose={closeProfile} />}
-      </AnimatePresence>
+      <Suspense
+        fallback={
+          <OverlayLoading
+            open={isProfileOpen}
+            onClose={closeProfile}
+            label="Loading account settings"
+          />
+        }
+      >
+        <AnimatePresence>
+          {isProfileOpen && <ProfileModal isOpen={isProfileOpen} onClose={closeProfile} />}
+        </AnimatePresence>
+      </Suspense>
     </div>
   );
 };

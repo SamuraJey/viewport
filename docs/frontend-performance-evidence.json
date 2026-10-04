@@ -1,0 +1,142 @@
+{
+  "baseline": "esbuild migration snapshot at start of frontend client audit",
+  "method": "static import closure (dynamic imports excluded), gzip level 6; local Chromium PerformanceResourceTiming for /assets/ only; desktop demos for dashboard/gallery",
+  "staticBefore": {
+    "directory": "/tmp/viewport-client-before",
+    "totalGzipBytes": 548127,
+    "routes": {
+      "LandingPage": {
+        "jsBytes": 921236,
+        "jsGzipBytes": 291268,
+        "jsRequests": 17,
+        "eagerFeatures": [
+          "src/services/demoService.ts",
+          "src/components/ProfileModal.tsx",
+          "src/components/command/CommandPalette.tsx",
+          "lightbox runtime"
+        ]
+      },
+      "LoginPage": {
+        "jsBytes": 905202,
+        "jsGzipBytes": 288503,
+        "jsRequests": 18,
+        "eagerFeatures": [
+          "src/services/demoService.ts",
+          "src/components/ProfileModal.tsx",
+          "src/components/command/CommandPalette.tsx",
+          "lightbox runtime"
+        ]
+      },
+      "DashboardPage": {
+        "jsBytes": 992842,
+        "jsGzipBytes": 317774,
+        "jsRequests": 23,
+        "eagerFeatures": [
+          "src/services/demoService.ts",
+          "src/components/ProfileModal.tsx",
+          "src/components/command/CommandPalette.tsx",
+          "lightbox runtime"
+        ]
+      },
+      "GalleryPage": {
+        "jsBytes": 1327631,
+        "jsGzipBytes": 424282,
+        "jsRequests": 26,
+        "eagerFeatures": [
+          "src/services/demoService.ts",
+          "src/components/ProfileModal.tsx",
+          "src/components/command/CommandPalette.tsx",
+          "src/components/upload/UploadConfirmModal.tsx",
+          "src/components/gallery-appearance/GalleryAppearanceSection.tsx",
+          "lightbox runtime",
+          "image compression"
+        ]
+      },
+      "PublicGalleryPage": {
+        "jsBytes": 1060907,
+        "jsGzipBytes": 339499,
+        "jsRequests": 20,
+        "eagerFeatures": [
+          "src/services/demoService.ts",
+          "src/components/ProfileModal.tsx",
+          "src/components/command/CommandPalette.tsx",
+          "lightbox runtime"
+        ]
+      }
+    }
+  },
+  "staticAfter": {
+    "directory": "/tmp/viewport-client-after",
+    "totalGzipBytes": 565853,
+    "routes": {
+      "LandingPage": {
+        "jsBytes": 662400,
+        "jsGzipBytes": 215523,
+        "jsRequests": 23,
+        "eagerFeatures": []
+      },
+      "LoginPage": {
+        "jsBytes": 701534,
+        "jsGzipBytes": 233825,
+        "jsRequests": 27,
+        "eagerFeatures": []
+      },
+      "DashboardPage": {
+        "jsBytes": 892664,
+        "jsGzipBytes": 296923,
+        "jsRequests": 44,
+        "eagerFeatures": []
+      },
+      "GalleryPage": {
+        "jsBytes": 975493,
+        "jsGzipBytes": 321711,
+        "jsRequests": 52,
+        "eagerFeatures": []
+      },
+      "PublicGalleryPage": {
+        "jsBytes": 883547,
+        "jsGzipBytes": 292260,
+        "jsRequests": 35,
+        "eagerFeatures": []
+      }
+    }
+  },
+  "browser": {
+    "landing": {
+      "before": {
+        "assetRequests": 19,
+        "encodedAssetBytes": 331120,
+        "encodedCssBytes": 33665
+      },
+      "after": {
+        "assetRequests": 25,
+        "encodedAssetBytes": 252814,
+        "encodedCssBytes": 31860
+      }
+    },
+    "dashboard": {
+      "before": {
+        "assetRequests": 25,
+        "encodedAssetBytes": 357626,
+        "encodedCssBytes": 33665
+      },
+      "after": {
+        "assetRequests": 48,
+        "encodedAssetBytes": 343565,
+        "encodedCssBytes": 31860
+      }
+    },
+    "gallery": {
+      "before": {
+        "assetRequests": 28,
+        "encodedAssetBytes": 464134,
+        "encodedCssBytes": 33665
+      },
+      "after": {
+        "assetRequests": 54,
+        "encodedAssetBytes": 367293,
+        "encodedCssBytes": 31860
+      }
+    }
+  }
+}

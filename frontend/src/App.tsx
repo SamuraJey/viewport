@@ -1,46 +1,79 @@
-import { Suspense, lazy, useCallback } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router';
-import { RequireAuth } from './components/RequireAuth';
+import { preloadRoute } from './lib/preloadRoute';
+import { Suspense, lazy } from 'react';
+import { Routes, Route, Navigate } from 'react-router';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Layout } from './components/Layout';
-import { AccessibilityPage } from './pages/AccessibilityPage';
-import { NotFoundPage, ErrorPage } from './pages/ErrorPage';
 import { useAuthStore } from './stores/authStore';
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { KeyboardShortcutsDialog } from './components/a11y/KeyboardShortcutsDialog';
-import { CommandPalette } from './components/command/CommandPalette';
 import { RouteTransition } from './components/RouteTransition';
 
+const ProtectedLayout = lazy(() =>
+  preloadRoute('ProtectedLayout', () => import('./components/ProtectedLayout')).then((module) => ({
+    default: module.ProtectedLayout,
+  })),
+);
+const AccessibilityPage = lazy(() =>
+  preloadRoute('AccessibilityPage', () => import('./pages/AccessibilityPage')).then((module) => ({
+    default: module.AccessibilityPage,
+  })),
+);
+const NotFoundPage = lazy(() =>
+  preloadRoute('ErrorPage', () => import('./pages/ErrorPage')).then((module) => ({
+    default: module.NotFoundPage,
+  })),
+);
+const ErrorPage = lazy(() =>
+  preloadRoute('ErrorPage', () => import('./pages/ErrorPage')).then((module) => ({
+    default: module.ErrorPage,
+  })),
+);
+
 const LoginPage = lazy(() =>
-  import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })),
+  preloadRoute('LoginPage', () => import('./pages/LoginPage')).then((module) => ({
+    default: module.LoginPage,
+  })),
 );
 const RegisterPage = lazy(() =>
-  import('./pages/RegisterPage').then((module) => ({ default: module.RegisterPage })),
+  preloadRoute('RegisterPage', () => import('./pages/RegisterPage')).then((module) => ({
+    default: module.RegisterPage,
+  })),
 );
 const DashboardPage = lazy(() =>
-  import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })),
+  preloadRoute('DashboardPage', () => import('./pages/DashboardPage')).then((module) => ({
+    default: module.DashboardPage,
+  })),
 );
 const LandingPage = lazy(() =>
-  import('./pages/LandingPage').then((module) => ({ default: module.LandingPage })),
+  preloadRoute('LandingPage', () => import('./pages/LandingPage')).then((module) => ({
+    default: module.LandingPage,
+  })),
 );
 const GalleryPage = lazy(() =>
-  import('./pages/GalleryPage').then((module) => ({ default: module.GalleryPage })),
+  preloadRoute('GalleryPage', () => import('./pages/GalleryPage')).then((module) => ({
+    default: module.GalleryPage,
+  })),
 );
 const ProjectPage = lazy(() =>
-  import('./pages/ProjectPage').then((module) => ({ default: module.ProjectPage })),
+  preloadRoute('ProjectPage', () => import('./pages/ProjectPage')).then((module) => ({
+    default: module.ProjectPage,
+  })),
 );
 const ShareLinksDashboardPage = lazy(() =>
-  import('./pages/ShareLinksDashboardPage').then((module) => ({
-    default: module.ShareLinksDashboardPage,
-  })),
+  preloadRoute('ShareLinksDashboardPage', () => import('./pages/ShareLinksDashboardPage')).then(
+    (module) => ({
+      default: module.ShareLinksDashboardPage,
+    }),
+  ),
 );
 const ShareLinkDetailPage = lazy(() =>
-  import('./pages/ShareLinkDetailPage').then((module) => ({
-    default: module.ShareLinkDetailPage,
-  })),
+  preloadRoute('ShareLinkDetailPage', () => import('./pages/ShareLinkDetailPage')).then(
+    (module) => ({
+      default: module.ShareLinkDetailPage,
+    }),
+  ),
 );
 const PublicGalleryPage = lazy(() =>
-  import('./pages/PublicGalleryPage').then((module) => ({ default: module.PublicGalleryPage })),
+  preloadRoute('PublicGalleryPage', () => import('./pages/PublicGalleryPage')).then((module) => ({
+    default: module.PublicGalleryPage,
+  })),
 );
 
 const RouteFallback = () => (
@@ -62,35 +95,6 @@ const RouteFallback = () => (
     </div>
   </div>
 );
-
-const ProtectedLayout = () => {
-  const { isAuthenticated } = useAuthStore();
-  const { isOpen, setIsOpen, paletteOpen, setPaletteOpen } = useKeyboardShortcuts({
-    enabled: isAuthenticated,
-  });
-  const handleOpenShortcuts = useCallback(() => {
-    setPaletteOpen(false);
-    setIsOpen(true);
-  }, [setPaletteOpen, setIsOpen]);
-
-  return (
-    <RequireAuth>
-      <Layout onOpenCommandPalette={() => setPaletteOpen(true)}>
-        <Outlet />
-      </Layout>
-      {isAuthenticated && (
-        <>
-          <KeyboardShortcutsDialog open={isOpen} onClose={() => setIsOpen(false)} />
-          <CommandPalette
-            open={paletteOpen}
-            onOpenChange={setPaletteOpen}
-            onOpenShortcuts={handleOpenShortcuts}
-          />
-        </>
-      )}
-    </RequireAuth>
-  );
-};
 
 function App() {
   const { isAuthenticated } = useAuthStore();

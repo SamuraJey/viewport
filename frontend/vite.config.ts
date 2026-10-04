@@ -4,7 +4,6 @@ import { availableParallelism } from 'node:os';
 import type { ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { compression } from 'vite-plugin-compression2';
 import {
   API_URL_VALIDATION_MESSAGES,
   assertRequiredHttpsApiUrl,
@@ -79,13 +78,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     base,
-    plugins: [
-      react(),
-      tailwindcss(),
-      compression({
-        algorithms: ['gzip'],
-      }),
-    ],
+    plugins: [react(), tailwindcss()],
     server: {
       port: devPort,
       devtools: true,
@@ -105,62 +98,6 @@ export default defineConfig(({ mode }) => {
     },
     preview: {
       port: previewPort,
-    },
-    build: {
-      outDir: env.VITE_BUILD_OUT_DIR ?? 'dist',
-      sourcemap: env.VITE_BUILD_SOURCEMAP === 'true',
-      target: 'es2022',
-      minify: 'terser',
-      terserOptions: {
-        compress: {
-          drop_console: mode === 'production',
-          drop_debugger: mode === 'production',
-          passes: 1, // Reduce compression passes for faster builds
-        },
-      },
-      rolldownOptions: {
-        output: {
-          manualChunks(id) {
-            if (!id.includes('node_modules')) {
-              return;
-            }
-
-            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('scheduler')) {
-              return 'react-core';
-            }
-
-            if (id.includes('react-router') || id.includes('@remix-run/router')) {
-              return 'router';
-            }
-
-            if (id.includes('framer-motion')) {
-              return 'motion';
-            }
-
-            if (id.includes('lucide-react')) {
-              return 'icons';
-            }
-
-            if (id.includes('axios')) {
-              return 'network';
-            }
-
-            if (id.includes('zustand')) {
-              return 'state';
-            }
-
-            if (id.includes('lenis')) {
-              return 'scroll';
-            }
-
-            if (id.includes('yet-another-react-lightbox')) {
-              return 'lightbox';
-            }
-
-            return;
-          },
-        },
-      },
     },
     define: {
       __APP_VERSION__: JSON.stringify(env.npm_package_version ?? '0.0.0'),

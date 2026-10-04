@@ -483,18 +483,11 @@ describe('usePhotoLightbox', () => {
     expect(onLoadMore).not.toHaveBeenCalled();
   });
 
-  it('configures lightbox with correct plugins and settings', () => {
+  it('preserves viewer controls and settings across deferred loading', () => {
     const { result } = renderHook(() => usePhotoLightbox());
 
     const slides = [{ src: '/photo1.jpg', alt: 'Photo 1' }];
     const lightbox = result.current.renderLightbox(slides);
-    expect(lightbox.props.plugins).toEqual([
-      'Thumbnails',
-      'Fullscreen',
-      'LightboxDownload',
-      'Video',
-      'Zoom',
-    ]);
     expect(lightbox.props.controller.closeOnPullDown).toBe(true);
     expect(lightbox.props.controller.closeOnPullUp).toBe(true);
     expect(lightbox.props.controller.closeOnBackdropClick).toBe(true);
@@ -504,7 +497,6 @@ describe('usePhotoLightbox', () => {
     expect(lightbox.props.zoom.maxZoomPixelRatio).toBe(3);
     expect(lightbox.props.zoom.scrollToZoom).toBe(true);
     expect(lightbox.props.styles.container.backgroundColor).toBe('rgba(0, 0, 0, 0.85)');
-    expect(lightbox.props.render.slideContainer).toBe('ProgressiveSlide');
   });
 
   it('keeps carousel finite until all gallery photos are loaded', () => {

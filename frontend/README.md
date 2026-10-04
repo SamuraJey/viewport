@@ -1,8 +1,8 @@
-# React + TypeScript + Vite
+# Viewport frontend
 
 ## Environment configuration
 
-The Vite build now picks up settings from `.env` files or runtime environment variables. The defaults live in `.env`, but you can override them per deployment:
+Vite serves the development app and Vitest runs tests. Production assets are built with incremental esbuild. Both read `.env` files and runtime environment variables:
 
 - `VITE_API_URL` – backend origin used by the application code.
 - `VITE_APP_BASE` – base path when serving the bundle (defaults to `/`).
@@ -12,15 +12,28 @@ The Vite build now picks up settings from `.env` files or runtime environment va
 - `VITE_BUILD_OUT_DIR` – build output directory (`dist` by default).
 - `VITE_BUILD_SOURCEMAP` – set to `true` to emit production sourcemaps.
 
-Create `.env.local`, `.env.production`, etc. to customize these per environment. Vite exposes any `VITE_*` variable as `import.meta.env` inside the React app.
+Create `.env.local`, `.env.production`, etc. to customize these per environment. The build exposes `VITE_*` variables as `import.meta.env` inside the React app.
 
-This template provides a minimal setup to get React working in Vite with HMR and [oxlint](https://oxc.rs/docs/guide/usage/linter) for linting.
+## Commands
 
-Currently, two official plugins are available:
+- `npm run format` / `npm run format:check`: Oxfmt
+- `npm run lint` / `npm run lint:fix`: Oxlint for TypeScript and JavaScript
+- `npm run lint:css`: Stylelint for CSS
+- `npm run typecheck`: TypeScript 7 native compiler (`tsc -b`; the published TS7 binary is named `tsc`)
+- `npm run build`: typecheck and production esbuild bundle
+- `npm run build:watch`: incremental esbuild watch build
+- `npm run dev` / `npm run preview`: Vite development and preview servers
+- `npm run qa`: formatting, lint, tests, and production build
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+See [the migration record](../docs/ts-toolchain-migration.md) for the dependency audit, benchmark method, and results.
 
-## Linting with oxlint
+## Page loading audit
 
-The frontend uses [oxlint](https://oxc.rs/) as its linter, configured via [`.oxlintrc.json`](./.oxlintrc.json) at the project root. Run `npm run lint` to lint, `npm run lint:fix` to apply auto-fixes, and the `qa` script chains lint, tests, and a production build together. The project is also on [TypeScript 7](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/), which uses the native Go-based `tsc` compiler.
+See [frontend performance audit](../docs/frontend-performance-audit.md) for lazy feature loading and before/after measurements. To inspect initial route graphs:
+
+```sh
+VITE_API_URL=https://backend.example.test node scripts/build.mjs --analyze
+node scripts/analyze-build.mjs dist --check
+```
+
+The check rejects eager imports of optional demo/viewer/upload/profile features in the measured route graphs. Production builds omit the analysis metafile unless `--analyze` is passed.

@@ -10,7 +10,7 @@ import { AuthCard } from '../components/auth/AuthCard';
 import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
 import { disableDemoMode, enableDemoMode } from '../lib/demoMode';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { getDemoService } from '../services/demoService';
+import { loadDemoService } from '../services/loadDemoService';
 
 export const LoginPage = () => {
   useDocumentTitle('Login · Viewport');
@@ -63,11 +63,20 @@ export const LoginPage = () => {
     }
   };
 
-  const handleDemoLogin = () => {
-    enableDemoMode();
-    const demoService = getDemoService();
-    login(demoService.getDemoUser(), demoService.getDemoTokens());
-    navigate('/dashboard', { replace: true });
+  const handleDemoLogin = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    setError('');
+    try {
+      const demoService = await loadDemoService();
+      enableDemoMode();
+      login(demoService.getDemoUser(), demoService.getDemoTokens());
+      navigate('/dashboard', { replace: true });
+    } catch {
+      setError('Could not open the demo. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

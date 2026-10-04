@@ -40,7 +40,7 @@ import { isDemoModeEnabled } from '../lib/demoMode';
 import { formatFileSize } from '../lib/utils';
 import { handleApiError } from '../lib/errorHandling';
 import { getAccessiblePhotoName } from '../lib/accessibility';
-import { getDemoService } from '../services/demoService';
+import { loadDemoService } from '../services/loadDemoService';
 import { shareLinkService } from '../services/shareLinkService';
 import type { PublicPhoto, SelectionSessionStartRequest, SharedProjectShare } from '../types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -345,7 +345,7 @@ export const PublicGalleryPage = () => {
     setDownloadError('');
     try {
       if (isDemoModeEnabled()) {
-        await getDemoService().downloadSharedGalleryZip(shareId);
+        await (await loadDemoService()).downloadSharedGalleryZip(shareId);
         return;
       }
 
@@ -360,7 +360,7 @@ export const PublicGalleryPage = () => {
     setDownloadError('');
     try {
       if (isDemoModeEnabled()) {
-        await getDemoService().downloadGalleryZip(activeGalleryId);
+        await (await loadDemoService()).downloadGalleryZip(activeGalleryId);
         return;
       }
 

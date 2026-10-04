@@ -1,6 +1,6 @@
 import { api, publicApi } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
-import { getDemoService } from './demoService';
+import { loadDemoService } from './loadDemoService';
 import type {
   ShareLink,
   ShareLinkAnalyticsResponse,
@@ -74,14 +74,15 @@ const downloadOwnerExport = async (path: string, fallbackFilename: string): Prom
   const contentDisposition =
     (response.headers['content-disposition'] as string | undefined) ??
     (response.headers['Content-Disposition' as keyof typeof response.headers] as
-      string | undefined);
+      | string
+      | undefined);
   const filename = parseDownloadFilename(contentDisposition, fallbackFilename);
   triggerBlobDownload(response.data, filename);
 };
 
 const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getShareLinks(galleryId);
+    return (await loadDemoService()).getShareLinks(galleryId);
   }
 
   const response = await api.get<ShareLink[]>(`/galleries/${galleryId}/share-links`);
@@ -93,7 +94,7 @@ const createShareLink = async (
   payload?: ShareLinkCreateRequest,
 ): Promise<ShareLink> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().createShareLink(galleryId, payload);
+    return (await loadDemoService()).createShareLink(galleryId, payload);
   }
 
   const response = await api.post<ShareLink>(
@@ -109,7 +110,7 @@ const updateShareLink = async (
   payload: ShareLinkUpdateRequest,
 ): Promise<ShareLink> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().updateShareLink(galleryId, shareLinkId, payload);
+    return (await loadDemoService()).updateShareLink(galleryId, shareLinkId, payload);
   }
 
   const response = await api.patch<ShareLink>(
@@ -121,7 +122,7 @@ const updateShareLink = async (
 
 const deleteShareLink = async (galleryId: string, shareLinkId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().deleteShareLink(galleryId, shareLinkId);
+    await (await loadDemoService()).deleteShareLink(galleryId, shareLinkId);
     return;
   }
 
@@ -134,7 +135,7 @@ const getSharedGallery = async (
   signal?: AbortSignal,
 ): Promise<SharedGallery> => {
   if (isDemoModeEnabled()) {
-    const gallery = await getDemoService().getSharedGallery(shareId, options);
+    const gallery = await (await loadDemoService()).getSharedGallery(shareId, options);
     signal?.throwIfAborted();
     return gallery;
   }
@@ -174,7 +175,7 @@ const unlockSharedGallery = async (shareId: string, password: string): Promise<v
 
 const getProjectShareLinks = async (projectId: string): Promise<ShareLink[]> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getProjectShareLinks(projectId);
+    return (await loadDemoService()).getProjectShareLinks(projectId);
   }
 
   const response = await api.get<ShareLink[]>(`/projects/${projectId}/share-links`);
@@ -183,7 +184,7 @@ const getProjectShareLinks = async (projectId: string): Promise<ShareLink[]> => 
 
 const getProjectWarningShareLinks = async (projectId: string): Promise<ShareLink[]> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getProjectWarningShareLinks(projectId);
+    return (await loadDemoService()).getProjectWarningShareLinks(projectId);
   }
 
   const response = await api.get<ShareLink[]>(`/projects/${projectId}/share-links/warnings`);
@@ -195,7 +196,7 @@ const createProjectShareLink = async (
   payload?: ShareLinkCreateRequest,
 ): Promise<ShareLink> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().createProjectShareLink(projectId, payload);
+    return (await loadDemoService()).createProjectShareLink(projectId, payload);
   }
 
   const response = await api.post<ShareLink>(
@@ -211,7 +212,7 @@ const updateProjectShareLink = async (
   payload: ShareLinkUpdateRequest,
 ): Promise<ShareLink> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().updateProjectShareLink(projectId, shareLinkId, payload);
+    return (await loadDemoService()).updateProjectShareLink(projectId, shareLinkId, payload);
   }
 
   const response = await api.patch<ShareLink>(
@@ -223,7 +224,7 @@ const updateProjectShareLink = async (
 
 const deleteProjectShareLink = async (projectId: string, shareLinkId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().deleteProjectShareLink(projectId, shareLinkId);
+    await (await loadDemoService()).deleteProjectShareLink(projectId, shareLinkId);
     return;
   }
 
@@ -237,7 +238,7 @@ const getOwnerShareLinks = async (
   status?: 'active' | 'inactive' | 'expired',
 ): Promise<ShareLinksDashboardResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getOwnerShareLinks(page, size, search, status);
+    return (await loadDemoService()).getOwnerShareLinks(page, size, search, status);
   }
 
   const params = new URLSearchParams({
@@ -260,7 +261,7 @@ const getShareLinkAnalytics = async (
   days = 30,
 ): Promise<ShareLinkAnalyticsResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getShareLinkAnalytics(shareLinkId, days);
+    return (await loadDemoService()).getShareLinkAnalytics(shareLinkId, days);
   }
 
   const response = await api.get<ShareLinkAnalyticsResponse>(
@@ -274,7 +275,7 @@ const getPublicPhotosByIds = async (
   photoIds: string[],
 ): Promise<PublicPhoto[]> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getPublicPhotosByIds(shareId, photoIds);
+    return (await loadDemoService()).getPublicPhotosByIds(shareId, photoIds);
   }
 
   const params = new URLSearchParams();
@@ -297,7 +298,7 @@ const getPublicPhotosByIds = async (
 
 const getPublicSelectionConfig = async (shareId: string): Promise<SelectionConfig> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getPublicSelectionConfig(shareId);
+    return (await loadDemoService()).getPublicSelectionConfig(shareId);
   }
 
   const response = await publicApi.get<SelectionConfig>(`/s/${shareId}/selection/config`, {
@@ -311,7 +312,7 @@ const startPublicSelectionSession = async (
   payload: SelectionSessionStartRequest,
 ): Promise<SelectionSession> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().startPublicSelectionSession(shareId, payload);
+    return (await loadDemoService()).startPublicSelectionSession(shareId, payload);
   }
 
   const response = await publicApi.post<SelectionSession>(
@@ -327,7 +328,7 @@ const getPublicSelectionSession = async (
   resumeToken?: string,
 ): Promise<SelectionSession> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getPublicSelectionSession(shareId, resumeToken);
+    return (await loadDemoService()).getPublicSelectionSession(shareId, resumeToken);
   }
 
   const params = new URLSearchParams();
@@ -350,7 +351,7 @@ const togglePublicSelectionItem = async (
   resumeToken?: string,
 ): Promise<SelectionToggleResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().togglePublicSelectionItem(shareId, photoId, resumeToken);
+    return (await loadDemoService()).togglePublicSelectionItem(shareId, photoId, resumeToken);
   }
 
   const params = new URLSearchParams();
@@ -374,7 +375,7 @@ const updatePublicSelectionItemComment = async (
   resumeToken?: string,
 ): Promise<SelectionSession['items'][number]> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().updatePublicSelectionItemComment(
+    return (await loadDemoService()).updatePublicSelectionItemComment(
       shareId,
       photoId,
       payload,
@@ -402,7 +403,7 @@ const updatePublicSelectionSession = async (
   resumeToken?: string,
 ): Promise<SelectionSession> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().updatePublicSelectionSession(shareId, payload, resumeToken);
+    return (await loadDemoService()).updatePublicSelectionSession(shareId, payload, resumeToken);
   }
 
   const params = new URLSearchParams();
@@ -424,7 +425,7 @@ const submitPublicSelectionSession = async (
   resumeToken?: string,
 ): Promise<SelectionSubmitResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().submitPublicSelectionSession(shareId, resumeToken);
+    return (await loadDemoService()).submitPublicSelectionSession(shareId, resumeToken);
   }
 
   const params = new URLSearchParams();
@@ -443,7 +444,7 @@ const submitPublicSelectionSession = async (
 
 const downloadSharedGalleryZip = async (shareId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadSharedGalleryZip(shareId);
+    await (await loadDemoService()).downloadSharedGalleryZip(shareId);
     return;
   }
 
@@ -455,7 +456,7 @@ const downloadSharedProjectGalleryZip = async (
   galleryId: string,
 ): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadGalleryZip(galleryId);
+    await (await loadDemoService()).downloadGalleryZip(galleryId);
     return;
   }
 
@@ -477,7 +478,7 @@ const getOwnerSelectionConfig = async (
   shareLinkId: string,
 ): Promise<SelectionConfig> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getOwnerSelectionConfig(galleryId, shareLinkId);
+    return (await loadDemoService()).getOwnerSelectionConfig(galleryId, shareLinkId);
   }
 
   const response = await api.get<SelectionConfig>(
@@ -492,7 +493,7 @@ const updateOwnerSelectionConfig = async (
   payload: SelectionConfigUpdateRequest,
 ): Promise<SelectionConfig> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().updateOwnerSelectionConfig(galleryId, shareLinkId, payload);
+    return (await loadDemoService()).updateOwnerSelectionConfig(galleryId, shareLinkId, payload);
   }
 
   const response = await api.patch<SelectionConfig>(
@@ -504,7 +505,7 @@ const updateOwnerSelectionConfig = async (
 
 const getShareLinkSelectionConfig = async (shareLinkId: string): Promise<SelectionConfig> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getShareLinkSelectionConfig(shareLinkId);
+    return (await loadDemoService()).getShareLinkSelectionConfig(shareLinkId);
   }
 
   const response = await api.get<SelectionConfig>(`/share-links/${shareLinkId}/selection-config`);
@@ -516,7 +517,7 @@ const updateShareLinkSelectionConfig = async (
   payload: SelectionConfigUpdateRequest,
 ): Promise<SelectionConfig> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().updateShareLinkSelectionConfig(shareLinkId, payload);
+    return (await loadDemoService()).updateShareLinkSelectionConfig(shareLinkId, payload);
   }
 
   const response = await api.patch<SelectionConfig>(
@@ -528,7 +529,7 @@ const updateShareLinkSelectionConfig = async (
 
 const getOwnerSelectionDetail = async (shareLinkId: string): Promise<OwnerSelectionDetail> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getOwnerSelectionDetail(shareLinkId);
+    return (await loadDemoService()).getOwnerSelectionDetail(shareLinkId);
   }
 
   const response = await api.get<OwnerSelectionDetail>(`/share-links/${shareLinkId}/selection`);
@@ -537,7 +538,7 @@ const getOwnerSelectionDetail = async (shareLinkId: string): Promise<OwnerSelect
 
 const closeOwnerSelection = async (shareLinkId: string): Promise<SelectionSession> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().closeOwnerSelection(shareLinkId);
+    return (await loadDemoService()).closeOwnerSelection(shareLinkId);
   }
 
   const response = await api.post<SelectionSession>(`/share-links/${shareLinkId}/selection/close`);
@@ -546,7 +547,7 @@ const closeOwnerSelection = async (shareLinkId: string): Promise<SelectionSessio
 
 const reopenOwnerSelection = async (shareLinkId: string): Promise<SelectionSession> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().reopenOwnerSelection(shareLinkId);
+    return (await loadDemoService()).reopenOwnerSelection(shareLinkId);
   }
 
   const response = await api.post<SelectionSession>(`/share-links/${shareLinkId}/selection/reopen`);
@@ -557,7 +558,7 @@ const closeAllShareLinkSelections = async (
   shareLinkId: string,
 ): Promise<BulkSelectionActionResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().closeAllShareLinkSelections(shareLinkId);
+    return (await loadDemoService()).closeAllShareLinkSelections(shareLinkId);
   }
 
   const response = await api.post<BulkSelectionActionResponse>(
@@ -570,7 +571,7 @@ const openAllShareLinkSelections = async (
   shareLinkId: string,
 ): Promise<BulkSelectionActionResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().openAllShareLinkSelections(shareLinkId);
+    return (await loadDemoService()).openAllShareLinkSelections(shareLinkId);
   }
 
   const response = await api.post<BulkSelectionActionResponse>(
@@ -584,7 +585,7 @@ const getOwnerSelectionSessionDetail = async (
   sessionId: string,
 ): Promise<SelectionSession> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getOwnerSelectionSessionDetail(shareLinkId, sessionId);
+    return (await loadDemoService()).getOwnerSelectionSessionDetail(shareLinkId, sessionId);
   }
 
   const response = await api.get<SelectionSession>(
@@ -598,7 +599,7 @@ const closeOwnerSelectionSession = async (
   sessionId: string,
 ): Promise<SelectionSession> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().closeOwnerSelectionSession(shareLinkId, sessionId);
+    return (await loadDemoService()).closeOwnerSelectionSession(shareLinkId, sessionId);
   }
 
   const response = await api.post<SelectionSession>(
@@ -612,7 +613,7 @@ const reopenOwnerSelectionSession = async (
   sessionId: string,
 ): Promise<SelectionSession> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().reopenOwnerSelectionSession(shareLinkId, sessionId);
+    return (await loadDemoService()).reopenOwnerSelectionSession(shareLinkId, sessionId);
   }
 
   const response = await api.post<SelectionSession>(
@@ -623,7 +624,7 @@ const reopenOwnerSelectionSession = async (
 
 const getGallerySelections = async (galleryId: string): Promise<OwnerSelectionRow[]> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getGallerySelections(galleryId);
+    return (await loadDemoService()).getGallerySelections(galleryId);
   }
 
   const response = await api.get<OwnerSelectionRow[]>(`/galleries/${galleryId}/selections`);
@@ -634,7 +635,7 @@ const closeAllGallerySelections = async (
   galleryId: string,
 ): Promise<BulkSelectionActionResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().closeAllGallerySelections(galleryId);
+    return (await loadDemoService()).closeAllGallerySelections(galleryId);
   }
 
   const response = await api.post<BulkSelectionActionResponse>(
@@ -647,7 +648,7 @@ const openAllGallerySelections = async (
   galleryId: string,
 ): Promise<BulkSelectionActionResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().openAllGallerySelections(galleryId);
+    return (await loadDemoService()).openAllGallerySelections(galleryId);
   }
 
   const response = await api.post<BulkSelectionActionResponse>(
@@ -658,7 +659,7 @@ const openAllGallerySelections = async (
 
 const exportShareLinkSelectionFilesCsv = async (shareLinkId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().exportShareLinkSelectionFilesCsv(shareLinkId);
+    await (await loadDemoService()).exportShareLinkSelectionFilesCsv(shareLinkId);
     return;
   }
   await downloadOwnerExport(
@@ -669,7 +670,7 @@ const exportShareLinkSelectionFilesCsv = async (shareLinkId: string): Promise<vo
 
 const exportShareLinkSelectionLightroom = async (shareLinkId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().exportShareLinkSelectionLightroom(shareLinkId);
+    await (await loadDemoService()).exportShareLinkSelectionLightroom(shareLinkId);
     return;
   }
   await downloadOwnerExport(
@@ -680,7 +681,7 @@ const exportShareLinkSelectionLightroom = async (shareLinkId: string): Promise<v
 
 const exportGallerySelectionSummaryCsv = async (galleryId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().exportGallerySelectionSummaryCsv(galleryId);
+    await (await loadDemoService()).exportGallerySelectionSummaryCsv(galleryId);
     return;
   }
   await downloadOwnerExport(
@@ -691,7 +692,7 @@ const exportGallerySelectionSummaryCsv = async (galleryId: string): Promise<void
 
 const exportGallerySelectionLinksCsv = async (galleryId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().exportGallerySelectionLinksCsv(galleryId);
+    await (await loadDemoService()).exportGallerySelectionLinksCsv(galleryId);
     return;
   }
   await downloadOwnerExport(

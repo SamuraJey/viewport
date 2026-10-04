@@ -1,8 +1,24 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { preloadRoute } from '../lib/preloadRoute';
+import {
+  lazy,
+  Suspense,
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import { ImagePlus, Upload } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { UploadConfirmModal } from './upload/UploadConfirmModal';
+import { OverlayLoading } from './ui/OverlayLoading';
+
+const UploadConfirmModal = lazy(() =>
+  preloadRoute('UploadConfirmModal', () => import('./upload/UploadConfirmModal')).then(
+    (module) => ({ default: module.UploadConfirmModal }),
+  ),
+);
 import { UploadDropzone } from './upload/UploadDropzone';
 import {
   isSupportedUploadFile,
@@ -313,22 +329,32 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
           </div>
         )}
 
-        <AnimatePresence>
-          {showConfirmModal && (
-            <UploadConfirmModal
-              isOpen={showConfirmModal}
+        <Suspense
+          fallback={
+            <OverlayLoading
+              open={showConfirmModal}
               onClose={handleCloseConfirmModal}
-              files={files}
-              existingFilenames={existingFilenames}
-              galleryId={galleryId}
-              onUploadComplete={handleUploadComplete}
-              onFilesAdded={handleFiles}
-              onFilesChange={handleModalFilesChange}
-              onModalStateChange={onModalStateChange}
-              onBusyChange={setIsUploadBusy}
+              label="Loading upload review"
             />
-          )}
-        </AnimatePresence>
+          }
+        >
+          <AnimatePresence>
+            {showConfirmModal && (
+              <UploadConfirmModal
+                isOpen={showConfirmModal}
+                onClose={handleCloseConfirmModal}
+                files={files}
+                existingFilenames={existingFilenames}
+                galleryId={galleryId}
+                onUploadComplete={handleUploadComplete}
+                onFilesAdded={handleFiles}
+                onFilesChange={handleModalFilesChange}
+                onModalStateChange={onModalStateChange}
+                onBusyChange={setIsUploadBusy}
+              />
+            )}
+          </AnimatePresence>
+        </Suspense>
       </div>
     );
   },

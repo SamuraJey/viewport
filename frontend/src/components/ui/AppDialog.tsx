@@ -12,7 +12,10 @@ import { cn } from '../../lib/utils';
 import { useOverlayViewport } from '../../hooks/useOverlayViewport';
 
 type FocusRef =
-  MutableRefObject<HTMLElement | null> | RefObject<HTMLElement | null> | null | undefined;
+  | MutableRefObject<HTMLElement | null>
+  | RefObject<HTMLElement | null>
+  | null
+  | undefined;
 
 type DataAttributes = {
   [key in `data-${string}`]?: string | number | boolean | undefined;

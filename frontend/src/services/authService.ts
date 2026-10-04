@@ -1,6 +1,6 @@
 import { api } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
-import { getDemoService } from './demoService';
+import { loadDemoService } from './loadDemoService';
 import type {
   User,
   AuthTokens,
@@ -13,7 +13,7 @@ import type {
 export const authService = {
   login: async (data: LoginRequest): Promise<LoginResponse> => {
     if (isDemoModeEnabled()) {
-      return getDemoService().login(data);
+      return (await loadDemoService()).login(data);
     }
 
     const response = await api.post('/auth/login', data);
@@ -22,7 +22,7 @@ export const authService = {
 
   register: async (data: RegisterRequest): Promise<RegisterResponse> => {
     if (isDemoModeEnabled()) {
-      return getDemoService().register(data);
+      return (await loadDemoService()).register(data);
     }
 
     const response = await api.post('/auth/register', data);
@@ -31,7 +31,7 @@ export const authService = {
 
   getCurrentUser: async (): Promise<User> => {
     if (isDemoModeEnabled()) {
-      return getDemoService().getCurrentUser();
+      return (await loadDemoService()).getCurrentUser();
     }
 
     const response = await api.get('/me');
@@ -40,7 +40,7 @@ export const authService = {
 
   updateProfile: async (data: { display_name: string | null }): Promise<User> => {
     if (isDemoModeEnabled()) {
-      return getDemoService().updateProfile(data);
+      return (await loadDemoService()).updateProfile(data);
     }
 
     const response = await api.put('/me', data);
@@ -49,7 +49,7 @@ export const authService = {
 
   refreshToken: async (refreshToken: string): Promise<AuthTokens> => {
     if (isDemoModeEnabled()) {
-      return getDemoService().refreshToken(refreshToken);
+      return (await loadDemoService()).refreshToken(refreshToken);
     }
 
     const response = await api.post('/auth/refresh', {
@@ -64,7 +64,7 @@ export const authService = {
     confirm_password: string;
   }): Promise<{ message: string }> => {
     if (isDemoModeEnabled()) {
-      return getDemoService().changePassword(data);
+      return (await loadDemoService()).changePassword(data);
     }
 
     const response = await api.put('/me/password', data);

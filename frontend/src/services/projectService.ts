@@ -1,6 +1,6 @@
 import { api } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
-import { getDemoService } from './demoService';
+import { loadDemoService } from './loadDemoService';
 import type {
   CreateProjectRequest,
   GalleryPhoto,
@@ -27,7 +27,7 @@ const getProjects = async (
   const normalizedOptions = normalizeProjectListOptions(options);
 
   if (isDemoModeEnabled()) {
-    return getDemoService().getProjects(page, size, normalizedOptions);
+    return (await loadDemoService()).getProjects(page, size, normalizedOptions);
   }
 
   const params = new URLSearchParams({
@@ -50,7 +50,7 @@ const getProjects = async (
 
 const getProject = async (projectId: string): Promise<ProjectDetail> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getProject(projectId);
+    return (await loadDemoService()).getProject(projectId);
   }
   const response = await api.get<ProjectDetail>(`/projects/${projectId}`);
   return response.data;
@@ -58,7 +58,7 @@ const getProject = async (projectId: string): Promise<ProjectDetail> => {
 
 const createProject = async (payload: CreateProjectRequest): Promise<Project> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().createProject(payload);
+    return (await loadDemoService()).createProject(payload);
   }
   const response = await api.post<Project>('/projects', payload ?? {});
   return response.data;
@@ -69,7 +69,7 @@ const updateProject = async (
   payload: UpdateProjectRequest,
 ): Promise<Project> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().updateProject(projectId, payload);
+    return (await loadDemoService()).updateProject(projectId, payload);
   }
   const response = await api.patch<Project>(`/projects/${projectId}`, payload);
   return response.data;
@@ -77,7 +77,7 @@ const updateProject = async (
 
 const deleteProject = async (projectId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().deleteProject(projectId);
+    await (await loadDemoService()).deleteProject(projectId);
     return;
   }
   await api.delete(`/projects/${projectId}`);
@@ -85,7 +85,7 @@ const deleteProject = async (projectId: string): Promise<void> => {
 
 const reorderProjects = async (projectIds: string[]): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().reorderProjects(projectIds);
+    await (await loadDemoService()).reorderProjects(projectIds);
     return;
   }
 
@@ -106,7 +106,7 @@ const createProjectGallery = async (
   },
 ) => {
   if (isDemoModeEnabled()) {
-    return getDemoService().createProjectGallery(projectId, payload);
+    return (await loadDemoService()).createProjectGallery(projectId, payload);
   }
   const response = await api.post(`/projects/${projectId}/galleries`, payload ?? {});
   return response.data;
@@ -114,7 +114,7 @@ const createProjectGallery = async (
 
 const reorderProjectGalleries = async (projectId: string, galleryIds: string[]): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().reorderProjectGalleries(projectId, galleryIds);
+    await (await loadDemoService()).reorderProjectGalleries(projectId, galleryIds);
     return;
   }
 
@@ -128,7 +128,7 @@ const getProjectPhotos = async (
   opts: { limit?: number; offset?: number } = {},
 ): Promise<{ photos: GalleryPhoto[]; total: number }> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getProjectPhotos(projectId, opts);
+    return (await loadDemoService()).getProjectPhotos(projectId, opts);
   }
   const params = new URLSearchParams();
   if (opts.limit !== undefined) params.set('limit', opts.limit.toString());
