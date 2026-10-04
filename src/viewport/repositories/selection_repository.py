@@ -491,7 +491,7 @@ class SelectionRepository(BaseRepository):
             )
             .order_by(func.coalesce(ShareLinkSelectionSession.updated_at, ShareLink.updated_at).desc())
         )
-        rows = [(sharelink, session) for sharelink, session in (await self.db.execute(stmt)).all()]
+        rows: list[tuple[ShareLink, ShareLinkSelectionSession | None]] = [(sharelink, session) for sharelink, session in (await self.db.execute(stmt)).all()]
         return await self._finish_read(rows)
 
     async def get_sharelink_session_aggregate(
@@ -829,7 +829,7 @@ class SelectionRepository(BaseRepository):
     async def get_selected_items_for_sharelink_with_context(
         self,
         sharelink_id: uuid.UUID,
-    ) -> list[tuple[str, str | None, str | None]]:
+    ) -> list[tuple[str, str | None, str]]:
         stmt = (
             select(Photo.display_name, ShareLinkSelectionItem.comment, Gallery.name)
             .select_from(ShareLinkSelectionItem)
@@ -898,5 +898,5 @@ class SelectionRepository(BaseRepository):
             )
             .order_by(ShareLink.created_at.asc())
         )
-        rows = [(sharelink, session) for sharelink, session in (await self.db.execute(stmt)).all()]
+        rows: list[tuple[ShareLink, ShareLinkSelectionSession | None]] = [(sharelink, session) for sharelink, session in (await self.db.execute(stmt)).all()]
         return await self._finish_read(rows)
