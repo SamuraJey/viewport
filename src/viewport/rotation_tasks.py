@@ -109,7 +109,10 @@ def rotate_photo_task(self, photo_id: str, revision: int) -> None:
                 thumbnail_source = output
             else:
                 thumbnail_source = source
-            thumbnail, width, height = create_thumbnail_from_path(thumbnail_source)
+            delivery_image = _get_pyvips().Image.new_from_file(thumbnail_source, access="sequential", fail_on="error").autorot()
+            width, height = delivery_image.width, delivery_image.height
+            del delivery_image
+            thumbnail, _, _ = create_thumbnail_from_path(thumbnail_source)
             if rotation:
                 with open(output, "rb") as image_file:
                     client.upload_fileobj(image_file, bucket, key, ExtraArgs={"ContentType": content_type, "CacheControl": "public, max-age=31536000, immutable"})
@@ -145,7 +148,7 @@ def reconcile_photo_rotations_task() -> None:
             .where(
                 Gallery.is_deleted.is_(False),
                 Photo.rotation_status == "pending",
-                Photo.rotation_updated_at < now - timedelta(minutes=1),
+                Photo.rotation_updated_at < now - timedelta(minutes=10),
             )
             .order_by(Photo.rotation_updated_at)
             .limit(500)

@@ -30,7 +30,8 @@ EXIF orientation 1).
   a new edit processes. Completed versions apply to thumbnails, lightboxes,
   gallery/project covers, individual downloads and ZIP entries.
 - Demo mode follows the same revision, media eligibility and reset behavior.
-  Its sample images are rendered through browser Canvas and stored as data URLs;
+  Its sample images are rendered through browser Canvas as JPEG at quality 0.85
+  and stored as data URLs (ordinary optimistic previews remain PNG);
   this is an offline UI simulation, not the production JPEG processing path.
 
 ## API and persistence
@@ -95,15 +96,17 @@ Uploads use immutable revision/attempt-specific keys:
 ```
 
 The worker atomically publishes only if its revision is still current and
-processing. URLs, dimensions, angle and status change together. Explicit
+processing. URLs, dimensions, angle and status change together. Dimensions are
+read from the full delivery image with EXIF orientation applied, not from the
+resized thumbnail; reset reads them from the uploaded source. Explicit
 gallery/project cover focal points rotate in that transaction. A superseded
 task cannot overwrite a newer edit. Reset switches delivery back to the
 original and generates a fresh thumbnail. Versioned keys avoid stale CDN/browser
 and presigned-cache content; published objects are never overwritten.
 
 Transient failures retry up to three times; failures do not alter upload status
-or quota. The minute reconciler re-enqueues pending edits after broker failure
-and recovers processing leases older than 35 minutes (beyond the worker's
+or quota. The minute reconciler re-enqueues edits pending for over ten minutes
+after broker failure and recovers processing leases older than 35 minutes (beyond the worker's
 30-minute hard limit). Run Celery Beat for this recovery path.
 
 Hourly cleanup removes only unreferenced rotation objects older than three hours
@@ -123,7 +126,9 @@ The Python CI job runs inside `Dockerfile.backend --target test`, sharing the
 production ExifTool, libvips, FFmpeg and AVIF runtime packages. Image build checks
 exercise JPEG tooling and actual PNG/AVIF encoding before pytest. Changes to
 `.github/workflows/ci.yml` trigger the backend jobs too. Rotation tests require
-the native dependencies and do not skip JPEG checks when ExifTool is missing.
+the native dependencies: missing ExifTool/libvips fails CI, while local native
+tests skip if the tools are unavailable. Worker orchestration tests stub native
+processing separately from the full-dimension and losslessness checks.
 See [Backend CI](backend-ci.md) for Testcontainers networking, coverage export
 and a local container test command.
 

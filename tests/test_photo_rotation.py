@@ -1,4 +1,6 @@
 import io
+import os
+import shutil
 import uuid
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -19,9 +21,47 @@ from viewport.rotation_tasks import _publish_rotation, create_rotated_file
 from viewport.schemas.photo import GalleryPhotoResponse, PhotoRotationRequest
 
 
+def native_tool_unavailable(reason):
+    if os.environ.get("CI"):
+        pytest.fail(reason)
+    pytest.skip(reason)
+
+
+@pytest.fixture
+def exiftool_available():
+    if not shutil.which("exiftool"):
+        native_tool_unavailable("ExifTool is not installed")
+
+
+@pytest.fixture
+def libvips_available():
+    try:
+        rotation_tasks._get_pyvips()
+    except (ImportError, OSError) as error:
+        native_tool_unavailable(f"libvips is not available: {error}")
+
+
+@pytest.mark.parametrize("in_ci", (False, True))
+@pytest.mark.parametrize("tool", ("exiftool", "libvips"))
+def test_missing_native_tools_skip_locally_but_fail_ci(monkeypatch, tool, in_ci):
+    if in_ci:
+        monkeypatch.setenv("CI", "true")
+    else:
+        monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+
+    def unavailable():
+        raise OSError("libvips is missing")
+
+    monkeypatch.setattr(rotation_tasks, "_get_pyvips", unavailable)
+    fixture = exiftool_available if tool == "exiftool" else libvips_available
+    with pytest.raises(pytest.fail.Exception if in_ci else pytest.skip.Exception):
+        fixture.__wrapped__()
+
+
 @pytest.mark.parametrize("orientation", range(1, 9))
 @pytest.mark.parametrize("angle", (90, 180, 270))
-def test_jpeg_rotation_preserves_compressed_pixels_and_composes_exif(tmp_path, orientation, angle):
+def test_jpeg_rotation_preserves_compressed_pixels_and_composes_exif(tmp_path, orientation, angle, exiftool_available):
     source, output = tmp_path / "source.jpg", tmp_path / "rotated.jpg"
     exif = Image.Exif()
     exif[274] = orientation
@@ -40,7 +80,7 @@ def test_jpeg_rotation_preserves_compressed_pixels_and_composes_exif(tmp_path, o
     assert source.read_bytes().split(b"\xff\xda", 1)[1] == output.read_bytes().split(b"\xff\xda", 1)[1]
 
 
-def test_jpeg_without_exif_and_anonymous_source(tmp_path):
+def test_jpeg_without_exif_and_anonymous_source(tmp_path, exiftool_available):
     import tempfile
 
     source = io.BytesIO()
@@ -54,7 +94,7 @@ def test_jpeg_without_exif_and_anonymous_source(tmp_path):
 
 
 @pytest.mark.parametrize("angle", (90, 180, 270))
-def test_png_rotation_keeps_alpha_and_pixels(tmp_path, angle):
+def test_png_rotation_keeps_alpha_and_pixels(tmp_path, angle, libvips_available):
     source, output = tmp_path / "source.png", tmp_path / "rotated.png"
     image = Image.new("RGBA", (31, 19))
     image.putdata([(x % 256, x * 3 % 256, x * 7 % 256, x * 11 % 256) for x in range(31 * 19)])
@@ -232,6 +272,10 @@ def test_worker_publishes_versioned_assets_and_reset_uses_original(sync_engine, 
     monkeypatch.setattr(rotation_tasks, "get_s3_settings", lambda: SimpleNamespace(bucket="bucket"))
     monkeypatch.setattr(rotation_tasks, "_stream_s3_object_to_tempfile", stream)
     monkeypatch.setattr(rotation_tasks, "create_thumbnail_from_path", lambda _path: (b"thumb", 19, 31))
+    monkeypatch.setattr(rotation_tasks, "create_rotated_file", lambda source, output, *_args: shutil.copyfile(source, output))
+    vips = MagicMock()
+    vips.Image.new_from_file.return_value.autorot.side_effect = [SimpleNamespace(width=1900, height=3100), SimpleNamespace(width=3100, height=1900)]
+    monkeypatch.setattr(rotation_tasks, "_get_pyvips", lambda: vips)
     rotation_tasks.rotate_photo_task.run(str(photo_id), 1)
     with Session(sync_engine) as db:
         photo = db.get(Photo, photo_id)
@@ -239,7 +283,7 @@ def test_worker_publishes_versioned_assets_and_reset_uses_original(sync_engine, 
         assert f"{photo_id}_rotations/1-" in photo.rotated_object_key
         assert photo.rotated_object_key.endswith("/image.jpg")
         assert photo.object_key == "source.jpg" and photo.status == PhotoUploadStatus.SUCCESSFUL
-        assert (photo.width, photo.height) == (19, 31)
+        assert (photo.width, photo.height) == (1900, 3100)
         assert db.query(User).one().storage_used == 100
         photo.rotation_revision = 2
         photo.requested_rotation = 0
@@ -250,8 +294,42 @@ def test_worker_publishes_versioned_assets_and_reset_uses_original(sync_engine, 
         photo = db.get(Photo, photo_id)
         assert photo.rotation_status == "ready" and photo.rotation == 0
         assert photo.rotated_object_key is None
+        assert (photo.width, photo.height) == (3100, 1900)
         assert client.upload_fileobj.call_count == 1
         assert client.put_object.call_count == 2
+    assert vips.Image.new_from_file.call_args_list[0].args[0].endswith("/image.jpg")
+    vips.Image.new_from_file.assert_called_with(str(source), access="sequential", fail_on="error")
+
+
+@pytest.mark.parametrize("orientation", (1, 6))
+@pytest.mark.parametrize("rotation", (0, 90))
+def test_worker_uses_full_delivery_dimensions_with_exif(sync_engine, tmp_path, monkeypatch, orientation, rotation, exiftool_available, libvips_available):
+    from sqlalchemy.orm import Session
+
+    photo_id = seed_pending_rotation(sync_engine)
+    with Session(sync_engine) as db:
+        db.get(Photo, photo_id).requested_rotation = rotation
+        db.commit()
+    source = tmp_path / "source.jpg"
+    exif = Image.Exif()
+    exif[274] = orientation
+    Image.new("RGB", (3100, 1900), "red").save(source, exif=exif)
+
+    @contextmanager
+    def stream(*_args):
+        yield str(source)
+
+    monkeypatch.setattr(rotation_tasks, "get_s3_client", MagicMock)
+    monkeypatch.setattr(rotation_tasks, "get_s3_settings", lambda: SimpleNamespace(bucket="bucket"))
+    monkeypatch.setattr(rotation_tasks, "_stream_s3_object_to_tempfile", stream)
+    monkeypatch.setattr(rotation_tasks, "create_thumbnail_from_path", lambda _path: (b"thumb", 19, 31))
+    rotation_tasks.rotate_photo_task.run(str(photo_id), 1)
+    with Image.open(source) as original:
+        expected = ImageOps.exif_transpose(original).rotate(-rotation, expand=True).size
+    with Session(sync_engine) as db:
+        photo = db.get(Photo, photo_id)
+        assert photo.rotation_status == "ready"
+        assert (photo.width, photo.height) == expected
 
 
 def test_failed_rotation_keeps_published_photo_and_quota(sync_engine, tmp_path, monkeypatch):
@@ -345,6 +423,24 @@ def test_reconciler_recovers_stale_worker_and_does_not_enqueue_twice(sync_engine
     enqueue.assert_called_once_with(str(photo_id), 1)
     with Session(sync_engine) as db:
         assert db.get(Photo, photo_id).rotation_status == "pending"
+
+
+@pytest.mark.parametrize("age_minutes", (2, 9, 11))
+def test_reconciler_waits_ten_minutes_for_pending_edits(sync_engine, monkeypatch, age_minutes):
+    from sqlalchemy.orm import Session
+
+    photo_id = seed_pending_rotation(sync_engine)
+    with Session(sync_engine) as db:
+        db.get(Photo, photo_id).rotation_updated_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=age_minutes)
+        db.commit()
+    enqueue = MagicMock()
+    monkeypatch.setattr(rotation_tasks.rotate_photo_task, "delay", enqueue)
+    rotation_tasks.reconcile_photo_rotations_task.run()
+    rotation_tasks.reconcile_photo_rotations_task.run()
+    if age_minutes > 10:
+        enqueue.assert_called_once_with(str(photo_id), 1)
+    else:
+        enqueue.assert_not_called()
 
 
 def test_cleanup_protects_active_assets_and_superseded_url_lifetime(sync_engine, monkeypatch):

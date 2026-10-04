@@ -14,7 +14,12 @@ export const isStaleRotation = (incoming: GalleryPhoto, current?: GalleryPhoto) 
         (current.rotation_status === 'processing' && incoming.rotation_status === 'pending'))));
 
 /** Only delivery thumbnails are used for optimistic previews, never full originals. */
-export async function rotateThumbnail(src: string, angle: number): Promise<string> {
+export async function rotateThumbnail(
+  src: string,
+  angle: number,
+  mimeType = 'image/png',
+  quality?: number,
+): Promise<string> {
   const image = new Image();
   image.crossOrigin = 'anonymous';
   await new Promise<void>((resolve, reject) => {
@@ -41,7 +46,9 @@ export async function rotateThumbnail(src: string, angle: number): Promise<strin
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.rotate((angle * Math.PI) / 180);
   ctx.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, mimeType, quality),
+  );
   if (!blob) throw new Error('Could not create rotation preview');
   return URL.createObjectURL(blob);
 }

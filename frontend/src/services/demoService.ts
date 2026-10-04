@@ -1271,7 +1271,7 @@ class DemoServiceStore {
       try {
         const render = async (src: string) => {
           if (!item.rotation) return src;
-          const url = await rotateThumbnail(src, item.rotation);
+          const url = await rotateThumbnail(src, item.rotation, 'image/jpeg', 0.85);
           try {
             const blob = await (await fetch(url)).blob();
             return await new Promise<string>((resolve, reject) => {

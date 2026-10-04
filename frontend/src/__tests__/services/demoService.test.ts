@@ -1,7 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/demoMode', () => ({
   isDemoModeEnabled: vi.fn(() => true),
+}));
+
+vi.mock('../../lib/photoRotation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/photoRotation')>()),
+  rotateThumbnail: vi.fn(),
 }));
 
 const DEMO_STATE_STORAGE_KEY = 'viewport-demo-state-v1';
@@ -53,6 +58,61 @@ describe('demoService', () => {
     vi.resetModules();
     vi.useFakeTimers();
     localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('persists rotated demo images as JPEG data URLs and resets to the original', async () => {
+    vi.useRealTimers();
+    const { rotateThumbnail } = await import('../../lib/photoRotation');
+    const render = vi.mocked(rotateThumbnail).mockResolvedValue('blob:jpeg');
+    render.mockClear();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        blob: async () => new Blob(['jpeg'], { type: 'image/jpeg' }),
+      }),
+    );
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+    const projects = await service.getProjects(1, 20);
+    const project = await service.getProject(projects.projects[0].id);
+    const galleryId = project.galleries[0].id;
+    const gallery = await service.getGallery(galleryId);
+    const original = { ...gallery.photos.find((photo) => photo.media_type === 'image')! };
+
+    const rotated = await service.rotatePhotos(galleryId, [
+      {
+        photo_id: original.id,
+        rotation: 90,
+        expected_revision: original.rotation_revision ?? 0,
+      },
+    ]);
+    expect(render).toHaveBeenCalledWith(original.url, 90, 'image/jpeg', 0.85);
+    expect(render).toHaveBeenCalledWith(original.thumbnail_url, 90, 'image/jpeg', 0.85);
+    expect(rotated.results[0].photo?.url).toMatch(/^data:image\/jpeg;base64,/);
+    expect(rotated.results[0].photo?.thumbnail_url).toMatch(/^data:image\/jpeg;base64,/);
+    const stored = JSON.parse(localStorage.getItem(DEMO_STATE_STORAGE_KEY)!);
+    const saved = stored.galleries
+      .find((entry: { gallery: { id: string } }) => entry.gallery.id === galleryId)
+      .photos.find((photo: { id: string }) => photo.id === original.id);
+    expect(saved.url).toBe(rotated.results[0].photo?.url);
+    expect(saved.thumbnail_url).toBe(rotated.results[0].photo?.thumbnail_url);
+
+    const reset = await service.rotatePhotos(galleryId, [
+      {
+        photo_id: original.id,
+        rotation: 0,
+        expected_revision: rotated.results[0].photo!.rotation_revision!,
+      },
+    ]);
+    expect(reset.results[0].photo?.url).toBe(original.url);
+    expect(reset.results[0].photo?.thumbnail_url).toBe(original.thumbnail_url);
+    expect(render).toHaveBeenCalledTimes(2);
   });
 
   it('treats a link expiring exactly now as expired', async () => {
