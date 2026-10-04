@@ -30,7 +30,7 @@ RUN .venv/bin/python -c "import pyvips; assert pyvips.API_mode; assert pyvips.ty
 # Copy source code separately - light layer, invalidated on code changes
 COPY src/ src/
 
-FROM python:${PYTHON_VERSION}-slim AS runtime
+FROM python:${PYTHON_VERSION}-slim AS runtime-base
 
 ARG APP_UID
 ARG APP_GID
@@ -55,6 +55,24 @@ RUN python -c "import pyvips; image = pyvips.Image.black(2, 2, bands=3).copy(int
 
 COPY --from=build --chown=appuser:appgroup /app/src /app/src
 
+# Extend the already-built production environment with dev dependencies only.
+# Reuse the build toolchain so native Python packages keep their production ABI.
+FROM build AS test-deps
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-install-project
+
+FROM runtime-base AS test
+COPY --from=test-deps /app/.venv /app/.venv
+COPY pyproject.toml uv.lock README.md alembic.ini ./
+COPY tests/ tests/
+RUN exiftool -ver && \
+    python -c "import pytest, pyvips; assert pyvips.API_mode; image = pyvips.Image.black(2, 3).rot('d90'); assert (image.width, image.height) == (3, 2); assert image.pngsave_buffer(); assert image.heifsave_buffer(compression='av1', Q=70)"
+# CI runs this target on an isolated runner with its Docker socket for Testcontainers.
+HEALTHCHECK NONE
+CMD ["pytest", "tests/"]
+
+# Keep the default/final target production-only; never inherit from test.
+FROM runtime-base AS runtime
 USER appuser
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

@@ -122,6 +122,7 @@
   - `src/viewport/alembic/env.py` contains filtering for a known false-positive FK diff on `photos_gallery_id_fkey`; do not add cleanup scripts for this.
   - Keep cyclical FK metadata stable by using `use_alter=True` on `Gallery.cover_photo_id` FK to `photos.id`.
 - Backend checks:
+  - CI builds `Dockerfile.backend --target test` and runs pytest in that container with the production native media libraries. The default/final `runtime` target remains production-only. Testcontainers uses the isolated Linux runner's Docker socket, host networking, `TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1` and `TESTCONTAINERS_CONNECTION_MODE=docker_host`; retain Ryuk cleanup and export `.coverage`/`coverage.xml` through the report-only bind mount. See `docs/backend-ci.md`.
   - Format + autofix: `just pretty` / `make pretty` (Ruff).
   - Typecheck: `just mypy`.
   - Tests: `just test` (pytest-xdist `-n 4`), coverage gate in `just test-cov` (fail-under 85).

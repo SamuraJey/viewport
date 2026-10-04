@@ -119,6 +119,23 @@ Apply Alembic revision `1174ab994e82`, rebuild backend/photo-worker containers
 restart workers/Beat alongside the backend. Local workers need `exiftool` on
 PATH as well as the existing libvips dependencies.
 
+The Python CI job runs inside `Dockerfile.backend --target test`, sharing the
+production ExifTool, libvips, FFmpeg and AVIF runtime packages. Image build checks
+exercise JPEG tooling and actual PNG/AVIF encoding before pytest. Changes to
+`.github/workflows/ci.yml` trigger the backend jobs too. Rotation tests require
+the native dependencies and do not skip JPEG checks when ExifTool is missing.
+See [Backend CI](backend-ci.md) for Testcontainers networking, coverage export
+and a local container test command.
+
+For local Debian/Ubuntu tests, install the same packages before syncing Python
+dependencies:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends libimage-exiftool-perl libvips-dev pkg-config
+uv sync --frozen
+```
+
 `tests/test_photo_rotation.py` covers all EXIF orientations, byte-preserving JPEG
 edits, anonymous temporary sources, lossless RGBA PNG, authorization/revisions,
 atomic publication, cover focal points, worker failure/reset/quota, retained

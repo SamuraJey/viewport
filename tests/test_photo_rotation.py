@@ -1,5 +1,4 @@
 import io
-import shutil
 import uuid
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -23,8 +22,6 @@ from viewport.schemas.photo import GalleryPhotoResponse, PhotoRotationRequest
 @pytest.mark.parametrize("orientation", range(1, 9))
 @pytest.mark.parametrize("angle", (90, 180, 270))
 def test_jpeg_rotation_preserves_compressed_pixels_and_composes_exif(tmp_path, orientation, angle):
-    if not shutil.which("exiftool"):
-        pytest.skip("ExifTool is not installed")
     source, output = tmp_path / "source.jpg", tmp_path / "rotated.jpg"
     exif = Image.Exif()
     exif[274] = orientation
