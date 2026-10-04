@@ -244,6 +244,13 @@ const fillInput = (input: HTMLElement, value: string) => {
   fireEvent.change(input, { target: { value } });
 };
 
+const openPhotoActions = async (container: HTMLElement) => {
+  const button = within(container).getByRole('button', { name: 'More photo actions' });
+  // jsdom has no layout. Headless UI closes panels whose trigger has a zero rect.
+  vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 20, 44, 44));
+  await userEvent.click(button);
+};
+
 describe('GalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -345,7 +352,7 @@ describe('GalleryPage', () => {
     const { galleryService } = await import('../../services/galleryService');
     vi.mocked(galleryService.getGallery).mockReturnValueOnce(new Promise(() => undefined));
 
-    render(<GalleryPageWrapper />);
+    const { unmount } = render(<GalleryPageWrapper />);
 
     expect(screen.queryByRole('status', { name: 'Loading gallery' })).not.toBeInTheDocument();
     await act(async () => {
@@ -362,6 +369,8 @@ describe('GalleryPage', () => {
     );
     expect(screen.getByTestId('gallery-initial-skeleton')).toBeInTheDocument();
 
+    unmount();
+    await act(() => vi.runOnlyPendingTimersAsync());
     vi.useRealTimers();
   });
 
@@ -640,6 +649,14 @@ describe('GalleryPage', () => {
         '1',
         expect.objectContaining({ limit: 100, offset: 100 }),
       );
+      await userEvent.click(
+        within(pickerDialog).getByRole('button', { name: 'Close cover image picker' }),
+      );
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('dialog', { name: /select cover image/i }),
+        ).not.toBeInTheDocument();
+      });
     });
 
     it('should not send update when shooting date is cleared', async () => {
@@ -678,14 +695,9 @@ describe('GalleryPage', () => {
       const photoContainer = firstPhoto.closest('.group');
       expect(photoContainer).toBeInTheDocument();
 
-      // Find the delete button inside this specific photo container
-      const deleteButton = photoContainer!
-        .querySelector('button svg[class*="trash"]')
-        ?.closest('button');
-      expect(deleteButton).toBeInTheDocument();
-
       await userEvent.hover(photoContainer!);
-      await userEvent.click(deleteButton!);
+      await openPhotoActions(photoContainer! as HTMLElement);
+      await userEvent.click(await screen.findByRole('button', { name: 'Delete photo' }));
 
       // Expect confirmation modal to appear
       const deleteDialog = await screen.findByRole('dialog', { name: /delete photo/i });
@@ -724,13 +736,9 @@ describe('GalleryPage', () => {
       const photoContainer = firstPhoto.closest('.group');
       expect(photoContainer).toBeInTheDocument();
 
-      const deleteButton = photoContainer!
-        .querySelector('button svg[class*="trash"]')
-        ?.closest('button');
-      expect(deleteButton).toBeInTheDocument();
-
       await userEvent.hover(photoContainer!);
-      await userEvent.click(deleteButton!);
+      await openPhotoActions(photoContainer! as HTMLElement);
+      await userEvent.click(await screen.findByRole('button', { name: 'Delete photo' }));
       const deleteDialog = await screen.findByRole('dialog', { name: /delete photo/i });
       await userEvent.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
 
@@ -762,7 +770,8 @@ describe('GalleryPage', () => {
       expect(photoContainer).toBeInTheDocument();
 
       await userEvent.hover(photoContainer!);
-      const setCoverButton = screen.getAllByRole('button', { name: /set as cover/i })[0];
+      await openPhotoActions(photoContainer! as HTMLElement);
+      const setCoverButton = await screen.findByRole('button', { name: /set as cover/i });
       await userEvent.click(setCoverButton);
 
       await waitFor(() => {

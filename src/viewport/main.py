@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
     set_redis_service(redis_service)
 
     # Initialize presigned URL cache service
-    presigned_cache = PresignedUrlCacheService(redis_service)
+    presigned_cache = PresignedUrlCacheService(redis_service, signing_namespace=s3_client.presigned_cache_namespace)
     set_presigned_cache_service(presigned_cache)
     logger.info("Cache services initialized (Redis available: %s)", redis_service.is_available)
 

@@ -13,6 +13,7 @@ from viewport.filename_utils import build_content_disposition
 from viewport.logger import logger
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink, ShareScopeType
+from viewport.photo_rotation import get_photo_delivery_key
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.repositories.sharelink_repository import ShareLinkRepository
@@ -153,7 +154,7 @@ async def _build_public_gallery_response(
         if photo.media_type == MediaType.VIDEO.value and photo.playback_object_key:
             full_key = photo.playback_object_key
         else:
-            full_key = photo.object_key
+            full_key = get_photo_delivery_key(photo)
         full_dispositions[full_key] = build_content_disposition(photo.display_name, disposition_type="inline")
 
     thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
@@ -167,7 +168,7 @@ async def _build_public_gallery_response(
             presigned_url = full_url_map.get(photo.playback_object_key, "")
             playback_url = presigned_url
         else:
-            presigned_url = full_url_map.get(photo.object_key, "")
+            presigned_url = full_url_map.get(get_photo_delivery_key(photo), "")
             playback_url = None
 
         if presigned_url and thumb_url:
@@ -223,7 +224,7 @@ async def _build_public_gallery_response(
             if cover_photo_obj.media_type == MediaType.VIDEO.value and cover_photo_obj.playback_object_key:
                 cover_full_key = cover_photo_obj.playback_object_key
             else:
-                cover_full_key = cover_photo_obj.object_key
+                cover_full_key = get_photo_delivery_key(cover_photo_obj)
 
             cover_full_url = full_url_map.get(cover_full_key)
             cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key)
@@ -330,7 +331,7 @@ async def _build_project_cover(
         full_key = cover_photo.playback_object_key
         is_video = True
     else:
-        full_key = cover_photo.object_key
+        full_key = get_photo_delivery_key(cover_photo)
         is_video = False
 
     cover_disposition = build_content_disposition(cover_photo.display_name, disposition_type="inline")
@@ -422,7 +423,7 @@ async def _build_public_project_response(
                 full_key = cover_photo.playback_object_key
                 is_video = True
             else:
-                full_key = cover_photo.object_key
+                full_key = get_photo_delivery_key(cover_photo)
                 is_video = False
             cover_disposition = build_content_disposition(cover_photo.display_name, disposition_type="inline")
             urls = await s3_client.generate_presigned_urls_batch_for_dispositions(
@@ -702,7 +703,7 @@ async def get_public_photos_by_ids(
         if photo.media_type == MediaType.VIDEO.value and photo.playback_object_key:
             full_key = photo.playback_object_key
         else:
-            full_key = photo.object_key
+            full_key = get_photo_delivery_key(photo)
         full_dispositions[full_key] = build_content_disposition(photo.display_name, disposition_type="inline")
 
     thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
@@ -716,7 +717,7 @@ async def get_public_photos_by_ids(
             presigned_url = full_url_map.get(photo.playback_object_key, "")
             playback_url = presigned_url
         else:
-            presigned_url = full_url_map.get(photo.object_key, "")
+            presigned_url = full_url_map.get(get_photo_delivery_key(photo), "")
             playback_url = None
 
         if presigned_url and thumb_url:
@@ -766,7 +767,7 @@ async def download_public_photo(
     photo = await _get_downloadable_public_photo(sharelink=sharelink, photo_id=photo_id, repo=repo)
     filename = photo.display_name or f"photo-{photo.id}"
     download_url = await s3_client.generate_presigned_url_async(
-        photo.object_key,
+        get_photo_delivery_key(photo),
         expires_in=7200,
         response_content_disposition=build_content_disposition(
             filename,
@@ -825,7 +826,7 @@ async def download_project_gallery_photos_zip(
         raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     for photo in gallery_photos:
-        key = photo.object_key
+        key = get_photo_delivery_key(photo)
         fallback = build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
         filename = sanitize_zip_entry_name(photo.display_name, fallback=fallback)
         filename = make_unique_zip_entry_name(filename, used_names)
@@ -898,7 +899,7 @@ async def download_all_photos_zip(
 
         for gallery_name, gallery_photos in project_zip_entries:
             for photo in gallery_photos:
-                key = photo.object_key
+                key = get_photo_delivery_key(photo)
                 fallback = build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
                 filename = sanitize_zip_entry_name(f"{gallery_name} - {photo.display_name}", fallback=f"{gallery_name} - {fallback}")
                 filename = make_unique_zip_entry_name(filename, used_names)
@@ -927,7 +928,7 @@ async def download_all_photos_zip(
         raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     for photo in gallery_photos:
-        key = photo.object_key
+        key = get_photo_delivery_key(photo)
         fallback = build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
         filename = sanitize_zip_entry_name(photo.display_name, fallback=fallback)
         filename = make_unique_zip_entry_name(filename, used_names)

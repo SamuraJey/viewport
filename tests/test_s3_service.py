@@ -14,6 +14,7 @@ import pytest
 from botocore.exceptions import ClientError
 
 from viewport.s3_service import AsyncS3Client
+from viewport.services.presigned_cache import PresignedUrlCacheService
 
 
 @pytest.fixture
@@ -25,6 +26,7 @@ def mock_settings():
     settings.bucket = "test-bucket"
     settings.region = "us-east-1"
     settings.endpoint = "localhost:9000"
+    settings.signature_version = "s3v4"
     return settings
 
 
@@ -54,6 +56,36 @@ class TestAsyncS3ClientInit:
         session1 = s3_client.session
         session2 = s3_client.session
         assert session1 is session2  # Shared session for memory efficiency
+
+    @pytest.mark.parametrize(
+        "field,value", [("access_key", "new-access"), ("secret_key", "new-secret"), ("endpoint", "https://other-s3.example"), ("region", "eu-west-1"), ("signature_version", "s3")]
+    )
+    def test_cache_namespace_changes_with_signing_configuration(self, s3_client, mock_settings, field, value):
+        original = s3_client.presigned_cache_namespace
+        setattr(mock_settings, field, value)
+        with patch("viewport.s3_service.S3Settings", return_value=mock_settings):
+            replacement = AsyncS3Client()
+        assert replacement.presigned_cache_namespace != original
+        assert len(original) == 64
+        assert "test-access-key" not in original
+        assert "test-secret-key" not in original
+
+    def test_cache_namespace_is_stable_across_workers(self, s3_client, mock_settings):
+        with patch("viewport.s3_service.S3Settings", return_value=mock_settings):
+            other_worker = AsyncS3Client()
+        assert other_worker.presigned_cache_namespace == s3_client.presigned_cache_namespace
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("code", ["InvalidAccessKeyId", "SignatureDoesNotMatch", "InvalidToken", "ExpiredToken"])
+    async def test_invalid_credentials_report_actionable_startup_error(self, s3_client, caplog, code):
+        context = AsyncMock()
+        context.__aenter__.return_value.put_bucket_cors.side_effect = ClientError({"Error": {"Code": code}}, "PutBucketCors")
+        s3_client._get_s3_client = MagicMock(return_value=context)
+        await s3_client.configure_bucket_cors()
+        assert "S3 credential validation failed" in caplog.text
+        assert code in caplog.text
+        assert "S3_ACCESS_KEY/S3_SECRET_KEY" in caplog.text
+        assert "test-secret-key" not in caplog.text
 
 
 class TestAsyncS3ClientUploadFileobj:
@@ -546,6 +578,48 @@ class TestAsyncS3ClientClose:
 
 class TestPresignedURLCaching:
     """Tests for presigned URL caching with new service architecture."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mode", ["single", "batch", "dispositions"])
+    async def test_credentials_rotation_ignores_old_cached_urls(self, s3_client, mock_settings, mode):
+        store = {}
+        redis = MagicMock()
+        redis.is_available = True
+        redis.get = AsyncMock(side_effect=lambda key: store.get(key))
+        redis.mget = AsyncMock(side_effect=lambda keys: {key: store[key] for key in keys if key in store})
+        pipe = MagicMock()
+        pipe.set.side_effect = lambda key, value, **kwargs: store.update({key: value})
+        pipe.execute = AsyncMock()
+        context = AsyncMock()
+        context.__aenter__.return_value = pipe
+        redis.pipeline.return_value = context
+
+        key = "photo_thumbnail.avif"
+        disposition = 'inline; filename="photo.avif"' if mode == "dispositions" else None
+        old_cache = PresignedUrlCacheService(redis, signing_namespace=s3_client.presigned_cache_namespace)
+        await old_cache.set_url(mock_settings.bucket, key, disposition, "https://s3.example/old-signature", 7200)
+        # Existing unnamespaced entries from deployments before this fix must also be ignored.
+        legacy_cache = PresignedUrlCacheService(redis)
+        await legacy_cache.set_url(mock_settings.bucket, key, disposition, "https://s3.example/legacy-signature", 7200)
+        mock_settings.access_key = "replacement-access-key"
+        with patch("viewport.s3_service.S3Settings", return_value=mock_settings):
+            replacement = AsyncS3Client()
+        new_cache = PresignedUrlCacheService(redis, signing_namespace=replacement.presigned_cache_namespace)
+
+        with (
+            patch("viewport.s3_service.get_presigned_cache_service", return_value=new_cache),
+            patch.object(replacement, "_generate_presigned_url_sync", return_value="https://s3.example/new-signature") as sign,
+        ):
+            for _ in range(2):
+                if mode == "single":
+                    result = await replacement.generate_presigned_url(key)
+                elif mode == "batch":
+                    result = (await replacement.generate_presigned_urls_batch([key]))[key]
+                else:
+                    result = (await replacement.generate_presigned_urls_batch_for_dispositions({key: disposition}))[key]
+                assert result == "https://s3.example/new-signature"
+            sign.assert_called_once()
+        assert await old_cache.get_url(mock_settings.bucket, key, disposition) == "https://s3.example/old-signature"
 
     @pytest.mark.asyncio
     async def test_generate_presigned_url_cache_hit(self, s3_client):

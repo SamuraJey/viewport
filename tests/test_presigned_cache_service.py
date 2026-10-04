@@ -54,6 +54,18 @@ class MockPipelineContext:
 class TestCacheKeyGeneration:
     """Tests for cache key generation methods."""
 
+    @pytest.mark.asyncio
+    async def test_namespaced_invalidation_uses_matching_index(self):
+        redis = MockRedisService()
+        service = PresignedUrlCacheService(redis, signing_namespace="signing-config")  # type: ignore
+        key = service.build_cache_key("bucket", "photo.avif", "inline")
+        index = service.build_index_key("bucket", "photo.avif")
+        assert service._index_key_from_cache_key(key) == index
+        redis.sunion.return_value = {key}
+        await service.clear_urls_for_object_keys("bucket", ["photo.avif"])
+        redis.sunion.assert_awaited_once_with(index)
+        assert set(redis.delete.await_args.args) == {key, index}
+
     def test_encode_object_key(self):
         """Test object key encoding to URL-safe base64."""
         result = PresignedUrlCacheService._encode_object_key("galleries/123/photos/abc.jpg")

@@ -8,6 +8,7 @@ import { useErrorHandler } from './useErrorHandler';
 import { useModal } from './useModal';
 import { handleApiError } from '../lib/errorHandling';
 import { toast } from 'sonner';
+import type { PhotoRotationResponse } from '../types/photo';
 import type {
   GalleryDetail,
   GalleryPhotoSortBy,
@@ -80,6 +81,31 @@ export const useGalleryActions = ({
   );
 
   const currentGalleryId = gallery?.id ?? null;
+
+  const applyRotationResponse = useCallback((response: PhotoRotationResponse) => {
+    const updates = new Map(
+      response.results
+        .filter((result) => result.photo)
+        .map((result) => [result.photo_id, result.photo!]),
+    );
+    setPhotoUrls((prev) => prev.map((photo) => updates.get(photo.id) ?? photo));
+    setGallery((prev) =>
+      prev ? { ...prev, pending_rotation_count: response.pending_rotation_count } : prev,
+    );
+  }, []);
+
+  const refreshAfterRotation = useCallback(async () => {
+    const updated = await galleryService.getGallery(galleryId, {
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      search: filters.search,
+      sort_by: filters.sort_by,
+      order: filters.order,
+    });
+    latestGalleryRef.current = updated;
+    setGallery(updated);
+    setPhotoUrls(updated.photos);
+  }, [galleryId, page, pageSize, filters.search, filters.sort_by, filters.order]);
 
   const fetchShareLinks = useCallback(
     async (isInitial = true) => {
@@ -609,6 +635,8 @@ export const useGalleryActions = ({
   };
 
   return {
+    applyRotationResponse,
+    refreshAfterRotation,
     gallery,
     photoUrls,
     shareLinks,

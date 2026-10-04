@@ -16,6 +16,7 @@ from viewport.models.gallery import MediaType, PhotoUploadStatus
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
 from viewport.models.project import Project
 from viewport.models.user import User
+from viewport.photo_rotation import get_photo_delivery_key, is_rotation_pending
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.s3_service import AsyncS3Client
@@ -339,6 +340,7 @@ async def get_gallery_detail(
     project_name = await _get_project_name(gallery, project_repo)
 
     return GalleryDetailResponse(
+        pending_rotation_count=await repo.pending_rotation_count(gallery_id),
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),
         project_id=str(gallery.project_id) if gallery.project_id else None,
@@ -368,13 +370,15 @@ async def get_gallery_detail(
 def _build_gallery_zip_response(gallery_id: uuid.UUID, photos: list, archive_name: str) -> StreamingResponse:
     if not photos:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No photos found")
+    if any(is_rotation_pending(photo) for photo in photos):
+        raise HTTPException(status_code=409, detail="Photo rotations are still saving")
 
     settings = get_s3_settings()
     z = zipstream.ZipStream()
     used_names: set[str] = set()
 
     for photo in photos:
-        object_key = photo.object_key
+        object_key = get_photo_delivery_key(photo)
         fallback = build_zip_fallback_name(photo.display_name, object_key=object_key, fallback_stem=f"photo-{photo.id}")
         filename = sanitize_zip_entry_name(photo.display_name, fallback=fallback)
         filename = make_unique_zip_entry_name(filename, used_names)

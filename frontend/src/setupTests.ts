@@ -136,6 +136,8 @@ document.addEventListener(
 HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
   drawImage: vi.fn(),
   fillRect: vi.fn(),
+  translate: vi.fn(),
+  rotate: vi.fn(),
 })) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
 HTMLCanvasElement.prototype.toBlob = vi.fn(function (callback: BlobCallback) {

@@ -12,6 +12,7 @@ type PhotoSlideWithThumbnail = Slide & {
   src: string;
   thumbnailSrc?: string;
   media_type?: 'image' | 'video';
+  previewRotation?: number;
 };
 
 /**
@@ -24,6 +25,7 @@ export function ProgressiveSlide({ slide, children }: RenderSlideContainerProps)
   const [zoomWrapperElement, setZoomWrapperElement] = useState<HTMLElement | null>(null);
   const [fullLoaded, setFullLoaded] = useState(false);
   const [thumbHidden, setThumbHidden] = useState(false);
+  const [previewArea, setPreviewArea] = useState({ width: 0, height: 0 });
 
   const {
     carousel: { imageFit },
@@ -31,6 +33,31 @@ export function ProgressiveSlide({ slide, children }: RenderSlideContainerProps)
   const { currentSlide } = useLightboxState();
 
   const typedSlide = slide as PhotoSlideWithThumbnail;
+  const previewRotation = typedSlide.previewRotation ?? 0;
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element || !previewRotation || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() =>
+      setPreviewArea({ width: element.clientWidth, height: element.clientHeight }),
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [previewRotation]);
+  let previewScale = 1;
+  if (
+    previewRotation % 180 &&
+    isImageSlide(slide) &&
+    slide.width &&
+    slide.height &&
+    previewArea.width &&
+    previewArea.height
+  ) {
+    const fit = Math.min(previewArea.width / slide.width, previewArea.height / slide.height);
+    previewScale = Math.min(
+      previewArea.width / (slide.height * fit),
+      previewArea.height / (slide.width * fit),
+    );
+  }
   const currentImageSlide = currentSlide && isImageSlide(currentSlide) ? currentSlide : undefined;
 
   const isActiveImageSlide =
@@ -111,7 +138,17 @@ export function ProgressiveSlide({ slide, children }: RenderSlideContainerProps)
   }
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div
+      ref={containerRef}
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        transform: previewRotation
+          ? `rotate(${previewRotation}deg) scale(${previewScale})`
+          : undefined,
+      }}
+    >
       {children}
 
       {isActiveImageSlide && !thumbHidden && zoomWrapperElement

@@ -122,6 +122,30 @@ describe('usePhotoLightbox', () => {
     });
   });
 
+  it('offers owner rotation controls and reports pending saves', () => {
+    const onRotatePhoto = vi.fn();
+    const { result } = renderHook(() => usePhotoLightbox({ onRotatePhoto }));
+    const lightbox = result.current.renderLightbox([
+      { src: '/photo.jpg', canRotate: true, rotationPending: true, download: false },
+    ]);
+    const [rotationButtons, savingStatus] = lightbox.props.toolbar.buttons;
+    rotationButtons.props.onRotate(-90);
+    expect(onRotatePhoto).toHaveBeenCalledWith(0, -90);
+    expect(savingStatus.props.role).toBe('status');
+    expect(lightbox.props.zoom.maxZoomPixelRatio).toBe(0);
+    expect(lightbox.props.slides[0].download).toBe(false);
+  });
+
+  it('does not expose editing controls in the public lightbox or on ineligible slides', () => {
+    const { result } = renderHook(() => usePhotoLightbox());
+    expect(result.current.renderLightbox([{ src: '/photo.jpg' }]).props.toolbar).toBeUndefined();
+    const owner = renderHook(() => usePhotoLightbox({ onRotatePhoto: vi.fn() }));
+    expect(
+      owner.result.current.renderLightbox([{ src: '/video.jpg', canRotate: false }]).props.toolbar
+        .buttons,
+    ).toEqual(['close']);
+  });
+
   it('handles thumbnails visibility on mobile', () => {
     const { result, rerender } = renderHook(() => usePhotoLightbox());
 

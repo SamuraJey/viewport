@@ -159,11 +159,25 @@ class Photo(Base):
     # S3 multipart upload ID when status is PENDING (video uploads)
     multipart_upload_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # Non-destructive orientation edits. object_key always remains the upload.
+    rotation: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
+    requested_rotation: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0, server_default="0")
+    rotation_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    rotated_object_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    rotation_status: Mapped[str] = mapped_column(String(16), nullable=False, default="ready", server_default="ready")
+    rotation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rotation_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     # Disambiguate relationship via this model's gallery_id
     gallery: Mapped["Gallery"] = relationship("Gallery", back_populates="photos", foreign_keys=[gallery_id])
 
     __table_args__ = (
         CheckConstraint("media_type IN ('image', 'video')", name="ck_photos_media_type"),
+        CheckConstraint("rotation IN (0, 90, 180, 270)", name="ck_photos_rotation"),
+        CheckConstraint("requested_rotation IN (0, 90, 180, 270)", name="ck_photos_requested_rotation"),
+        CheckConstraint("rotation_revision >= 0", name="ck_photos_rotation_revision"),
+        CheckConstraint("rotation_status IN ('ready', 'pending', 'processing', 'failed')", name="ck_photos_rotation_status"),
+        Index("ix_photos_rotation_status_updated_at", rotation_status, rotation_updated_at),
         CheckConstraint("duration_ms >= 0", name="ck_photos_duration_ms_nonnegative"),
         Index(
             "ix_photos_gallery_id_display_name_lower",

@@ -320,6 +320,12 @@ class TestPhotoSchemas:
         mock_photo.duration_ms = None
         mock_photo.processing_error = None
         mock_photo.playback_object_key = None
+        mock_photo.rotated_object_key = None
+        mock_photo.rotation = 0
+        mock_photo.requested_rotation = 0
+        mock_photo.rotation_revision = 0
+        mock_photo.rotation_status = "ready"
+        mock_photo.rotation_error = None
 
         # Mock s3_client
         mock_s3_client = MagicMock()

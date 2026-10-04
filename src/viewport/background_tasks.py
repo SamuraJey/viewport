@@ -388,6 +388,17 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
                 report_cleanup_failure("video")
                 raise
 
+    # Every orientation revision lives under this exact photo-specific prefix.
+    prefix = f"{gallery_id}/{photo_id}_rotations/"
+    for page in s3_client.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            s3_client.delete_object(Bucket=bucket, Key=obj["Key"])
+    # Rotation replaces the thumbnail reference, but the source's initial
+    # thumbnail stays available for old URLs until the photo itself is deleted.
+    source_thumbnail_key = generate_thumbnail_object_key(object_key)
+    if media_type == MediaType.IMAGE.value and thumbnail_object_key and thumbnail_object_key.startswith(prefix) and source_thumbnail_key not in (object_key, thumbnail_object_key):
+        s3_client.delete_object(Bucket=bucket, Key=source_thumbnail_key)
+
     with task_db_session() as db:
         if status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
             db.execute(update(User).where(User.id == owner_uuid).values(storage_used=func.greatest(User.storage_used - file_size, 0)))

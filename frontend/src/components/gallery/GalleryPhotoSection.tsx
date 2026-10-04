@@ -60,6 +60,13 @@ interface GalleryPhotoSectionProps {
     onSelectAllPhotos: () => void;
     onCancelSelection: () => void;
     onDeleteMultiplePhotos: () => void;
+    onRotatePhoto?: (photoId: string, direction: -90 | 90 | 'reset' | 'retry') => void;
+    onRotateSelected?: (direction: -90 | 90) => void;
+  };
+  rotation?: {
+    rotatableCount: number;
+    hasPendingSelected: boolean;
+    getPreview: (photo: GalleryPhoto) => string | undefined;
   };
 }
 
@@ -103,6 +110,7 @@ const GalleryPhotoSectionComponent = ({
   state,
   selection,
   actions,
+  rotation,
 }: GalleryPhotoSectionProps) => {
   const shouldShowGridSkeleton = state.isLoadingPhotos;
   const [skeletonRenderNonce, setSkeletonRenderNonce] = React.useState(0);
@@ -158,6 +166,9 @@ const GalleryPhotoSectionComponent = ({
       </div>
 
       <PhotoSelectionBar
+        onRotateSelected={actions.onRotateSelected}
+        rotatableCount={rotation?.rotatableCount}
+        hasPendingRotations={rotation?.hasPendingSelected}
         isSelectionMode={state.isSelectionMode}
         hasSelection={selection.hasSelection}
         selectionCount={selection.selectionCount}
@@ -179,6 +190,8 @@ const GalleryPhotoSectionComponent = ({
         >
           {state.photoUrls.map((photo, index) => (
             <PhotoCard
+              previewUrl={rotation?.getPreview(photo)}
+              onRotatePhoto={actions.onRotatePhoto}
               key={photo.id}
               photo={photo}
               index={index}

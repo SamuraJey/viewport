@@ -51,6 +51,8 @@ import type {
 import { ApiError } from '../lib/errorHandling';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { isVideoUploadFile } from '../constants/upload';
+import type { PhotoRotationItem, PhotoRotationResponse } from '../types/photo';
+import { canRotatePhoto, rotateThumbnail } from '../lib/photoRotation';
 
 interface DemoSelectionState {
   selectionConfigs?: Record<string, SelectionConfig>;
@@ -59,7 +61,9 @@ interface DemoSelectionState {
 
 interface DemoGalleryState extends DemoSelectionState {
   gallery: Gallery;
-  photos: GalleryPhoto[];
+  photos: (GalleryPhoto & {
+    rotation_original?: Pick<GalleryPhoto, 'url' | 'thumbnail_url' | 'width' | 'height'>;
+  })[];
   shareLinks: ShareLink[];
 }
 
@@ -1089,6 +1093,9 @@ class DemoServiceStore {
       photos: pagePhotos,
       total_photos: filteredAndSortedPhotos.length,
       total_size_bytes: totalSize,
+      pending_rotation_count: state.photos.filter(
+        (photo) => photo.rotation_status === 'pending' || photo.rotation_status === 'processing',
+      ).length,
     };
   }
 
@@ -1212,6 +1219,110 @@ class DemoServiceStore {
   async getGallery(galleryId: string, options?: GalleryPhotoQueryOptions): Promise<GalleryDetail> {
     const state = this.getGalleryState(galleryId);
     return this.toGalleryDetail(state, options);
+  }
+
+  async getRotationStatus(galleryId: string, photoIds: string[]): Promise<PhotoRotationResponse> {
+    const state = this.getGalleryState(galleryId);
+    return {
+      results: photoIds.map((id) => {
+        const photo = state.photos.find((photo) => photo.id === id);
+        return {
+          photo_id: id,
+          photo: photo ? { ...photo } : null,
+          error: photo ? null : 'not_found',
+        };
+      }),
+      pending_rotation_count: state.photos.filter(
+        (photo) => photo.rotation_status === 'pending' || photo.rotation_status === 'processing',
+      ).length,
+    };
+  }
+
+  async rotatePhotos(
+    galleryId: string,
+    items: PhotoRotationItem[],
+  ): Promise<PhotoRotationResponse> {
+    const state = this.getGalleryState(galleryId);
+    const results: PhotoRotationResponse['results'] = [];
+    for (const item of items) {
+      const photo = state.photos.find((photo) => photo.id === item.photo_id);
+      if (!photo) {
+        results.push({ photo_id: item.photo_id, error: 'not_found' });
+        continue;
+      }
+      if (!canRotatePhoto(photo)) {
+        results.push({ photo_id: item.photo_id, photo, error: 'not_ready' });
+        continue;
+      }
+      if ((photo.rotation_revision ?? 0) !== item.expected_revision) {
+        results.push({ photo_id: item.photo_id, photo, error: 'conflict' });
+        continue;
+      }
+      const original = photo.rotation_original ?? {
+        url: photo.url,
+        thumbnail_url: photo.thumbnail_url,
+        width: photo.width,
+        height: photo.height,
+      };
+      photo.rotation_original = original;
+      photo.rotation_revision = item.expected_revision + 1;
+      photo.requested_rotation = item.rotation;
+      photo.rotation_status = 'processing';
+      try {
+        const render = async (src: string) => {
+          if (!item.rotation) return src;
+          const url = await rotateThumbnail(src, item.rotation, 'image/jpeg', 0.85);
+          try {
+            const blob = await (await fetch(url)).blob();
+            return await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = () => reject(new Error('Could not save demo rotation'));
+              reader.readAsDataURL(blob);
+            });
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+        };
+        const [url, thumbnail_url] = await Promise.all([
+          render(original.url),
+          render(original.thumbnail_url),
+        ]);
+        const delta = (((item.rotation - (photo.rotation ?? 0)) % 360) + 360) % 360;
+        const focal = (cover: { cover_focal_x: number; cover_focal_y: number }) => {
+          for (let turn = 0; turn < delta / 90; turn++)
+            [cover.cover_focal_x, cover.cover_focal_y] = [
+              100 - cover.cover_focal_y,
+              cover.cover_focal_x,
+            ];
+        };
+        if (state.gallery.cover_photo_id === photo.id) focal(state.gallery);
+        this.projects
+          .filter((project) => project.project.cover_photo_id === photo.id)
+          .forEach((project) => focal(project.project));
+        Object.assign(photo, {
+          url,
+          thumbnail_url,
+          rotation: item.rotation,
+          rotation_status: 'ready',
+          rotation_error: null,
+          width: item.rotation % 180 ? original.height : original.width,
+          height: item.rotation % 180 ? original.width : original.height,
+        });
+      } catch {
+        photo.rotation_status = 'failed';
+        photo.rotation_error = 'Could not save rotation. Please retry.';
+      }
+      results.push({ photo_id: item.photo_id, photo: { ...photo } });
+    }
+    this.recalculateProjects();
+    this.persistState();
+    return {
+      results,
+      pending_rotation_count: state.photos.filter(
+        (photo) => photo.rotation_status === 'pending' || photo.rotation_status === 'processing',
+      ).length,
+    };
   }
 
   async getProjects(

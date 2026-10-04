@@ -26,6 +26,8 @@ jobs:
         with:
           filters: |
             backend:
+              - '.github/workflows/ci.yml'
+              - '.dockerignore'
               - 'src/**'
               - 'tests/**'
               - 'alembic.ini'
@@ -36,6 +38,7 @@ jobs:
               - 'docker-compose*.yml'
               - 'config/**'
             frontend:
+              - '.dockerignore'
               - 'frontend/**'
               - 'Dockerfile.frontend'
 
@@ -47,7 +50,6 @@ jobs:
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     permissions:
       contents: read
-      actions: write
     steps:
       - uses: actions/checkout@v7.0.0
 
@@ -73,14 +75,15 @@ jobs:
         with:
           context: .
           file: ./Dockerfile.backend
+          target: runtime
           push: false
           github-token: ${{ github.token }}
           cache-from: type=gha,scope=backend-image,ignore-error=true
           cache-to: type=gha,mode=max,scope=backend-image,ignore-error=true
   python-tests:
-    name: Python Tests (with coverage >= 80%)
+    name: Python Tests in Docker (coverage >= 75%)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     permissions:
@@ -89,31 +92,68 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7.0.0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.2
         with:
-          version: ""
-          enable-cache: true
-          cache-dependency-glob: |
-            pyproject.toml
-            uv.lock
-          cache-suffix: python-tests
+          persist-credentials: false
 
-      - name: Set Up Python
-        run: uv python install
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.2.0
 
-      - name: Sync dependencies
-        run: uv sync --frozen
+      - name: Restore uv package cache for test image
+        uses: actions/cache@v4
+        with:
+          path: .uv-docker-test-cache
+          key: ${{ runner.os }}-docker-uv-test-cache-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-docker-uv-test-cache-
+
+      - name: Inject uv cache into test build
+        uses: reproducible-containers/buildkit-cache-dance@v2.1.4
+        with:
+          cache-source: .uv-docker-test-cache
+          cache-target: /root/.cache/uv
+
+      - name: Build test image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile.backend
+          target: test
+          tags: viewport/backend-test:ci
+          load: true
+          push: false
+          github-token: ${{ github.token }}
+          cache-from: |
+            type=gha,scope=backend-tests,ignore-error=true
+            type=gha,scope=backend-image,ignore-error=true
+          cache-to: type=gha,mode=max,scope=backend-tests,ignore-error=true
 
       - name: Run tests with coverage
-        env:
-          JWT_SECRET_KEY: supersecretkey
-          CI: true
+        id: tests
         run: |
-          uv run pytest -n auto --cov=src --cov-branch --cov-report=xml --cov-fail-under=75 --random-order-bucket=module --random-order-seed=$RANDOM tests/
+          mkdir -p .ci-reports
+          docker run --rm --network host \
+            --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock \
+            --mount "type=bind,source=$GITHUB_WORKSPACE/.ci-reports,target=/reports" \
+            -e CI=true -e JWT_SECRET_KEY=supersecretkey \
+            -e TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1 \
+            -e TESTCONTAINERS_CONNECTION_MODE=docker_host \
+            -e COVERAGE_FILE=/reports/.coverage \
+            viewport/backend-test:ci \
+            pytest -n auto --cov=src --cov-branch --cov-report=xml:/reports/coverage.xml \
+            --cov-fail-under=75 --random-order-bucket=module --random-order-seed=$RANDOM tests/
+
+      - name: Collect coverage from container
+        if: ${{ always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') }}
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" .ci-reports
+          for report in .coverage coverage.xml; do
+            if [ -f ".ci-reports/$report" ]; then
+              cp ".ci-reports/$report" "$report"
+            fi
+          done
 
       - name: Comment coverage on PR (non-blocking)
+        if: ${{ always() && hashFiles('coverage.xml') != '' }}
         continue-on-error: true
         uses: py-cov-action/python-coverage-comment-action@v4.1
         with:

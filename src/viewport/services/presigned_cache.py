@@ -32,10 +32,10 @@ class PresignedUrlCacheService:
     - Index sets for efficient cache invalidation by object key
 
     Cache Key Structure:
-        presign:{bucket}:{base64_object_key}:{disposition_hash}
+        presign:{bucket}:{signing_namespace}:{base64_object_key}:{disposition_hash}
 
     Index Key Structure (for invalidation):
-        presign:{bucket}:{base64_object_key}:idx
+        presign:{bucket}:{signing_namespace}:{base64_object_key}:idx
 
     Example:
         cache_service = PresignedUrlCacheService(redis_service)
@@ -52,9 +52,10 @@ class PresignedUrlCacheService:
         await cache_service.clear_urls_for_object_keys(bucket, object_keys)
     """
 
-    def __init__(self, redis_service: "RedisService"):
+    def __init__(self, redis_service: "RedisService", *, signing_namespace: str | None = None):
         """Initialize with RedisService dependency."""
         self._redis = redis_service
+        self._signing_namespace = signing_namespace
 
     @property
     def is_available(self) -> bool:
@@ -81,6 +82,8 @@ class PresignedUrlCacheService:
     def build_cache_key_prefix(self, bucket: str, object_key: str) -> str:
         """Build the prefix for cache keys (without disposition hash)."""
         encoded_key = self._encode_object_key(object_key)
+        if self._signing_namespace:
+            return f"{PRESIGNED_CACHE_PREFIX}:{bucket}:{self._signing_namespace}:{encoded_key}"
         return f"{PRESIGNED_CACHE_PREFIX}:{bucket}:{encoded_key}"
 
     def build_cache_key(

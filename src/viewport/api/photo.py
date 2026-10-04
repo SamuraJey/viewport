@@ -1,7 +1,7 @@
 import logging
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -11,8 +11,10 @@ from viewport.dependencies import get_gallery_repository, get_s3_client, get_use
 from viewport.filename_utils import build_content_disposition, resolve_photo_filename, sanitize_filename, split_name_and_ext
 from viewport.models.gallery import MediaType, Photo, PhotoUploadStatus
 from viewport.models.user import User
+from viewport.photo_rotation import get_photo_delivery_key, is_rotation_pending
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.user_repository import UserRepository
+from viewport.rotation_tasks import rotate_photo_task
 from viewport.s3_service import AsyncS3Client
 from viewport.schemas.photo import (
     AbortMultipartUploadRequest,
@@ -24,8 +26,12 @@ from viewport.schemas.photo import (
     BatchPresignedUploadsRequest,
     BatchPresignedUploadsResponse,
     CompleteMultipartUploadRequest,
+    GalleryPhotoResponse,
     PhotoRenameRequest,
     PhotoResponse,
+    PhotoRotationRequest,
+    PhotoRotationResponse,
+    PhotoRotationResult,
     PresignedUploadData,
 )
 from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, chunk_thumbnail_task_payloads, to_thumbnail_task_payloads
@@ -63,6 +69,51 @@ def _part_count(file_size: int, part_size: int) -> int:
 
 
 router = APIRouter(prefix="/galleries", tags=["photos"])
+
+
+@router.patch("/{gallery_id}/photos/rotation", response_model=PhotoRotationResponse)
+async def rotate_photos(
+    gallery_id: UUID,
+    request: PhotoRotationRequest,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
+) -> PhotoRotationResponse:
+    try:
+        results = await repo.request_photo_rotations(gallery_id, current_user.id, request)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Gallery not found") from None
+    for photo_id, photo, error in results:
+        if photo is not None and error is None:
+            try:
+                await run_in_threadpool(rotate_photo_task.delay, str(photo_id), photo.rotation_revision)
+            except Exception:
+                logger.warning("Rotation queued for reconciliation: %s", photo_id, exc_info=True)
+    responses = await GalleryPhotoResponse.from_db_photos_batch([photo for _, photo, _ in results if photo is not None], s3_client)
+    by_id = {photo.id: photo for photo in responses}
+    return PhotoRotationResponse(
+        results=[PhotoRotationResult(photo_id=photo_id, photo=by_id.get(photo_id), error=error) for photo_id, _, error in results],
+        pending_rotation_count=await repo.pending_rotation_count(gallery_id),
+    )
+
+
+@router.get("/{gallery_id}/photos/rotation", response_model=PhotoRotationResponse)
+async def get_rotation_status(
+    gallery_id: UUID,
+    photo_ids: list[UUID] = Query(default=[], max_length=500),
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
+) -> PhotoRotationResponse:
+    if not await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id):
+        raise HTTPException(status_code=404, detail="Gallery not found")
+    photos = await repo.get_photos_by_ids_and_gallery(gallery_id, photo_ids) if photo_ids else []
+    responses = await GalleryPhotoResponse.from_db_photos_batch(photos, s3_client)
+    by_id = {photo.id: photo for photo in responses}
+    return PhotoRotationResponse(
+        results=[PhotoRotationResult(photo_id=photo_id, photo=by_id.get(photo_id), error=None if photo_id in by_id else "not_found") for photo_id in dict.fromkeys(photo_ids)],
+        pending_rotation_count=await repo.pending_rotation_count(gallery_id),
+    )
 
 
 async def _invalidate_presigned_cache_safely(
@@ -170,9 +221,12 @@ async def download_photo(
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
+    if is_rotation_pending(photo):
+        raise HTTPException(status_code=409, detail="Photo rotation is still saving")
+
     filename = resolve_photo_filename(photo)
     download_url = await s3_client.generate_presigned_url_async(
-        photo.object_key,
+        get_photo_delivery_key(photo),
         expires_in=7200,
         response_content_disposition=build_content_disposition(
             filename,

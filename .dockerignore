@@ -103,3 +103,5 @@ venv/
 
 frontend/coverage
 .uv-docker-cache
+.uv-docker-test-cache
+.ci-reports/

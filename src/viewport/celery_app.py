@@ -24,7 +24,7 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
     if settings is None:
         settings = CelerySettings()
 
-    app = Celery("viewport", include=["viewport.background_tasks"])
+    app = Celery("viewport", include=["viewport.background_tasks", "viewport.rotation_tasks"])
 
     app.conf.update(
         broker_url=settings.broker_url,
@@ -64,6 +64,14 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
         "cleanup-orphaned-uploads-every-hour": {
             "task": "cleanup_orphaned_uploads",
             "schedule": crontab(minute=0),  # Every hour at minute 0
+        },
+        "reconcile-photo-rotations-every-minute": {
+            "task": "reconcile_photo_rotations",
+            "schedule": crontab(),
+        },
+        "cleanup-photo-rotation-versions-every-hour": {
+            "task": "cleanup_photo_rotation_versions",
+            "schedule": crontab(minute=45),
         },
         "cleanup-video-temp-files-every-hour": {
             "task": "cleanup_video_temp_files",

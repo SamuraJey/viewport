@@ -6,7 +6,8 @@ import {
   LoaderCircle,
   Pencil,
   Play,
-  Search,
+  MoreHorizontal,
+  RotateCcw,
   Square,
   Star,
   StarOff,
@@ -14,12 +15,17 @@ import {
   VideoOff,
 } from 'lucide-react';
 import type { GalleryPhoto } from '../../types';
+import { AppPopover } from '../ui/AppPopover';
+import { PhotoRotationButtons } from './PhotoRotationButtons';
+import { canRotatePhoto, isRotationPending, normalizeRotation } from '../../lib/photoRotation';
 import { AppBadge } from '../ui/AppBadge';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
 import { formatDuration } from '../../lib/utils';
 
 interface PhotoCardProps {
   photo: GalleryPhoto;
+  previewUrl?: string;
+  onRotatePhoto?: (photoId: string, direction: -90 | 90 | 'reset' | 'retry') => void;
   index: number;
   isSelectionMode: boolean;
   isSelected: boolean;
@@ -35,6 +41,8 @@ interface PhotoCardProps {
 
 const PhotoCardComponent = ({
   photo,
+  previewUrl,
+  onRotatePhoto,
   index,
   isSelectionMode,
   isSelected,
@@ -49,6 +57,34 @@ const PhotoCardComponent = ({
 }: PhotoCardProps) => {
   const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const areaRef = useRef<HTMLDivElement | null>(null);
+  const [area, setArea] = useState({ width: 0, height: 0 });
+  const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
+  const src = previewUrl ?? photo.thumbnail_url;
+  const pending = isRotationPending(photo);
+  const delta =
+    pending && !previewUrl
+      ? normalizeRotation((photo.requested_rotation ?? 0) - (photo.rotation ?? 0))
+      : 0;
+  useEffect(() => {
+    const element = areaRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() =>
+      setArea({ width: element.clientWidth, height: element.clientHeight }),
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  let scale = 1;
+  if (delta % 180 && area.width && area.height) {
+    const width = photo.width || naturalSize.width || 1;
+    const height = photo.height || naturalSize.height || 1;
+    const fit = Math.min(area.width / width, area.height / height);
+    scale = Math.min(area.width / (height * fit), area.height / (width * fit));
+  }
+  const overlayButton = 'bg-white/20 text-white hover:bg-white/35 focus-visible:outline-white';
+  const menuButton =
+    'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-text hover:bg-surface-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent dark:hover:bg-surface-dark-2';
 
   useEffect(() => {
     const imageElement = imageRef.current;
@@ -58,7 +94,7 @@ const PhotoCardComponent = ({
     }
 
     setImageState('loading');
-  }, [photo.thumbnail_url]);
+  }, [src]);
 
   const handleDownload = (e: MouseEvent) => {
     e.stopPropagation();
@@ -114,7 +150,10 @@ const PhotoCardComponent = ({
       )}
 
       {/* Image area */}
-      <div className="relative h-64 sm:h-72 md:h-80 bg-surface-1 dark:bg-surface-dark-1 overflow-hidden">
+      <div
+        ref={areaRef}
+        className="relative h-64 sm:h-72 md:h-80 bg-surface-1 dark:bg-surface-dark-1 overflow-hidden"
+      >
         {/* Status badge — shown for non-successful media */}
         {photo.status === 'processing' && (
           <AppBadge
@@ -171,80 +210,82 @@ const PhotoCardComponent = ({
             </div>
           )}
 
-        {/* Action Panel - overlay at the bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-100 pointer-events-auto translate-y-0 can-hover:opacity-0 can-hover:pointer-events-none can-hover:translate-y-4 can-hover:group-hover:opacity-100 can-hover:group-hover:pointer-events-auto can-hover:group-hover:translate-y-0 can-hover:group-focus-within:opacity-100 can-hover:group-focus-within:pointer-events-auto can-hover:group-focus-within:translate-y-0">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenPhoto(index);
-            }}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-white/40 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-white"
-            title="Open photo"
-            aria-label="Open photo"
-          >
-            <Search className="h-4 w-4" />
-          </button>
-          {isCover ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClearCover();
-              }}
-              className="p-2.5 rounded-xl bg-amber-500/80 hover:bg-amber-500 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-amber-500"
-              title="Remove cover"
-              aria-label="Remove cover"
-            >
-              <StarOff className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSetCover(photo.id);
-              }}
-              className="p-2.5 rounded-xl bg-white/20 hover:bg-amber-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-amber-500"
-              title="Set as cover"
-              aria-label="Set as cover"
-            >
-              <Star className="h-4 w-4" />
-            </button>
+        <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center gap-1 bg-linear-to-t from-black/80 to-transparent px-2 pb-3 pt-5 opacity-100 can-hover:opacity-0 can-hover:group-hover:opacity-100 can-hover:group-focus-within:opacity-100">
+          {onRotatePhoto && (
+            <PhotoRotationButtons
+              disabled={!canRotatePhoto(photo)}
+              className={overlayButton}
+              onRotate={(direction) => onRotatePhoto(photo.id, direction)}
+            />
           )}
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRenamePhoto(photo.id, photo.filename);
-            }}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-white/40 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-white"
-            title="Rename photo"
-            aria-label="Rename photo"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={handleDownload}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-green-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-green-500"
-            title="Download photo"
             aria-label="Download photo"
+            title={pending ? 'Rotation is saving' : 'Download photo'}
+            disabled={pending}
+            onClick={handleDownload}
+            className={`flex h-11 w-11 items-center justify-center rounded-xl disabled:opacity-40 focus-visible:outline focus-visible:outline-2 ${overlayButton}`}
           >
             <Download className="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDeletePhoto(photo.id);
-            }}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-red-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-red-500"
-            title="Delete photo"
-            aria-label="Delete photo"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <AppPopover
+            buttonAriaLabel="More photo actions"
+            buttonClassName={`flex h-11 w-11 items-center justify-center rounded-xl focus-visible:outline focus-visible:outline-2 ${overlayButton}`}
+            buttonContent={<MoreHorizontal className="h-4 w-4" />}
+            panelFocus
+            panelClassName="w-64 rounded-xl border border-border/50 bg-surface p-1.5 shadow-lg dark:bg-surface-dark-1"
+            panel={(close) => (
+              <>
+                <button
+                  type="button"
+                  className={menuButton}
+                  onClick={() => {
+                    close();
+                    if (isCover) onClearCover();
+                    else onSetCover(photo.id);
+                  }}
+                >
+                  {isCover ? <StarOff className="h-4 w-4" /> : <Star className="h-4 w-4" />}
+                  {isCover ? 'Remove cover' : 'Set as cover'}
+                </button>
+                <button
+                  type="button"
+                  className={menuButton}
+                  onClick={() => {
+                    close();
+                    onRenamePhoto(photo.id, photo.filename);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                  Rename photo
+                </button>
+                {onRotatePhoto && canRotatePhoto(photo) && (
+                  <button
+                    type="button"
+                    className={menuButton}
+                    onClick={() => {
+                      close();
+                      onRotatePhoto(photo.id, 'reset');
+                    }}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Reset orientation
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`${menuButton} text-danger`}
+                  onClick={() => {
+                    close();
+                    onDeletePhoto(photo.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete photo
+                </button>
+              </>
+            )}
+          />
         </div>
 
         {/* Photo - takes full image area */}
@@ -289,13 +330,20 @@ const PhotoCardComponent = ({
           ) : (
             <img
               ref={imageRef}
-              src={photo.thumbnail_url}
+              src={src}
               alt={accessiblePhotoName}
               className={`h-full w-full object-contain transition-opacity duration-300 ${
                 imageState === 'loaded' ? 'opacity-100' : 'opacity-0'
               }`}
+              style={delta ? { transform: `rotate(${delta}deg) scale(${scale})` } : undefined}
               loading="lazy"
-              onLoad={() => setImageState('loaded')}
+              onLoad={(event) => {
+                setImageState('loaded');
+                setNaturalSize({
+                  width: event.currentTarget.naturalWidth,
+                  height: event.currentTarget.naturalHeight,
+                });
+              }}
               onError={() => setImageState('error')}
             />
           )}
@@ -313,6 +361,31 @@ const PhotoCardComponent = ({
         <p className="text-sm font-medium text-text truncate text-center" title={photo.filename}>
           {photo.filename}
         </p>
+        {pending && (
+          <span
+            role="status"
+            className="mt-1 flex items-center justify-center gap-1.5 text-xs text-muted"
+          >
+            <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+            Saving rotation
+          </span>
+        )}
+        {photo.rotation_status === 'failed' && (
+          <div
+            role="status"
+            className="mt-1 flex items-center justify-center gap-2 text-xs text-danger"
+          >
+            Rotation not saved
+            <button
+              type="button"
+              aria-label="Retry rotation"
+              className="min-h-11 px-2 font-semibold underline focus-visible:outline focus-visible:outline-2"
+              onClick={() => onRotatePhoto?.(photo.id, 'retry')}
+            >
+              Retry
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

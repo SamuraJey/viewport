@@ -1,4 +1,5 @@
 import { api } from '../lib/api';
+import type { PhotoRotationItem, PhotoRotationResponse } from '../types/photo';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { ApiError } from '../lib/errorHandling';
 import { getDemoService } from './demoService';
@@ -29,6 +30,39 @@ import {
 } from '../constants/upload';
 
 const DOWNLOAD_TARGET_NAME = 'viewport-browser-download';
+
+const rotatePhotos = async (
+  galleryId: string,
+  items: PhotoRotationItem[],
+): Promise<PhotoRotationResponse> => {
+  if (isDemoModeEnabled()) return getDemoService().rotatePhotos(galleryId, items);
+  return (
+    await api.patch<PhotoRotationResponse>(`/galleries/${galleryId}/photos/rotation`, { items })
+  ).data;
+};
+
+const getRotationStatus = async (
+  galleryId: string,
+  photoIds: string[],
+): Promise<PhotoRotationResponse> => {
+  if (isDemoModeEnabled()) return getDemoService().getRotationStatus(galleryId, photoIds);
+  // Keep GET URLs below common proxy header limits, even for large selections.
+  if (photoIds.length > 100) {
+    const results: PhotoRotationResponse['results'] = [];
+    let pending = 0;
+    for (let offset = 0; offset < photoIds.length; offset += 100) {
+      const response = await getRotationStatus(galleryId, photoIds.slice(offset, offset + 100));
+      results.push(...response.results);
+      pending = response.pending_rotation_count;
+    }
+    return { results, pending_rotation_count: pending };
+  }
+  const params = new URLSearchParams();
+  photoIds.forEach((id) => params.append('photo_ids', id));
+  return (
+    await api.get<PhotoRotationResponse>(`/galleries/${galleryId}/photos/rotation`, { params })
+  ).data;
+};
 const DOWNLOAD_TARGET_ID = 'viewport-browser-download-frame';
 const MULTIPART_UPLOAD_CONCURRENCY = 4;
 const MULTIPART_PART_TIMEOUT_MS = 120_000;
@@ -154,8 +188,12 @@ const downloadGalleryZip = async (galleryId: string): Promise<void> => {
     return;
   }
 
+  const token = getDownloadAccessToken();
+  const status = await getRotationStatus(galleryId, []);
+  if (status.pending_rotation_count)
+    throw new Error('Photo rotations are still saving. Please try downloading again shortly.');
   submitBrowserDownload(`/galleries/${galleryId}/download/all`, {
-    access_token: getDownloadAccessToken(),
+    access_token: token,
   });
 };
 
@@ -165,8 +203,12 @@ const downloadSelectedPhotosZip = async (galleryId: string, photoIds: string[]):
     return;
   }
 
+  const token = getDownloadAccessToken();
+  for (let offset = 0; offset < photoIds.length; offset += 500) {
+    await assertRotationReady(galleryId, photoIds.slice(offset, offset + 500));
+  }
   submitBrowserDownload(`/galleries/${galleryId}/download/selected`, {
-    access_token: getDownloadAccessToken(),
+    access_token: token,
     photo_ids: photoIds,
   });
 };
@@ -177,10 +219,24 @@ const downloadPhoto = async (galleryId: string, photoId: string): Promise<void> 
     return;
   }
 
+  const token = getDownloadAccessToken();
+  await assertRotationReady(galleryId, [photoId]);
   submitBrowserDownload(`/galleries/${galleryId}/photos/${photoId}/download`, {
-    access_token: getDownloadAccessToken(),
+    access_token: token,
   });
 };
+
+async function assertRotationReady(galleryId: string, photoIds: string[]) {
+  const status = await getRotationStatus(galleryId, photoIds);
+  if (
+    status.results.some(
+      ({ photo }) =>
+        photo?.rotation_status === 'pending' || photo?.rotation_status === 'processing',
+    )
+  ) {
+    throw new Error('Photo rotations are still saving. Please try downloading again shortly.');
+  }
+}
 
 // File type detection helpers
 const isVideoFile = (file: File): boolean => {
@@ -973,6 +1029,8 @@ const uploadPhotosPresigned = async (
 };
 
 export const photoService = {
+  rotatePhotos,
+  getRotationStatus,
   deletePhotos,
   deletePhoto,
   renamePhoto,
