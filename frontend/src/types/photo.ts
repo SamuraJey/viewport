@@ -5,7 +5,29 @@
 export type MediaType = 'image' | 'video';
 export type MediaStatus = 'pending' | 'processing' | 'successful' | 'failed';
 
-export interface PhotoResponse {
+export type PhotoRotation = 0 | 90 | 180 | 270;
+export interface PhotoRotationFields {
+  rotation?: PhotoRotation;
+  requested_rotation?: PhotoRotation;
+  rotation_revision?: number;
+  rotation_status?: 'ready' | 'pending' | 'processing' | 'failed';
+  rotation_error?: string | null;
+}
+export interface PhotoRotationItem {
+  photo_id: string;
+  rotation: PhotoRotation;
+  expected_revision: number;
+}
+export interface PhotoRotationResponse {
+  results: {
+    photo_id: string;
+    photo?: GalleryPhoto | null;
+    error?: 'not_found' | 'not_ready' | 'conflict' | null;
+  }[];
+  pending_rotation_count: number;
+}
+
+export interface PhotoResponse extends PhotoRotationFields {
   id: string;
   gallery_id: string;
   media_type: MediaType;

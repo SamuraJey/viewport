@@ -1,4 +1,5 @@
 import { SquareCheck, Download, Square, Trash2 } from 'lucide-react';
+import { PhotoRotationButtons } from './PhotoRotationButtons';
 
 interface PhotoSelectionBarProps {
   isSelectionMode: boolean;
@@ -11,6 +12,9 @@ interface PhotoSelectionBarProps {
   onCancel: () => void;
   onDownloadSelected: () => void;
   onDeleteMultiple: () => void;
+  onRotateSelected?: (direction: -90 | 90) => void;
+  rotatableCount?: number;
+  hasPendingRotations?: boolean;
 }
 
 export const PhotoSelectionBar = ({
@@ -24,6 +28,9 @@ export const PhotoSelectionBar = ({
   onCancel,
   onDownloadSelected,
   onDeleteMultiple,
+  onRotateSelected,
+  rotatableCount = 0,
+  hasPendingRotations = false,
 }: PhotoSelectionBarProps) => {
   if (!isSelectionMode && !hasSelection) return null;
 
@@ -75,7 +82,18 @@ export const PhotoSelectionBar = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:flex lg:items-center lg:gap-3">
+        <div className="flex flex-wrap items-center gap-2 lg:gap-3">
+          {onRotateSelected && (
+            <div className="flex items-center gap-1 rounded-xl border border-border/50 px-1">
+              <PhotoRotationButtons
+                onRotate={onRotateSelected}
+                disabled={rotatableCount === 0}
+                labelSuffix={`${rotatableCount} selected photos`}
+                className="text-text hover:bg-surface-1 focus-visible:outline-accent dark:hover:bg-surface-dark-2"
+              />
+              <span className="pr-2 text-xs text-muted">{rotatableCount} photos</span>
+            </div>
+          )}
           <button
             type="button"
             onClick={onCancel}
@@ -86,7 +104,8 @@ export const PhotoSelectionBar = ({
           <button
             type="button"
             onClick={onDownloadSelected}
-            disabled={!hasSelection || isDownloadingZip}
+            disabled={!hasSelection || isDownloadingZip || hasPendingRotations}
+            title={hasPendingRotations ? 'Wait for rotations to finish saving' : undefined}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-5 text-sm font-bold text-accent whitespace-nowrap transition-all duration-200 hover:bg-accent/20 hover:border-accent/50 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent/10 disabled:hover:border-accent/30 disabled:hover:shadow-none disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
           >
             <Download className="w-4 h-4" />

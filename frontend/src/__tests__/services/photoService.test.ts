@@ -166,6 +166,7 @@ describe('photoService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(isDemoModeEnabled).mockReturnValue(false);
+    vi.mocked(api.get).mockResolvedValue({ data: { results: [], pending_rotation_count: 0 } });
     useAuthStore.setState({
       user: null,
       tokens: {
@@ -261,7 +262,9 @@ describe('photoService', () => {
 
     await photoService.downloadGalleryZip('gallery-1');
 
-    expect(api.get).not.toHaveBeenCalled();
+    expect(api.get).toHaveBeenCalledWith('/galleries/gallery-1/photos/rotation', {
+      params: new URLSearchParams(),
+    });
     expect(submitSpy).toHaveBeenCalledTimes(1);
 
     const form = document.querySelector('form');
@@ -332,6 +335,33 @@ describe('photoService', () => {
     });
 
     await expect(photoService.downloadGalleryZip('gallery-1')).rejects.toThrow('Not authenticated');
+  });
+
+  it('does not submit a browser download while the gallery is rotating', async () => {
+    const submit = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
+    vi.mocked(api.get).mockResolvedValue({ data: { results: [], pending_rotation_count: 1 } });
+    await expect(photoService.downloadGalleryZip('gallery-1')).rejects.toThrow('still saving');
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it('checks only selected photos before downloading their ZIP', async () => {
+    const submit = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        results: [{ photo_id: 'photo-1', photo: { rotation_status: 'processing' } }],
+        pending_rotation_count: 3,
+      },
+    });
+    await expect(photoService.downloadSelectedPhotosZip('gallery-1', ['photo-1'])).rejects.toThrow(
+      'still saving',
+    );
+    expect(submit).not.toHaveBeenCalled();
+    const params = vi.mocked(api.get).mock.calls[0][1]?.params as URLSearchParams;
+    expect(params.getAll('photo_ids')).toEqual(['photo-1']);
   });
 
   it('returns empty response when no files provided', async () => {

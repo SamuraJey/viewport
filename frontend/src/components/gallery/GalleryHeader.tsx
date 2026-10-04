@@ -97,6 +97,7 @@ interface GalleryHeaderProps {
   onToggleSelectionMode?: () => void;
   isSelectionMode?: boolean;
   isDownloadingZip?: boolean;
+  hasPendingRotations?: boolean;
   onCreateShareLink?: () => void;
   isCreatingShareLink?: boolean;
   shareLinkCount?: number;
@@ -144,6 +145,7 @@ export const GalleryHeader = ({
   onToggleSelectionMode,
   isSelectionMode = false,
   isDownloadingZip = false,
+  hasPendingRotations = false,
   onCreateShareLink,
   isCreatingShareLink = false,
   shareLinkCount = 0,
@@ -450,7 +452,10 @@ export const GalleryHeader = ({
                       onMouseDown={handleMoreActionsMouseDown(close, onDownloadGallery)}
                       onClick={handleMoreActionsClick(close, onDownloadGallery)}
                       onKeyDown={handleMoreActionsEscape(close)}
-                      disabled={isDownloadingZip}
+                      disabled={isDownloadingZip || hasPendingRotations}
+                      title={
+                        hasPendingRotations ? 'Wait for rotations to finish saving' : undefined
+                      }
                       className={overflowActionClass()}
                     >
                       {isDownloadingZip ? (

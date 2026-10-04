@@ -61,6 +61,10 @@ def test_alembic_upgrade_and_downgrade(postgres_container) -> None:
             assert version == head_revision
             gallery_columns = {column["name"] for column in inspector.get_columns("galleries")}
             assert {"private_notes", "public_description"} <= gallery_columns
+            photo_columns = {column["name"] for column in inspector.get_columns("photos")}
+            assert {"rotation", "requested_rotation", "rotation_revision", "rotated_object_key", "rotation_status", "rotation_error", "rotation_updated_at"} <= photo_columns
+            photo_checks = {check["name"] for check in inspector.get_check_constraints("photos")}
+            assert {"ck_photos_rotation", "ck_photos_requested_rotation", "ck_photos_rotation_revision", "ck_photos_rotation_status"} <= photo_checks
             assert inspector.has_table("refresh_token_sessions")
             refresh_columns = {column["name"] for column in inspector.get_columns("refresh_token_sessions")}
             assert refresh_columns == {

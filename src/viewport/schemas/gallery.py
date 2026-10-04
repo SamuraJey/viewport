@@ -142,6 +142,7 @@ class GalleryResponse(BaseModel):
 
 
 class GalleryDetailResponse(BaseModel):
+    pending_rotation_count: int = Field(0, ge=0)
     id: str
     owner_id: str
     project_id: str | None = Field(None, description="Optional parent project id")

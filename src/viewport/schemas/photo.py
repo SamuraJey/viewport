@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from viewport.filename_utils import build_content_disposition, resolve_photo_filename
+from viewport.photo_rotation import get_photo_delivery_key
 
 PHOTO_ID_BATCH_MAX = 500
 
@@ -45,7 +46,7 @@ async def _generate_url_maps(
     """
     thumbnail_keys = [photo.thumbnail_object_key for photo in photos]
     original_key_dispositions: Mapping[str, str | None] = {
-        photo.object_key: build_content_disposition(
+        get_photo_delivery_key(photo): build_content_disposition(
             resolve_photo_filename(photo),
             disposition_type="inline",
         )
@@ -74,10 +75,10 @@ def _build_photo_response_payload(
     media_type: MediaType = cast(MediaType, photo.media_type)
     if media_type == "video":
         playback_key = photo.playback_object_key
-        url = playback_url_map.get(playback_key, "") if playback_key else full_url_map.get(photo.object_key, "")
+        url = playback_url_map.get(playback_key, "") if playback_key else full_url_map.get(get_photo_delivery_key(photo), "")
         playback_url = url if playback_key else None
     else:
-        url = full_url_map.get(photo.object_key, "")
+        url = full_url_map.get(get_photo_delivery_key(photo), "")
         playback_url = None
 
     payload: dict[str, Any] = {
@@ -94,13 +95,51 @@ def _build_photo_response_payload(
         "filename": resolve_photo_filename(photo),
         "file_size": photo.file_size,
         "uploaded_at": photo.uploaded_at,
+        **_rotation_payload(photo),
     }
     if include_gallery_id:
         payload["gallery_id"] = photo.gallery_id
     return payload
 
 
-class PhotoResponse(BaseModel):
+def _rotation_payload(photo: "Photo") -> dict[str, Any]:
+    return {
+        key: getattr(photo, key, default)
+        for key, default in (
+            ("rotation", 0),
+            ("requested_rotation", 0),
+            ("rotation_revision", 0),
+            ("rotation_status", "ready"),
+            ("rotation_error", None),
+        )
+    }
+
+
+class PhotoRotationFields(BaseModel):
+    rotation: Literal[0, 90, 180, 270] = 0
+    requested_rotation: Literal[0, 90, 180, 270] = 0
+    rotation_revision: int = 0
+    rotation_status: Literal["ready", "pending", "processing", "failed"] = "ready"
+    rotation_error: str | None = None
+
+
+class PhotoRotationItem(BaseModel):
+    photo_id: UUID
+    rotation: Literal[0, 90, 180, 270]
+    expected_revision: int = Field(ge=0)
+
+
+class PhotoRotationRequest(BaseModel):
+    items: list[PhotoRotationItem] = Field(min_length=1, max_length=PHOTO_ID_BATCH_MAX)
+
+    @model_validator(mode="after")
+    def unique_photos(self) -> "PhotoRotationRequest":
+        if len({item.photo_id for item in self.items}) != len(self.items):
+            raise ValueError("Duplicate photo IDs")
+        return self
+
+
+class PhotoResponse(PhotoRotationFields):
     id: UUID
     gallery_id: UUID
     media_type: MediaType
@@ -139,7 +178,7 @@ class PhotoResponse(BaseModel):
         else:
             tasks = [
                 s3_client.generate_presigned_url_async(
-                    photo.object_key,
+                    get_photo_delivery_key(photo),
                     expires_in=7200,
                     response_content_disposition=cls._build_content_disposition(filename, disposition_type="inline"),
                 ),
@@ -172,6 +211,7 @@ class PhotoResponse(BaseModel):
             filename=filename,
             file_size=photo.file_size,
             uploaded_at=photo.uploaded_at,
+            **_rotation_payload(photo),
         )
 
     @classmethod
@@ -198,7 +238,7 @@ class PhotoResponse(BaseModel):
         ]
 
 
-class GalleryPhotoResponse(BaseModel):
+class GalleryPhotoResponse(PhotoRotationFields):
     id: UUID
     media_type: MediaType
     url: str
@@ -242,6 +282,17 @@ class PhotoListResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+class PhotoRotationResult(BaseModel):
+    photo_id: UUID
+    photo: GalleryPhotoResponse | None = None
+    error: Literal["not_found", "not_ready", "conflict"] | None = None
+
+
+class PhotoRotationResponse(BaseModel):
+    results: list[PhotoRotationResult]
+    pending_rotation_count: int
 
 
 class PhotoUploadResult(BaseModel):

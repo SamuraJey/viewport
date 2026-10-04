@@ -58,6 +58,7 @@ export interface Gallery extends GalleryAppearanceFields {
 }
 
 export interface GalleryDetail extends Gallery {
+  pending_rotation_count?: number;
   photos: GalleryPhoto[];
   total_photos: number;
 }

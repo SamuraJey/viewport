@@ -9,8 +9,13 @@ import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/styles.css';
 import 'yet-another-react-lightbox/plugins/thumbnails.css';
 import { ProgressiveSlide } from '../components/ProgressiveSlide';
+import { PhotoRotationButtons } from '../components/gallery/PhotoRotationButtons';
+import type { ZoomRef } from 'yet-another-react-lightbox';
 
 export interface PhotoSlide {
+  canRotate?: boolean;
+  rotationPending?: boolean;
+  previewRotation?: number;
   src: string;
   alt?: string;
   width?: number;
@@ -30,6 +35,7 @@ export interface PhotoSlide {
 }
 
 interface UsePhotoLightboxOptions {
+  onRotatePhoto?: (index: number, direction: -90 | 90) => void;
   /** Selector for photo card elements to enable scroll-to-photo on close */
   photoCardSelector?: string;
   /** Ref to the grid container for finding photo cards */
@@ -55,10 +61,12 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
     isLoadingMore = false,
     loadMoreThreshold = 10,
     showPositionIndicator = false,
+    onRotatePhoto,
   } = options;
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const zoomRef = useRef<ZoomRef | null>(null);
 
   const thumbnailsRef = useRef<{
     visible: boolean;
@@ -140,6 +148,38 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
           };
         })}
         plugins={[Thumbnails, Fullscreen, LightboxDownload, Video, Zoom]}
+        toolbar={
+          onRotatePhoto
+            ? {
+                buttons: [
+                  ...(slides[lightboxIndex]?.canRotate
+                    ? [
+                        <PhotoRotationButtons
+                          key="rotate"
+                          className="text-white hover:bg-white/15 focus-visible:outline-white"
+                          onRotate={(direction) => {
+                            zoomRef.current?.changeZoom(1, true);
+                            onRotatePhoto(lightboxIndex, direction);
+                          }}
+                        />,
+                      ]
+                    : []),
+                  ...(slides[lightboxIndex]?.rotationPending
+                    ? [
+                        <span
+                          key="saving"
+                          role="status"
+                          className="inline-flex min-h-11 items-center px-2 text-xs text-white/80"
+                        >
+                          Saving rotation…
+                        </span>,
+                      ]
+                    : []),
+                  'close',
+                ],
+              }
+            : undefined
+        }
         render={{
           slideContainer: ProgressiveSlide,
           controls: showPositionIndicator
@@ -178,11 +218,15 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
           imageFit: 'contain',
         }}
         zoom={{
-          maxZoomPixelRatio: 3,
+          ref: zoomRef,
+          // A ratio of 1 still magnifies large originals. Clamp the thumbnail
+          // preview to the plugin's minimum zoom (1x) until publication.
+          maxZoomPixelRatio: slides[lightboxIndex]?.rotationPending ? 0 : 3,
           scrollToZoom: true,
         }}
         styles={{
           container: { backgroundColor: 'rgba(0, 0, 0, 0.85)' },
+          ...(onRotatePhoto ? { toolbar: { flexWrap: 'wrap', maxWidth: '100%' } } : {}),
         }}
         download={{
           download: ({ slide, saveAs }) => {

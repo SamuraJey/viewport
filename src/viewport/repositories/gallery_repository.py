@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from viewport.filename_utils import sanitize_filename, split_name_and_ext
 from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.sharelink import ShareLink, ShareScopeType
+from viewport.photo_rotation import ROTATION_PENDING_STATUSES
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.gallery_stats import GalleryPhotoStats, gallery_photo_stats_stmt, gallery_photo_total_size_stmt
 from viewport.repositories.photo_query_helpers import build_photo_order_clauses
@@ -18,12 +19,43 @@ from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.schemas.gallery import CoverDisplayOption, GalleryListSortBy, GalleryPhotoSortBy, PhotoSpacing, PublicColorScheme, SortOrder
 from viewport.schemas.gallery import ProjectVisibility as ProjectVisibilitySchema
+from viewport.schemas.photo import PhotoRotationRequest
 
 logger = logging.getLogger(__name__)
 
 
 class GalleryRepository(BaseRepository):
     LIKE_ESCAPE_CHAR = DEFAULT_LIKE_ESCAPE_CHAR
+
+    async def pending_rotation_count(self, gallery_id: uuid.UUID) -> int:
+        count = await self.db.scalar(select(func.count(Photo.id)).where(Photo.gallery_id == gallery_id, Photo.rotation_status.in_(ROTATION_PENDING_STATUSES)))
+        return await self._finish_read(int(count or 0))
+
+    async def request_photo_rotations(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, request: PhotoRotationRequest) -> list[tuple[uuid.UUID, Photo | None, str | None]]:
+        gallery = await self.db.scalar(select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)).with_for_update())
+        if gallery is None:
+            raise ValueError("Gallery not found")
+        rows = (await self.db.scalars(select(Photo).where(Photo.gallery_id == gallery_id, Photo.id.in_([item.photo_id for item in request.items])).order_by(Photo.id).with_for_update())).all()
+        photos = {photo.id: photo for photo in rows}
+        results: list[tuple[uuid.UUID, Photo | None, str | None]] = []
+        for item in request.items:
+            photo = photos.get(item.photo_id)
+            error = None
+            if photo is None:
+                error = "not_found"
+            elif photo.media_type != MediaType.IMAGE or photo.status != PhotoUploadStatus.SUCCESSFUL:
+                error = "not_ready"
+            elif photo.rotation_revision != item.expected_revision:
+                error = "conflict"
+            else:
+                photo.requested_rotation = item.rotation
+                photo.rotation_revision += 1
+                photo.rotation_status = "pending"
+                photo.rotation_error = None
+                photo.rotation_updated_at = datetime.now(UTC).replace(tzinfo=None)
+            results.append((item.photo_id, photo, error))
+        await self.db.commit()
+        return results
 
     @classmethod
     def _escape_like_term(cls, value: str) -> str:

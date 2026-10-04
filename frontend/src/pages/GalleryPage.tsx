@@ -13,6 +13,9 @@ import { PhotoRenameModal } from '../components/PhotoRenameModal';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
+import { usePhotoRotation } from '../hooks/usePhotoRotation';
+import { useRotationPreviews } from '../hooks/useRotationPreviews';
+import { canRotatePhoto, isRotationPending, normalizeRotation } from '../lib/photoRotation';
 import { GalleryHeader } from '../components/gallery/GalleryHeader';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySelectionSessionsPanel';
@@ -227,6 +230,8 @@ export const GalleryPage = () => {
 
   const {
     gallery,
+    applyRotationResponse,
+    refreshAfterRotation,
     photoUrls,
     shareLinks,
     isInitialLoading,
@@ -277,6 +282,24 @@ export const GalleryPage = () => {
     },
     pagination,
   });
+
+  const rotation = usePhotoRotation({
+    galleryId,
+    photos: photoUrls,
+    pendingCount: gallery?.pending_rotation_count ?? 0,
+    onUpdate: applyRotationResponse,
+    onSaved: refreshAfterRotation,
+  });
+  const getRotationPreview = useRotationPreviews(rotation.photos);
+  const rotatableSelection = [...selection.selectedIds].filter((id) => {
+    const photo = rotation.getPhoto(id);
+    return photo && canRotatePhoto(photo);
+  });
+  const hasPendingSelected = [...selection.selectedIds].some((id) => {
+    const photo = rotation.getPhoto(id);
+    return photo && isRotationPending(photo);
+  });
+  const hasPendingRotations = rotation.hasLocalEdits || (gallery?.pending_rotation_count ?? 0) > 0;
 
   const activeProjectId = gallery?.project_id ?? routeProjectId ?? null;
 
@@ -480,6 +503,7 @@ export const GalleryPage = () => {
 
   // Lightbox
   const { lightboxOpen, openLightbox, renderLightbox } = usePhotoLightbox({
+    onRotatePhoto: (index, direction) => rotation.rotate([photoUrls[index].id], direction),
     photoCardSelector: '[data-photo-card]',
     gridRef,
   });
@@ -1086,11 +1110,16 @@ export const GalleryPage = () => {
       panel: (
         <div className="space-y-8">
           <GalleryPhotoSection
+            rotation={{
+              rotatableCount: rotatableSelection.length,
+              hasPendingSelected,
+              getPreview: getRotationPreview,
+            }}
             pagination={pagination}
             gridRef={gridRef}
             photoUploaderRef={photoUploaderRef}
             state={{
-              photoUrls,
+              photoUrls: rotation.photos,
               isLoadingPhotos,
               activeSearchTerm: activeSearch || undefined,
               uploadError,
@@ -1130,6 +1159,8 @@ export const GalleryPage = () => {
                 setIsSelectionMode(false);
               },
               onDeleteMultiplePhotos: handleDeleteMultiplePhotosWrapper,
+              onRotatePhoto: (id, direction) => rotation.rotate([id], direction),
+              onRotateSelected: (direction) => rotation.rotate(rotatableSelection, direction),
             }}
           />
 
@@ -1248,6 +1279,7 @@ export const GalleryPage = () => {
             onToggleSelectionMode={photoUrls.length > 0 ? handleToggleSelectionMode : undefined}
             isSelectionMode={isSelectionMode}
             isDownloadingZip={isDownloadingZip}
+            hasPendingRotations={hasPendingRotations}
             onCreateShareLink={() => setIsShareLinkCreateOpen(true)}
             isCreatingShareLink={isCreatingLink}
             shareLinkCount={shareLinks.length}
@@ -1282,19 +1314,34 @@ export const GalleryPage = () => {
 
         {/* Lightbox */}
         {renderLightbox(
-          photoUrls.map((photo) => ({
-            src: photo.url,
-            thumbnailSrc: photo.thumbnail_url,
-            alt: photo.filename,
-            download: photo.url,
-            downloadFilename: photo.filename,
-            media_type: photo.media_type,
-            playback_url: photo.playback_url,
-            duration_ms: photo.duration_ms,
-            onDownload: () => {
-              void handleDownloadPhoto(photo.id);
-            },
-          })),
+          rotation.photos.map((photo) => {
+            const preview = getRotationPreview(photo);
+            const swapDimensions =
+              preview &&
+              normalizeRotation((photo.requested_rotation ?? 0) - (photo.rotation ?? 0)) % 180 !==
+                0;
+            return {
+              src: preview ?? (isRotationPending(photo) ? photo.thumbnail_url : photo.url),
+              thumbnailSrc: preview ?? photo.thumbnail_url,
+              width: swapDimensions ? photo.height : photo.width,
+              height: swapDimensions ? photo.width : photo.height,
+              canRotate: canRotatePhoto(photo),
+              rotationPending: isRotationPending(photo),
+              previewRotation:
+                isRotationPending(photo) && !preview
+                  ? normalizeRotation((photo.requested_rotation ?? 0) - (photo.rotation ?? 0))
+                  : 0,
+              alt: photo.filename,
+              download: isRotationPending(photo) ? false : photo.url,
+              downloadFilename: photo.filename,
+              media_type: photo.media_type,
+              playback_url: photo.playback_url,
+              duration_ms: photo.duration_ms,
+              onDownload: () => {
+                void handleDownloadPhoto(photo.id);
+              },
+            };
+          }),
           pagination.total,
         )}
 
