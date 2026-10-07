@@ -1,4 +1,7 @@
+import { preloadRoute } from '../lib/preloadRoute';
 import {
+  lazy,
+  Suspense,
   useState,
   useEffect,
   useMemo,
@@ -11,17 +14,18 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { AnimatePresence } from 'framer-motion';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
-import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
+
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { usePhotoRotation } from '../hooks/usePhotoRotation';
 import { useRotationPreviews } from '../hooks/useRotationPreviews';
 import { canRotatePhoto, isRotationPending, normalizeRotation } from '../lib/photoRotation';
 import { GalleryHeader } from '../components/gallery/GalleryHeader';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
-import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySelectionSessionsPanel';
+
 import { GalleryDropZone } from '../components/gallery/GalleryDropZone';
 import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
-import { GalleryAppearanceSection } from '../components/gallery-appearance/GalleryAppearanceSection';
+
+import { OverlayLoading } from '../components/ui/OverlayLoading';
 import { AppTabs } from '../components/ui/AppTabs';
 import {
   GalleryInitialLoadingState,
@@ -95,6 +99,33 @@ const normalizeSortByParam = (value: string | null): GalleryPhotoSortBy | null =
 
 const isSortOrder = (value: string | null): value is SortOrder =>
   value === 'asc' || value === 'desc';
+
+const GalleryAppearanceSection = lazy(() =>
+  preloadRoute(
+    'GalleryAppearanceSection',
+    () => import('../components/gallery-appearance/GalleryAppearanceSection'),
+  ).then((module) => ({
+    default: module.GalleryAppearanceSection,
+  })),
+);
+
+const GallerySelectionSessionsPanel = lazy(() =>
+  preloadRoute(
+    'GallerySelectionSessionsPanel',
+    () => import('../components/gallery/GallerySelectionSessionsPanel'),
+  ).then((module) => ({
+    default: module.GallerySelectionSessionsPanel,
+  })),
+);
+
+const ShareLinkSettingsModal = lazy(() =>
+  preloadRoute(
+    'ShareLinkSettingsModal',
+    () => import('../components/share-links/ShareLinkSettingsModal'),
+  ).then((module) => ({
+    default: module.ShareLinkSettingsModal,
+  })),
+);
 
 export const GalleryPage = () => {
   const navigate = useNavigate();
@@ -1184,13 +1215,21 @@ export const GalleryPage = () => {
       tabClassName: contentTabClassName,
       tab: 'Appearance',
       panel: (
-        <GalleryAppearanceSection
-          gallery={gallery}
-          photos={photoUrls}
-          isLoadingPhotos={isLoadingPhotos}
-          onLoadCoverPhotos={loadCoverPickerPhotos}
-          onSaveAppearance={handleSaveAppearanceSettings}
-        />
+        <Suspense
+          fallback={
+            <div role="status" aria-live="polite" className="py-6 text-sm text-muted">
+              Loading appearance editor…
+            </div>
+          }
+        >
+          <GalleryAppearanceSection
+            gallery={gallery}
+            photos={photoUrls}
+            isLoadingPhotos={isLoadingPhotos}
+            onLoadCoverPhotos={loadCoverPickerPhotos}
+            onSaveAppearance={handleSaveAppearanceSettings}
+          />
+        </Suspense>
       ),
     },
     {
@@ -1198,26 +1237,34 @@ export const GalleryPage = () => {
       tabClassName: contentTabClassName,
       tab: `Favorites (${favoritesTabSessionCount})`,
       panel: (
-        <GallerySelectionSessionsPanel
-          userTabs={favoritesTabs}
-          selectedUserTabKey={selectedFavoritesTabKey}
-          selectedSession={selectedFavoritesSessionDetail}
-          thumbnailByPhotoId={photoThumbnailById}
-          isLoadingRows={isLoadingSelectionRows}
-          isLoadingDetail={isLoadingSelectionDetail}
-          isMutating={isMutatingSelectionSession}
-          error={selectionSessionsError}
-          onSelectUserTab={handleSelectFavoritesTab}
-          onCloseSession={() => {
-            void handleCloseSelectionSession();
-          }}
-          onReopenSession={() => {
-            void handleReopenSelectionSession();
-          }}
-          onRefresh={() => {
-            void fetchSelectionRows();
-          }}
-        />
+        <Suspense
+          fallback={
+            <div role="status" aria-live="polite" className="py-6 text-sm text-muted">
+              Loading favorites…
+            </div>
+          }
+        >
+          <GallerySelectionSessionsPanel
+            userTabs={favoritesTabs}
+            selectedUserTabKey={selectedFavoritesTabKey}
+            selectedSession={selectedFavoritesSessionDetail}
+            thumbnailByPhotoId={photoThumbnailById}
+            isLoadingRows={isLoadingSelectionRows}
+            isLoadingDetail={isLoadingSelectionDetail}
+            isMutating={isMutatingSelectionSession}
+            error={selectionSessionsError}
+            onSelectUserTab={handleSelectFavoritesTab}
+            onCloseSession={() => {
+              void handleCloseSelectionSession();
+            }}
+            onReopenSession={() => {
+              void handleReopenSelectionSession();
+            }}
+            onRefresh={() => {
+              void fetchSelectionRows();
+            }}
+          />
+        </Suspense>
       ),
     },
   ];
@@ -1358,18 +1405,28 @@ export const GalleryPage = () => {
         </AnimatePresence>
 
         <AnimatePresence>
-          {gallery ? (
-            <ShareLinkSettingsModal
-              isOpen={isShareLinkCreateOpen}
-              mode="create"
-              galleryName={gallery.name}
-              onClose={() => setIsShareLinkCreateOpen(false)}
-              onCreate={handleCreateShareLink}
-              onSaveSelectionConfig={(shareLinkId, payload) =>
-                shareLinkService.updateOwnerSelectionConfig(galleryId, shareLinkId, payload)
+          {isShareLinkCreateOpen ? (
+            <Suspense
+              fallback={
+                <OverlayLoading
+                  open={isShareLinkCreateOpen}
+                  onClose={() => setIsShareLinkCreateOpen(false)}
+                  label="Loading share settings"
+                />
               }
-              onManageCreated={(shareLinkId) => navigate(`/share-links/${shareLinkId}`)}
-            />
+            >
+              <ShareLinkSettingsModal
+                isOpen={isShareLinkCreateOpen}
+                mode="create"
+                galleryName={gallery.name}
+                onClose={() => setIsShareLinkCreateOpen(false)}
+                onCreate={handleCreateShareLink}
+                onSaveSelectionConfig={(shareLinkId, payload) =>
+                  shareLinkService.updateOwnerSelectionConfig(galleryId, shareLinkId, payload)
+                }
+                onManageCreated={(shareLinkId) => navigate(`/share-links/${shareLinkId}`)}
+              />
+            </Suspense>
           ) : null}
         </AnimatePresence>
 

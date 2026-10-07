@@ -2,7 +2,6 @@ import { StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import { AppToaster } from './components/AppToaster';
-import { DeferredLenis } from './components/DeferredLenis';
 import { ReadabilityInitializer } from './components/ReadabilityInitializer';
 import { ThemeInitializer } from './components/ThemeInitializer';
 import './index.css';
@@ -17,13 +16,11 @@ const AppWrapper = ENABLE_STRICT_MODE
 
 createRoot(document.getElementById('root')!).render(
   <AppWrapper>
-    <DeferredLenis>
-      <BrowserRouter>
-        <ReadabilityInitializer />
-        <ThemeInitializer />
-        <App />
-        <AppToaster />
-      </BrowserRouter>
-    </DeferredLenis>
+    <BrowserRouter>
+      <ReadabilityInitializer />
+      <ThemeInitializer />
+      <App />
+      <AppToaster />
+    </BrowserRouter>
   </AppWrapper>,
 );

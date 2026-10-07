@@ -1,6 +1,6 @@
 import { api } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
-import { getDemoService } from './demoService';
+import { loadDemoService } from './loadDemoService';
 import type {
   CoverDisplayOption,
   Gallery,
@@ -20,7 +20,7 @@ const getGalleries = async (
   options?: GalleryListQueryOptions,
 ): Promise<GalleryListResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getGalleries(page, size, options);
+    return (await loadDemoService()).getGalleries(page, size, options);
   }
 
   const params = new URLSearchParams();
@@ -41,7 +41,7 @@ const getGallery = async (
   options?: GalleryPhotoQueryOptions,
 ): Promise<GalleryDetail> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getGallery(id, options);
+    return (await loadDemoService()).getGallery(id, options);
   }
 
   const params = new URLSearchParams();
@@ -70,7 +70,7 @@ const createGallery = async (payload: CreateGalleryPayload): Promise<Gallery> =>
   const body = typeof payload === 'string' ? { name: payload } : payload;
 
   if (isDemoModeEnabled()) {
-    return getDemoService().createGallery(body ?? {});
+    return (await loadDemoService()).createGallery(body ?? {});
   }
 
   const response = await api.post<Gallery>('/galleries', body ?? {});
@@ -79,7 +79,7 @@ const createGallery = async (payload: CreateGalleryPayload): Promise<Gallery> =>
 
 const deleteGallery = async (id: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().deleteGallery(id);
+    await (await loadDemoService()).deleteGallery(id);
     return;
   }
 
@@ -107,7 +107,7 @@ const updateGallery = async (id: string, payload: UpdateGalleryPayload): Promise
   const body = typeof payload === 'string' ? { name: payload } : payload;
 
   if (isDemoModeEnabled()) {
-    return getDemoService().updateGallery(id, body ?? {});
+    return (await loadDemoService()).updateGallery(id, body ?? {});
   }
 
   const response = await api.patch<Gallery>(`/galleries/${id}`, body ?? {});
@@ -116,7 +116,7 @@ const updateGallery = async (id: string, payload: UpdateGalleryPayload): Promise
 
 const setCoverPhoto = async (galleryId: string, photoId: string): Promise<Gallery> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().setCoverPhoto(galleryId, photoId);
+    return (await loadDemoService()).setCoverPhoto(galleryId, photoId);
   }
 
   const response = await api.post<Gallery>(`/galleries/${galleryId}/cover/${photoId}`);
@@ -125,7 +125,7 @@ const setCoverPhoto = async (galleryId: string, photoId: string): Promise<Galler
 
 const clearCoverPhoto = async (galleryId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().clearCoverPhoto(galleryId);
+    await (await loadDemoService()).clearCoverPhoto(galleryId);
     return;
   }
 

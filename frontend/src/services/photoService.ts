@@ -2,7 +2,7 @@ import { api } from '../lib/api';
 import type { PhotoRotationItem, PhotoRotationResponse } from '../types/photo';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { ApiError } from '../lib/errorHandling';
-import { getDemoService } from './demoService';
+import { loadDemoService } from './loadDemoService';
 import { useAuthStore } from '../stores/authStore';
 import type {
   BatchDeletePhotosRequest,
@@ -35,7 +35,7 @@ const rotatePhotos = async (
   galleryId: string,
   items: PhotoRotationItem[],
 ): Promise<PhotoRotationResponse> => {
-  if (isDemoModeEnabled()) return getDemoService().rotatePhotos(galleryId, items);
+  if (isDemoModeEnabled()) return (await loadDemoService()).rotatePhotos(galleryId, items);
   return (
     await api.patch<PhotoRotationResponse>(`/galleries/${galleryId}/photos/rotation`, { items })
   ).data;
@@ -45,7 +45,7 @@ const getRotationStatus = async (
   galleryId: string,
   photoIds: string[],
 ): Promise<PhotoRotationResponse> => {
-  if (isDemoModeEnabled()) return getDemoService().getRotationStatus(galleryId, photoIds);
+  if (isDemoModeEnabled()) return (await loadDemoService()).getRotationStatus(galleryId, photoIds);
   // Keep GET URLs below common proxy header limits, even for large selections.
   if (photoIds.length > 100) {
     const results: PhotoRotationResponse['results'] = [];
@@ -138,7 +138,7 @@ const deletePhotos = async (
   }
 
   if (isDemoModeEnabled()) {
-    return getDemoService().deletePhotos(galleryId, photoIds);
+    return (await loadDemoService()).deletePhotos(galleryId, photoIds);
   }
 
   const request: BatchDeletePhotosRequest = {
@@ -170,7 +170,7 @@ const renamePhoto = async (
   filename: string,
 ): Promise<PhotoResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().renamePhoto(galleryId, photoId, filename);
+    return (await loadDemoService()).renamePhoto(galleryId, photoId, filename);
   }
 
   const response = await api.patch<PhotoResponse>(
@@ -184,7 +184,7 @@ const renamePhoto = async (
 
 const downloadGalleryZip = async (galleryId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadGalleryZip(galleryId);
+    await (await loadDemoService()).downloadGalleryZip(galleryId);
     return;
   }
 
@@ -199,7 +199,7 @@ const downloadGalleryZip = async (galleryId: string): Promise<void> => {
 
 const downloadSelectedPhotosZip = async (galleryId: string, photoIds: string[]): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadSelectedPhotosZip(galleryId, photoIds);
+    await (await loadDemoService()).downloadSelectedPhotosZip(galleryId, photoIds);
     return;
   }
 
@@ -215,7 +215,7 @@ const downloadSelectedPhotosZip = async (galleryId: string, photoIds: string[]):
 
 const downloadPhoto = async (galleryId: string, photoId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadPhoto(galleryId, photoId);
+    await (await loadDemoService()).downloadPhoto(galleryId, photoId);
     return;
   }
 
@@ -605,7 +605,7 @@ const retryFailedUploads = async (
   signal?: AbortSignal,
 ): Promise<PhotoUploadResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().retryFailedUploads(galleryId, failedFiles, onProgress, signal);
+    return (await loadDemoService()).retryFailedUploads(galleryId, failedFiles, onProgress, signal);
   }
 
   if (failedFiles.length === 0) {
@@ -635,7 +635,7 @@ const uploadPhotosPresigned = async (
   signal?: AbortSignal,
 ): Promise<PhotoUploadResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().uploadPhotosPresigned(galleryId, files, onProgress, signal);
+    return (await loadDemoService()).uploadPhotosPresigned(galleryId, files, onProgress, signal);
   }
 
   if (files.length === 0) {

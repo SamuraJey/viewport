@@ -1,14 +1,6 @@
+import { DeferredPhotoLightbox } from '../components/lightbox/DeferredPhotoLightbox';
 import { useState, useCallback, useRef } from 'react';
 import type { ImgHTMLAttributes } from 'react';
-import Lightbox from 'yet-another-react-lightbox';
-import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
-import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
-import LightboxDownload from 'yet-another-react-lightbox/plugins/download';
-import Video from 'yet-another-react-lightbox/plugins/video';
-import Zoom from 'yet-another-react-lightbox/plugins/zoom';
-import 'yet-another-react-lightbox/styles.css';
-import 'yet-another-react-lightbox/plugins/thumbnails.css';
-import { ProgressiveSlide } from '../components/ProgressiveSlide';
 import { PhotoRotationButtons } from '../components/gallery/PhotoRotationButtons';
 import type { ZoomRef } from 'yet-another-react-lightbox';
 
@@ -119,7 +111,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
     const displayedTotal = Math.max(totalPhotos ?? slides.length, slides.length, currentPosition);
 
     return (
-      <Lightbox
+      <DeferredPhotoLightbox
         className="backdrop-blur-md bg-black/95"
         open={lightboxOpen}
         close={closeLightbox}
@@ -147,7 +139,6 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
             },
           };
         })}
-        plugins={[Thumbnails, Fullscreen, LightboxDownload, Video, Zoom]}
         toolbar={
           onRotatePhoto
             ? {
@@ -181,7 +172,6 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
             : undefined
         }
         render={{
-          slideContainer: ProgressiveSlide,
           controls: showPositionIndicator
             ? () => (
                 <div

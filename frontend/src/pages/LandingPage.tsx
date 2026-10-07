@@ -1,4 +1,7 @@
+import { DeferredLenis } from '../components/DeferredLenis';
 import { Link, useNavigate } from 'react-router';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,
@@ -24,7 +27,7 @@ import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButt
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
 import { useAuthStore } from '../stores/authStore';
-import { getDemoService } from '../services/demoService';
+import { loadDemoService } from '../services/loadDemoService';
 import { enableDemoMode } from '../lib/demoMode';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
@@ -252,12 +255,21 @@ export const LandingPage = () => {
   const prefersReducedMotion = useReducedMotion();
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
 
-  const handleOpenDemoCabinet = () => {
-    enableDemoMode();
-    const demoService = getDemoService();
-    login(demoService.getDemoUser(), demoService.getDemoTokens());
-    navigate('/dashboard');
+  const handleOpenDemoCabinet = async () => {
+    if (isDemoLoading) return;
+    setIsDemoLoading(true);
+    try {
+      const demoService = await loadDemoService();
+      enableDemoMode();
+      login(demoService.getDemoUser(), demoService.getDemoTokens());
+      navigate('/dashboard');
+    } catch {
+      toast.error('Could not open the demo. Please try again.');
+    } finally {
+      setIsDemoLoading(false);
+    }
   };
 
   const motionProps = prefersReducedMotion
@@ -272,6 +284,7 @@ export const LandingPage = () => {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
+      <DeferredLenis />
       <SkipToContentLink />
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-32 top-0 h-112 w-md rounded-full bg-accent/12 blur-3xl dark:bg-accent/8" />
@@ -351,6 +364,8 @@ export const LandingPage = () => {
               <button
                 type="button"
                 onClick={handleOpenDemoCabinet}
+                disabled={isDemoLoading}
+                aria-busy={isDemoLoading}
                 className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border/50 bg-surface-1/80 px-6 py-4 text-base font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1/80 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
               >
                 Open demo dashboard
@@ -636,6 +651,8 @@ export const LandingPage = () => {
                 <button
                   type="button"
                   onClick={handleOpenDemoCabinet}
+                  disabled={isDemoLoading}
+                  aria-busy={isDemoLoading}
                   className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border/70 bg-surface-1/80 px-6 py-4 font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent dark:border-border/50 dark:bg-surface-dark-2/70 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
                 >
                   Explore demo
