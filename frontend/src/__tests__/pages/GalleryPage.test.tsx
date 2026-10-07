@@ -612,7 +612,9 @@ describe('GalleryPage', () => {
 
     it('loads more photos automatically near the cover picker edge', async () => {
       const { galleryService } = await import('../../services/galleryService');
-      const manyPhotos = Array.from({ length: 150 }, (_, index) => {
+      // Two small API pages exercise observer-driven pagination without rendering
+      // hundreds of controls in jsdom under CI CPU contention.
+      const pickerPhotos = Array.from({ length: 5 }, (_, index) => {
         const photoNumber = index + 1;
         return {
           id: `photo${photoNumber}`,
@@ -629,9 +631,9 @@ describe('GalleryPage', () => {
         const limit = options?.limit ?? 100;
         return {
           ...mockGalleryData,
-          photo_count: manyPhotos.length,
-          total_photos: manyPhotos.length,
-          photos: manyPhotos.slice(offset, offset + limit),
+          photo_count: pickerPhotos.length,
+          total_photos: pickerPhotos.length,
+          photos: pickerPhotos.slice(offset, offset + Math.min(limit, 3)),
         };
       });
 
@@ -643,12 +645,15 @@ describe('GalleryPage', () => {
       const pickerDialog = await screen.findByRole('dialog', { name: /select cover image/i });
 
       await waitFor(() => {
-        expect(within(pickerDialog).getByText('photo150.jpg')).toBeInTheDocument();
+        expect(within(pickerDialog).getByText('photo5.jpg')).toBeInTheDocument();
       });
       expect(galleryService.getGallery).toHaveBeenCalledWith(
         '1',
-        expect.objectContaining({ limit: 100, offset: 100 }),
+        expect.objectContaining({ limit: 100, offset: 3 }),
       );
+      expect(
+        within(pickerDialog).getAllByRole('button', { name: /^select photo\d\.jpg as cover$/i }),
+      ).toHaveLength(5);
       await userEvent.click(
         within(pickerDialog).getByRole('button', { name: 'Close cover image picker' }),
       );
