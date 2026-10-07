@@ -1,0 +1,26 @@
+# Copy this directory and ci/ into your application repository on GitHub.
+# Only manual events: release-poller creates these through the local CI API.
+# CI scripts are read from main; application source is checked out at RELEASE_SHA.
+when:
+  - event: manual
+    branch: main
+
+concurrency:
+  limit: 1
+  group: release-build
+
+steps:
+  - name: build-push
+    image: docker:28-cli
+    environment:
+      VITE_API_URL:
+        from_secret: vite_api_url
+      REGISTRY:
+        from_secret: registry_address
+      FORGEJO_CLONE_URL:
+        from_secret: forgejo_clone_url
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - apk add --no-cache git
+      - sh ci/build.sh

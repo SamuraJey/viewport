@@ -4,9 +4,8 @@ ARG VITE_API_URL
 FROM node:${NODE_VERSION}-alpine AS build
 WORKDIR /app
 
-# Install dependencies using the lockfile for reproducible builds
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --include=dev --no-audit --no-fund
 
 # Re-declare ARG for stage scope; expose as ENV so Vite picks it up at build time
 ARG VITE_API_URL
