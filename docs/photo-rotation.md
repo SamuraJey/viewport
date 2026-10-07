@@ -12,7 +12,9 @@ EXIF orientation 1).
 
 Card action buttons wrap onto additional rows when the card is narrow or text
 scaling enlarges the controls, including the 150% low-vision setting. Their touch
-targets retain their size instead of being clipped at the card edges.
+targets retain their size instead of being clipped at the card edges. Cover actions
+use amber hover/focus highlighting (persistent for the current cover), downloads
+use green, and deletion uses red; rotation controls retain neutral highlighting.
 
 ## Interaction and delivery
 
