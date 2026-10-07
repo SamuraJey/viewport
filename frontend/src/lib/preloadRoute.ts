@@ -1,3 +1,6 @@
+// Keep relative hints anchored to the entry document after SPA navigation.
+const entryDocumentUrl = typeof document === 'undefined' ? undefined : document.baseURI;
+
 /** Discover the selected module's static dependencies together, without fetching other routes. */
 export const preloadRoute = <T>(key: string, load: () => Promise<T>): Promise<T> => {
   try {
@@ -15,11 +18,11 @@ export const preloadRoute = <T>(key: string, load: () => Promise<T>): Promise<T>
       for (const index of manifest.routes[key] ?? []) {
         const href = manifest.files[index];
         if (!href) continue;
-        const absolute = new URL(href, document.baseURI).href;
+        const absolute = new URL(href, entryDocumentUrl ?? document.baseURI).href;
         if (existing.has(absolute)) continue;
         const link = document.createElement('link');
         link.rel = 'modulepreload';
-        link.href = href;
+        link.href = absolute;
         document.head.append(link);
         existing.add(absolute);
       }

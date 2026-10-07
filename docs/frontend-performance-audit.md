@@ -67,3 +67,11 @@ node scripts/analyze-build.mjs /tmp/viewport-client-review --check
 Build outputs with `--analyze` include the development-only metafile. Normal production builds omit it. To repeat browser measurements, serve each output as an SPA with gzip/no-store, use identical demo state for owner pages, and sum `PerformanceResourceTiming.encodedBodySize` for `/assets/` resources after the page settles.
 
 References consulted through Context7: [React lazy](https://react.dev/reference/react/lazy), [esbuild CSS from JavaScript and cssBundle](https://esbuild.github.io/content-types/#css).
+
+## Review follow-up: base URLs, viewer recovery and preview
+
+- Relative `VITE_APP_BASE` (`./` or empty) no longer sets esbuild `publicPath`. JS chunks import siblings relative to themselves; CSS file URLs are resolved against the importing chunk's URL. Relative preload hints retain the entry document URL across SPA navigation. Absolute root and path-prefix bases keep their existing paths.
+- Stylesheet loading is separate from React's cached `lazy()` promise. A stylesheet failure shows a local alert with Retry/Close, keeps the gallery mounted, and can recover without reloading. Closing during a request ignores its late outcome; reopening can retry. JS preload still runs alongside CSS.
+- Vite's `build.outDir` mirrors `VITE_BUILD_OUT_DIR` so `npm run preview` serves the actual esbuild output directory.
+
+Validation: 101 Vitest files / 728 tests passed, including injected stylesheet load/error events and a relative-preload SPA-navigation regression. Builds for `./`, `/` and `/viewport/` each had all 649 emitted JS import URLs resolve to existing files. Chromium launched the `./` build through `npm run preview` from `/tmp/viewport-review-relative` with no `/assets/assets/` requests.

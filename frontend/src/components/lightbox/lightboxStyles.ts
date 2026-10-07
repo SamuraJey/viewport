@@ -22,5 +22,12 @@ export const loadStylesheet = (href: string): Promise<void> => {
   return promise;
 };
 
+// With a relative base, esbuild emits file-loader URLs relative to the importing chunk.
+const stylesheetUrl = (href: string) =>
+  href.startsWith('.') ? new URL(href, import.meta.url).href : href;
+
 export const loadLightboxStyles = () =>
-  Promise.all([loadStylesheet(mainStyles), loadStylesheet(thumbnailStyles)]);
+  Promise.all([
+    loadStylesheet(stylesheetUrl(mainStyles)),
+    loadStylesheet(stylesheetUrl(thumbnailStyles)),
+  ]);

@@ -20,8 +20,9 @@ assertRequiredHttpsApiUrl(env.VITE_API_URL, {
 });
 
 const outdir = path.resolve(root, env.VITE_BUILD_OUT_DIR || 'dist');
-const base = env.VITE_APP_BASE || '/';
-const assetBase = base.endsWith('/') ? base : `${base}/`;
+const base = env.VITE_APP_BASE ?? '/';
+const relativeBase = base === './' || base === '';
+const assetBase = relativeBase ? './' : base.endsWith('/') ? base : `${base}/`;
 const watch = process.argv.includes('--watch');
 const benchmark = process.argv.includes('--benchmark');
 
@@ -145,7 +146,8 @@ const ctx = await context({
   absWorkingDir: root,
   entryPoints: ['src/main.tsx'],
   outdir,
-  publicPath: assetBase,
+  // Relative JS imports are resolved from their chunk, not from index.html.
+  publicPath: relativeBase ? undefined : assetBase,
   entryNames: 'assets/[name]-[hash]',
   chunkNames: 'assets/[name]-[hash]',
   assetNames: 'assets/[name]-[hash]',

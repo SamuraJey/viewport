@@ -96,6 +96,8 @@ export default defineConfig(({ mode }) => {
       },
       ...(proxyConfig ? { proxy: proxyConfig } : {}),
     },
+    // Preview serves the esbuild output; Vite does not produce the production bundle.
+    build: { outDir: env.VITE_BUILD_OUT_DIR || 'dist' },
     preview: {
       port: previewPort,
     },
