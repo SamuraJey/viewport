@@ -76,6 +76,29 @@ describe('PhotoCard', () => {
     expect(actions.onOpenPhoto).not.toHaveBeenCalled();
   });
 
+  it('renames from the filename and opens the photo from the image', async () => {
+    const actions = { ...callbacks(), isSelectionMode: false };
+    const user = userEvent.setup();
+    render(<PhotoCard photo={createPhoto()} {...actions} />);
+
+    await user.click(screen.getByRole('button', { name: 'Rename photo.jpg' }));
+    expect(actions.onRenamePhoto).toHaveBeenCalledExactlyOnceWith('photo-1', 'photo.jpg');
+    expect(actions.onOpenPhoto).not.toHaveBeenCalled();
+    expect(actions.onToggleSelection).not.toHaveBeenCalled();
+
+    await user.dblClick(screen.getByRole('button', { name: 'photo.jpg', exact: true }));
+    expect(actions.onOpenPhoto).toHaveBeenCalledWith(0);
+    expect(actions.onRenamePhoto).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes directly from the card button', async () => {
+    const actions = callbacks();
+    render(<PhotoCard photo={createPhoto()} {...actions} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Delete photo' }));
+    expect(actions.onDeletePhoto).toHaveBeenCalledExactlyOnceWith('photo-1');
+    expect(actions.onToggleSelection).not.toHaveBeenCalled();
+  });
+
   it('keeps turn controls active while saving and blocks downloading', () => {
     render(
       <PhotoCard
@@ -105,10 +128,10 @@ describe('PhotoCard', () => {
     expect(actions.onRotatePhoto).toHaveBeenCalledWith('photo-1', 'retry');
   });
 
-  it('retains cover and delete in the accessible overflow menu', async () => {
+  it('retains cover in the accessible cover menu', async () => {
     const actions = callbacks();
     render(<PhotoCard photo={createPhoto()} {...actions} />);
-    await userEvent.click(screen.getByRole('button', { name: 'More photo actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cover and orientation actions' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Set as cover' }));
     expect(actions.onSetCover).toHaveBeenCalledWith('photo-1');
   });

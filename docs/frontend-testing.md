@@ -49,6 +49,10 @@ isolation based on a single successful timing run.
 - Negative-path tests may capture their expected console error locally, assert
   its exact arguments/count, and restore the spy in `finally`. Do not globally
   suppress React warnings or stderr to make a run look clean.
+- Pagination tests should use small mocked response pages while asserting the
+  real request limit and next offset. The cover-picker integration test uses
+  three photos followed by two to verify observer-driven loading without a large
+  jsdom tree consuming its timeout on slower CI workers.
 
 ## Measured result
 
