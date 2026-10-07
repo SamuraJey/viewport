@@ -180,7 +180,7 @@ Python set и завершить первоначальное разделени
   coverage gate, xdist, Ryuk, report-only mount и изолированные Testcontainers.
 - Добавить paths новых контрактов/producer/check scripts в backend change filter.
   Общие слои переиспользовать через BuildKit cache; cache write scopes разделить
-  между CI jobs. Оценить текущие timeout 5 минут для production job и 15 минут
+  между CI jobs. Оценить текущие timeout 20 минут для production job и 30 минут
   для tests на холодной сборке, корректировать по фактическим измерениям.
 - В `ci/build.sh` последовательно строить и публиковать API, worker, frontend
   из одного проверенного release SHA. Сохранить NAS builder `default`, daemon

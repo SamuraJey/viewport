@@ -46,7 +46,8 @@ jobs:
   build-backend-image:
     name: Build Backend Docker Image
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Cold builds compile FFmpeg/libvips and export intermediate build caches.
+    timeout-minutes: 20
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     permissions:
@@ -79,12 +80,15 @@ jobs:
           target: runtime
           push: false
           github-token: ${{ github.token }}
-          cache-from: type=gha,scope=backend-image,ignore-error=true
+          cache-from: |
+            type=gha,scope=backend-image,ignore-error=true
+            type=gha,scope=backend-tests,ignore-error=true
           cache-to: type=gha,mode=max,scope=backend-image,ignore-error=true
   python-tests:
     name: Python Tests in Docker (coverage >= 75%)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Allow native compilation plus Testcontainers, pytest and report collection.
+    timeout-minutes: 30
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     permissions:
