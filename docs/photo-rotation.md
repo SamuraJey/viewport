@@ -4,7 +4,9 @@ Photographers can rotate successful JPEG/PNG images by 90° clockwise or
 counterclockwise from the photo card, the private lightbox, or the selection
 toolbar. Videos and unfinished uploads are excluded from rotation. Mixed
 selections show the number of eligible images; selection and navigation stay
-unchanged. Card overflow menus retain cover, rename and delete actions and add
+unchanged. Cards show rounded square buttons for the cover menu, both rotation
+directions, download and delete. Clicking the filename opens rename; clicking the
+image opens the lightbox. The cover menu retains cover actions and
 **Reset orientation** (the orientation of the uploaded source, not necessarily
 EXIF orientation 1).
 

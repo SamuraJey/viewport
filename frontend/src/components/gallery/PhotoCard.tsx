@@ -4,9 +4,7 @@ import {
   Download,
   ImageOff,
   LoaderCircle,
-  Pencil,
   Play,
-  MoreHorizontal,
   RotateCcw,
   Square,
   Star,
@@ -83,6 +81,7 @@ const PhotoCardComponent = ({
     scale = Math.min(area.width / (height * fit), area.height / (width * fit));
   }
   const overlayButton = 'bg-white/20 text-white hover:bg-white/35 focus-visible:outline-white';
+  const cardButton = `flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-colors @min-[300px]/photo:h-12 @min-[300px]/photo:w-12 @min-[400px]/photo:h-16 @min-[400px]/photo:w-16 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${overlayButton}`;
   const menuButton =
     'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-text hover:bg-surface-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent dark:hover:bg-surface-dark-2';
 
@@ -109,7 +108,7 @@ const PhotoCardComponent = ({
   return (
     <div
       data-photo-card
-      className={`group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md focus-within:shadow-md ${
+      className={`group @container/photo bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md focus-within:shadow-md ${
         isCover
           ? 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-400/20 dark:ring-amber-500/20'
           : isSelected
@@ -210,28 +209,15 @@ const PhotoCardComponent = ({
             </div>
           )}
 
-        <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center gap-1 bg-linear-to-t from-black/80 to-transparent px-2 pb-3 pt-5 opacity-100 can-hover:opacity-0 can-hover:group-hover:opacity-100 can-hover:group-focus-within:opacity-100">
-          {onRotatePhoto && (
-            <PhotoRotationButtons
-              disabled={!canRotatePhoto(photo)}
-              className={overlayButton}
-              onRotate={(direction) => onRotatePhoto(photo.id, direction)}
-            />
-          )}
-          <button
-            type="button"
-            aria-label="Download photo"
-            title={pending ? 'Rotation is saving' : 'Download photo'}
-            disabled={pending}
-            onClick={handleDownload}
-            className={`flex h-11 w-11 items-center justify-center rounded-xl disabled:opacity-40 focus-visible:outline focus-visible:outline-2 ${overlayButton}`}
-          >
-            <Download className="h-4 w-4" />
-          </button>
+        <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center gap-0 bg-linear-to-t from-black/80 to-transparent px-0 pb-4 pt-6 opacity-100 @min-[260px]/photo:gap-1 @min-[260px]/photo:px-2 @min-[300px]/photo:gap-2 @min-[400px]/photo:gap-3.5 can-hover:opacity-0 can-hover:group-hover:opacity-100 can-hover:group-focus-within:opacity-100">
           <AppPopover
-            buttonAriaLabel="More photo actions"
-            buttonClassName={`flex h-11 w-11 items-center justify-center rounded-xl focus-visible:outline focus-visible:outline-2 ${overlayButton}`}
-            buttonContent={<MoreHorizontal className="h-4 w-4" />}
+            buttonAriaLabel="Cover and orientation actions"
+            buttonClassName={cardButton}
+            buttonContent={
+              <Star
+                className={`h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6 ${isCover ? 'fill-current' : ''}`}
+              />
+            }
             panelFocus
             panelClassName="w-64 rounded-xl border border-border/50 bg-surface p-1.5 shadow-lg dark:bg-surface-dark-1"
             panel={(close) => (
@@ -248,17 +234,6 @@ const PhotoCardComponent = ({
                   {isCover ? <StarOff className="h-4 w-4" /> : <Star className="h-4 w-4" />}
                   {isCover ? 'Remove cover' : 'Set as cover'}
                 </button>
-                <button
-                  type="button"
-                  className={menuButton}
-                  onClick={() => {
-                    close();
-                    onRenamePhoto(photo.id, photo.filename);
-                  }}
-                >
-                  <Pencil className="h-4 w-4" />
-                  Rename photo
-                </button>
                 {onRotatePhoto && canRotatePhoto(photo) && (
                   <button
                     type="button"
@@ -272,20 +247,39 @@ const PhotoCardComponent = ({
                     Reset orientation
                   </button>
                 )}
-                <button
-                  type="button"
-                  className={`${menuButton} text-danger`}
-                  onClick={() => {
-                    close();
-                    onDeletePhoto(photo.id);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete photo
-                </button>
               </>
             )}
           />
+          {onRotatePhoto && (
+            <PhotoRotationButtons
+              disabled={!canRotatePhoto(photo)}
+              variant="card"
+              className={overlayButton}
+              onRotate={(direction) => onRotatePhoto(photo.id, direction)}
+            />
+          )}
+          <button
+            type="button"
+            aria-label="Download photo"
+            title={pending ? 'Rotation is saving' : 'Download photo'}
+            disabled={pending}
+            onClick={handleDownload}
+            className={cardButton}
+          >
+            <Download className="h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6" />
+          </button>
+          <button
+            type="button"
+            aria-label="Delete photo"
+            title="Delete photo"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeletePhoto(photo.id);
+            }}
+            className={cardButton}
+          >
+            <Trash2 className="h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6" />
+          </button>
         </div>
 
         {/* Photo - takes full image area */}
@@ -298,19 +292,12 @@ const PhotoCardComponent = ({
             }
             onOpenPhoto(index);
           }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            if (isSelectionMode) {
-              return;
-            }
-            onRenamePhoto(photo.id, photo.filename);
-          }}
           className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0 rounded-2xl focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-accent"
           aria-label={accessiblePhotoName}
           title={
             isSelectionMode
               ? 'Click to toggle selection. Use Shift+Click to select range.'
-              : 'Click to view, double-click to rename'
+              : 'Click to view'
           }
         >
           {imageState === 'error' || photo.status === 'failed' ? (
@@ -358,9 +345,15 @@ const PhotoCardComponent = ({
 
       {/* Caption below the image */}
       <div className="px-4 py-3 border-t border-border/50 dark:border-border/40 bg-surface dark:bg-surface-dark-1 z-10">
-        <p className="text-sm font-medium text-text truncate text-center" title={photo.filename}>
+        <button
+          type="button"
+          onClick={() => onRenamePhoto(photo.id, photo.filename)}
+          aria-label={`Rename ${photo.filename}`}
+          title="Rename photo"
+          className="min-h-11 w-full truncate rounded-lg text-center text-sm font-medium text-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+        >
           {photo.filename}
-        </p>
+        </button>
         {pending && (
           <span
             role="status"

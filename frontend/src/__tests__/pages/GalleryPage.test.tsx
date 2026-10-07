@@ -245,7 +245,7 @@ const fillInput = (input: HTMLElement, value: string) => {
 };
 
 const openPhotoActions = async (container: HTMLElement) => {
-  const button = within(container).getByRole('button', { name: 'More photo actions' });
+  const button = within(container).getByRole('button', { name: 'Cover and orientation actions' });
   // jsdom has no layout. Headless UI closes panels whose trigger has a zero rect.
   vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 20, 44, 44));
   await userEvent.click(button);
@@ -696,8 +696,9 @@ describe('GalleryPage', () => {
       expect(photoContainer).toBeInTheDocument();
 
       await userEvent.hover(photoContainer!);
-      await openPhotoActions(photoContainer! as HTMLElement);
-      await userEvent.click(await screen.findByRole('button', { name: 'Delete photo' }));
+      await userEvent.click(
+        within(photoContainer! as HTMLElement).getByRole('button', { name: 'Delete photo' }),
+      );
 
       // Expect confirmation modal to appear
       const deleteDialog = await screen.findByRole('dialog', { name: /delete photo/i });
@@ -737,8 +738,9 @@ describe('GalleryPage', () => {
       expect(photoContainer).toBeInTheDocument();
 
       await userEvent.hover(photoContainer!);
-      await openPhotoActions(photoContainer! as HTMLElement);
-      await userEvent.click(await screen.findByRole('button', { name: 'Delete photo' }));
+      await userEvent.click(
+        within(photoContainer! as HTMLElement).getByRole('button', { name: 'Delete photo' }),
+      );
       const deleteDialog = await screen.findByRole('dialog', { name: /delete photo/i });
       await userEvent.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
 
