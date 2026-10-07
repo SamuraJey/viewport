@@ -10,6 +10,10 @@ image opens the lightbox. The cover menu retains cover actions and
 **Reset orientation** (the orientation of the uploaded source, not necessarily
 EXIF orientation 1).
 
+Card action buttons wrap onto additional rows when the card is narrow or text
+scaling enlarges the controls, including the 150% low-vision setting. Their touch
+targets retain their size instead of being clipped at the card edges.
+
 ## Interaction and delivery
 
 - Edits autosave after 300 ms; rapid turns coalesce to an absolute angle.

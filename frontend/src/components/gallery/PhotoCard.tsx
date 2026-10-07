@@ -209,7 +209,7 @@ const PhotoCardComponent = ({
             </div>
           )}
 
-        <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-center gap-0 bg-linear-to-t from-black/80 to-transparent px-0 pb-4 pt-6 opacity-100 @min-[260px]/photo:gap-1 @min-[260px]/photo:px-2 @min-[300px]/photo:gap-2 @min-[400px]/photo:gap-3.5 can-hover:opacity-0 can-hover:group-hover:opacity-100 can-hover:group-focus-within:opacity-100">
+        <div className="absolute inset-x-0 bottom-0 z-20 flex flex-wrap items-center justify-center gap-x-0 gap-y-2 bg-linear-to-t from-black/80 to-transparent px-0 pb-4 pt-6 opacity-100 @min-[260px]/photo:gap-x-1 @min-[260px]/photo:px-2 @min-[300px]/photo:gap-x-2 @min-[400px]/photo:gap-x-3.5 can-hover:opacity-0 can-hover:group-hover:opacity-100 can-hover:group-focus-within:opacity-100">
           <AppPopover
             buttonAriaLabel="Cover and orientation actions"
             buttonClassName={cardButton}
