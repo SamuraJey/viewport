@@ -6,11 +6,17 @@ GitHub runner is needed. The production image is still built in its own job.
 
 ## Image targets
 
+- `ffmpeg-build`: compiles Debian's patched FFmpeg source with shared libraries,
+  built-in file/container codecs, libx264 and libdav1d, without autodetected
+  GUI/GPU/device dependencies. Only the installed runtime tools, libraries and
+  licenses are copied into production.
 - `build`: production Python environment from the locked dependencies, compiled
   with the existing libvips build toolchain.
 - `runtime-base`: production Python environment, source and native runtime
-  packages (ExifTool, libvips, FFmpeg and AVIF encoder). Its AVIF smoke check
-  runs for both production and test builds.
+  packages (ExifTool, libvips, FFmpeg and AVIF encoder). The native media smoke
+  check (`ci/check_backend_media.py`) verifies JPEG orientation, PNG/AVIF,
+  FFprobe, H.264/AAC transcoding, scale/format/FPS, remux and poster extraction
+  for both production and test builds.
 - `test-deps`: extends `build` with the locked dev dependencies; the production
   packages, including the compiled pyvips binding, are retained.
 - `test`: extends `runtime-base` with the dev environment, tests, pytest

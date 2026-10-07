@@ -34,6 +34,7 @@ jobs:
               - 'pyproject.toml'
               - 'uv.lock'
               - 'Dockerfile.backend'
+              - 'ci/check_backend_media.py'
               - 'Justfile'
               - 'docker-compose*.yml'
               - 'config/**'
