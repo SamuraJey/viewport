@@ -29,10 +29,7 @@ if test -n "${FORGEJO_READ_TOKEN:-}"; then
 fi
 export GIT_TERMINAL_PROMPT=0
 source_dir=$(mktemp -d /tmp/release-source.XXXXXX)
-builder="viewport-${CI_PIPELINE_NUMBER:-manual}-$$"
-builder_created=false
 cleanup() {
-  if test "$builder_created" = true; then docker buildx rm "$builder" >/dev/null 2>&1 || true; fi
   rm -rf "$source_dir"
 }
 trap cleanup EXIT
@@ -46,22 +43,11 @@ tag_sha=$(git -C "$source_dir" rev-parse --verify "refs/tags/$RELEASE_TAG^{commi
 test "$tag_sha" = "$RELEASE_SHA"
 unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 FORGEJO_READ_TOKEN auth
 
-# BuildKit runs on the NAS with independent CPU/memory limits.
-# This config is generated so changing REGISTRY cannot leave a stale port.
-cat > "$source_dir/.viewport-buildkit.toml" <<EOF
-[registry."$REGISTRY"]
-  http = true
-[worker.oci]
-  max-parallelism = 1
-EOF
-docker buildx create --name "$builder" --driver docker-container \
-  --driver-opt network=host,memory=2g,cpu-quota=100000 \
-  --buildkitd-config "$source_dir/.viewport-buildkit.toml"
-builder_created=true
-
+# Use the NAS Docker Engine's built-in builder and persistent cache.
+# Registry transport is configured on the NAS daemon, including HTTP registries.
+# The CI step's resource limits do not limit daemon-side build work.
 # Both contexts are the monorepo root. Backend runtime is also used by Celery.
-# Push directly through BuildKit: do not load release images into the NAS daemon.
-docker buildx build --builder "$builder" --push \
+docker buildx build --builder default --progress plain --push \
   --file "$source_dir/Dockerfile.backend" --target runtime \
   --label "org.opencontainers.image.revision=$RELEASE_SHA" \
   --label "org.opencontainers.image.version=$RELEASE_TAG" \
@@ -70,7 +56,7 @@ docker buildx build --builder "$builder" --push \
   -t "$REGISTRY/viewport/backend:release-$RELEASE_ID" "$source_dir"
 
 # Dockerfile, application sources and lockfile come from the exact release SHA.
-docker buildx build --builder "$builder" --push \
+docker buildx build --builder default --progress plain --push \
   --file "$source_dir/Dockerfile.frontend" --target runtime \
   --build-arg "VITE_API_URL=$VITE_API_URL" \
   --label "org.opencontainers.image.revision=$RELEASE_SHA" \
