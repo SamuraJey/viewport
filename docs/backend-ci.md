@@ -11,10 +11,15 @@ GitHub runner is needed. The production image is still built in its own job.
   GUI/GPU/device dependencies. Only the installed runtime tools, libraries and
   licenses are copied into production.
 - `build`: production Python environment from the locked dependencies, compiled
-  with the existing libvips build toolchain.
+  with the existing libvips build toolchain. Dependency bytecode is omitted and
+  native Python libraries have debug symbols stripped; source and dynamic
+  symbols remain intact.
+- `vips-build`: compiles Debian's patched libvips source with JPEG, PNG, AVIF,
+  EXIF, Little CMS and Highway SIMD. Unused PDF/SVG/RAW/scientific loaders and
+  their transitive runtime dependencies are excluded.
 - `runtime-base`: production Python environment, source and native runtime
   packages (ExifTool, libvips, FFmpeg and AVIF encoder). The native media smoke
-  check (`ci/check_backend_media.py`) verifies JPEG orientation, PNG/AVIF,
+  check (`ci/check_backend_media.py`) verifies JPEG orientation, ICC, PNG/AVIF,
   FFprobe, H.264/AAC transcoding, scale/format/FPS, remux and poster extraction
   for both production and test builds.
 - `test-deps`: extends `build` with the locked dev dependencies; the production

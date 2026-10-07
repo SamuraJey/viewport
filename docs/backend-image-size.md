@@ -32,10 +32,29 @@ binary. It builds shared FFmpeg libraries and `ffmpeg`/`ffprobe` with:
 Uploaded files are downloaded from S3 by Python before FFmpeg reads them, so
 FFmpeg does not need network protocols. HEVC, VP8/VP9, MPEG and other built-in
 decoders remain enabled. This is a CPU build; it does not provide hardware
-acceleration. ExifTool, Debian libvips and the AVIF encoder are retained.
+acceleration. ExifTool and the Debian AVIF encoder are retained.
+
+## libvips and Python environment
+
+`vips-build` also uses Debian's patched source. The application accepts JPEG
+and PNG uploads and creates AVIF derivatives, so the runtime retains JPEG,
+PNG/libspng, HEIF/AVIF, EXIF, Little CMS ICC handling and Highway SIMD. It omits
+PDF, SVG, RAW, TIFF and scientific-format integrations, font rendering, the C++
+wrapper, command-line tools and introspection/development files. Python still
+uses the compiled pyvips API binding, built against the same Debian libvips ABI.
+If upload formats are expanded, update the enabled libvips features and runtime
+libraries together.
+
+Production Python dependencies are installed without eager bytecode compilation.
+Native Python shared libraries are stripped of debug symbols in the build stage,
+before copying them into runtime. This retains dynamic symbols and package data.
+The test dependencies extend that same stripped production environment. Omitting
+bytecode trades a little process startup time for size; native debugging no
+longer has those symbols. Babel localization and botocore service data remain
+intact, as do all declared Python dependencies.
 
 Compilation uses four jobs by default; set `--build-arg FFMPEG_BUILD_JOBS=2`
-for a smaller builder. Cold builds take longer; the compiled stage is cached
+and `--build-arg VIPS_BUILD_JOBS=2` for a smaller builder. Cold builds take longer; the compiled stages are cached
 independently of application code and Python dependency changes. Rebuild with
 `--pull --no-cache` to pick up base image and Debian source/security updates.
 
@@ -44,7 +63,7 @@ independently of application code and Python dependency changes. Rebuild with
 The runtime-base build runs `ci/check_backend_media.py` using a read-only
 BuildKit bind mount. The script exercises actual image orientation, PNG/AVIF,
 FFprobe, H.264/AAC, scale/pixel-format/FPS conversion, faststart remux and PNG
-poster extraction. It does not need PostgreSQL, Redis or S3. The test target
+poster extraction, plus ICC conversion. It does not need PostgreSQL, Redis or S3. The test target
 inherits the same compiled FFmpeg and native runtime libraries.
 
 Local builds of the original and updated Dockerfiles with identical application
@@ -55,6 +74,17 @@ image/layer sizes, not registry transfer sizes, and will vary with updates.
 Real short fixtures in MP4, M4V, MOV, WebM, MKV, AVI, MPEG and 3GP using H.264,
 HEVC, VP8, VP9, AV1, MPEG-4, MPEG-2 and H.263 all passed H.264/AAC conversion
 and PNG poster extraction in the updated non-root production container.
+
+With the additional libvips/Python optimizations, the local runtime measured
+393,651,276 bytes: another 172,663,057 bytes below the FFmpeg-only build, and
+57.3% below the original 921 MB image. The Python dependency layer fell from
+214 MB to 134 MB, native apt packages from 199 MB to 103 MB, plus 3.58 MB for
+custom libvips. The stripped uvloop extension shrank from 15,438,104 to 1,826,032
+bytes and the production virtual environment contains no `.pyc` files. ICC
+conversion and all nine real video fixtures passed again.
+Targeted container tests for thumbnails, photo rotation, video processing, S3,
+admin views and auth rate-limit endpoints passed: 133 tests. A native uvloop
+event loop also ran successfully in the stripped production environment.
 
 ```sh
 docker build --target runtime -f Dockerfile.backend -t viewport/backend:slim-check .
