@@ -13,6 +13,7 @@ steps:
   - name: build-push
     image: docker:28-cli
     environment:
+      NPM_REGISTRY: https://npm-mirror.gitverse.ru
       VITE_API_URL:
         from_secret: vite_api_url
       REGISTRY:

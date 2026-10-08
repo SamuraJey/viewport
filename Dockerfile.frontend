@@ -5,8 +5,8 @@ FROM node:${NODE_VERSION}-alpine AS build
 WORKDIR /app
 
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --include=dev --no-audit --no-fund
-
+RUN npm ci --include=dev --no-audit --no-fund --loglevel=http \
+    || { cat /root/.npm/_logs/*debug*.log; exit 1; }
 # Re-declare ARG for stage scope; expose as ENV so Vite picks it up at build time
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL

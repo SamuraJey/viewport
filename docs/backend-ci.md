@@ -6,11 +6,22 @@ GitHub runner is needed. The production image is still built in its own job.
 
 ## Image targets
 
+- `ffmpeg-build`: compiles Debian's patched FFmpeg source with shared libraries,
+  built-in file/container codecs, libx264 and libdav1d, without autodetected
+  GUI/GPU/device dependencies. Only the installed runtime tools, libraries and
+  licenses are copied into production.
 - `build`: production Python environment from the locked dependencies, compiled
-  with the existing libvips build toolchain.
+  with the existing libvips build toolchain. Dependency bytecode is omitted and
+  native Python libraries have debug symbols stripped; source and dynamic
+  symbols remain intact.
+- `vips-build`: compiles Debian's patched libvips source with JPEG, PNG, AVIF,
+  EXIF, Little CMS and Highway SIMD. Unused PDF/SVG/RAW/scientific loaders and
+  their transitive runtime dependencies are excluded.
 - `runtime-base`: production Python environment, source and native runtime
-  packages (ExifTool, libvips, FFmpeg and AVIF encoder). Its AVIF smoke check
-  runs for both production and test builds.
+  packages (ExifTool, libvips, FFmpeg and AVIF encoder). The native media smoke
+  check (`ci/check_backend_media.py`) verifies JPEG orientation, ICC, PNG/AVIF,
+  FFprobe, H.264/AAC transcoding, scale/format/FPS, remux and poster extraction
+  for both production and test builds.
 - `test-deps`: extends `build` with the locked dev dependencies; the production
   packages, including the compiled pyvips binding, are retained.
 - `test`: extends `runtime-base` with the dev environment, tests, pytest
@@ -22,7 +33,9 @@ GitHub runner is needed. The production image is still built in its own job.
 Testcontainers needs a live Docker daemon, so integration tests run **after**
 image build, not in a Dockerfile `RUN pytest` instruction. BuildKit and uv
 download caches are retained; test and production jobs use separate cache write
-scopes, and test builds may read the production layer cache.
+scopes, and each build may read both production and test layer caches. This lets
+either job reuse previously compiled FFmpeg/libvips stages without concurrent
+writes to the same cache scope. Cache reuse does not replace cold-build budgets.
 
 ## Testcontainers and runner isolation
 
@@ -45,8 +58,10 @@ production/shared daemon. Pull-request jobs stay under `pull_request`, not
 ## Coverage and failures
 
 The existing 75% coverage gate with branch measurement, pytest-xdist and randomized
-module order are preserved. The Python test job has a 15-minute timeout for cold builds and
-integration tests. Coverage uses relative source paths and writes `.coverage`
+module order are preserved. Production image builds have a 20-minute job timeout
+for cold FFmpeg/libvips compilation and cache export. The Python test job has a
+30-minute timeout for cold builds, integration tests and report collection.
+Coverage uses relative source paths and writes `.coverage`
 and `coverage.xml` under `/reports`, backed by `.ci-reports` on the runner.
 An always-run collection step restores runner ownership and copies existing
 reports to the checkout root, where the non-blocking PR coverage action reads

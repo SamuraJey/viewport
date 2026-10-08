@@ -7,6 +7,63 @@ ARG APP_GID=1001
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
+# Debian's general-purpose ffmpeg pulls in Mesa/LLVM, device and GUI libraries.
+# Keep Debian's patched source, all built-in input codecs and file containers,
+# but link only the external codecs needed for uploads (H.264 output / AV1 input).
+FROM python:${PYTHON_VERSION}-slim AS ffmpeg-build
+ARG FFMPEG_BUILD_JOBS=4
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=apt-ffmpeg-source,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    sed 's/^Types: deb$/Types: deb-src/' /etc/apt/sources.list.d/debian.sources \
+        > /etc/apt/sources.list.d/debian-src.sources && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential dpkg-dev pkg-config nasm libx264-dev libdav1d-dev zlib1g-dev libbz2-dev liblzma-dev
+WORKDIR /tmp/ffmpeg
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=apt-ffmpeg-source,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    apt-get source --only-source ffmpeg && \
+    cd "$(find . -maxdepth 1 -type d -name 'ffmpeg-*' -print -quit)" && \
+    ./configure --prefix=/opt/ffmpeg \
+        --disable-autodetect --disable-debug --disable-doc --disable-ffplay \
+        --disable-avdevice --disable-network --disable-static --enable-shared \
+        --enable-gpl --enable-libx264 --enable-libdav1d \
+        --enable-zlib --enable-bzlib --enable-lzma && \
+    make -j"${FFMPEG_BUILD_JOBS}" && \
+    make install && \
+    rm -rf /opt/ffmpeg/include /opt/ffmpeg/lib/pkgconfig /opt/ffmpeg/share/ffmpeg && \
+    mkdir -p /opt/ffmpeg/share/licenses && \
+    cp COPYING* /opt/ffmpeg/share/licenses/
+
+# Only JPEG/PNG uploads and AVIF derivatives are used by the photo pipeline.
+# Retain color management, EXIF and SIMD, without PDF/SVG/RAW/scientific loaders.
+FROM python:${PYTHON_VERSION}-slim AS vips-build
+ARG VIPS_BUILD_JOBS=4
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=apt-vips-source,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    sed 's/^Types: deb$/Types: deb-src/' /etc/apt/sources.list.d/debian.sources \
+        > /etc/apt/sources.list.d/debian-src.sources && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends build-essential dpkg-dev pkg-config meson ninja-build \
+        libglib2.0-dev libexpat1-dev libjpeg62-turbo-dev libpng-dev libspng-dev \
+        libheif-dev liblcms2-dev libexif-dev libhwy-dev
+WORKDIR /tmp/vips
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=apt-vips-source,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get source --only-source vips
+RUN cd "$(find . -maxdepth 1 -type d -name 'vips-*' -print -quit)" && \
+    meson setup build --prefix=/opt/vips --libdir=lib --buildtype=release --strip \
+        --auto-features=disabled -Djpeg=enabled -Dpng=enabled -Dspng=enabled \
+        -Dheif=enabled -Dheif-module=disabled -Dlcms=enabled -Dexif=enabled \
+        -Dhighway=enabled -Dzlib=enabled -Dcplusplus=false -Dexamples=false -Dmodules=disabled && \
+    meson compile -C build -j "${VIPS_BUILD_JOBS}" && \
+    meson install -C build && \
+    rm -rf /opt/vips/include /opt/vips/lib/pkgconfig /opt/vips/share /opt/vips/bin && \
+    mkdir -p /opt/vips/share/licenses && cp LICENSE debian/copyright /opt/vips/share/licenses/
+
 FROM python:${PYTHON_VERSION}-slim AS build
 COPY --from=uv /uv /uvx /bin/
 
@@ -18,7 +75,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 WORKDIR /app
 
-ENV UV_COMPILE_BYTECODE=1 \
+ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never
 
@@ -26,6 +83,8 @@ COPY uv.lock pyproject.toml README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-dev
 RUN .venv/bin/python -c "import pyvips; assert pyvips.API_mode; assert pyvips.type_find('VipsOperation', 'heifsave_buffer')"
+RUN find .venv -type f -name '*.pyc' -delete && \
+    find .venv -type f \( -name '*.so' -o -name '*.so.*' \) -exec strip --strip-unneeded {} +
 
 # Copy source code separately - light layer, invalidated on code changes
 COPY src/ src/
@@ -41,17 +100,24 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg libimage-exiftool-perl libheif-plugin-aomenc libvips42t64 libx264-164
+    apt-get install -y --no-install-recommends \
+        libimage-exiftool-perl libheif-plugin-aomenc libx264-164 libdav1d7 \
+        libglib2.0-0t64 libexpat1 libjpeg62-turbo libpng16-16t64 libspng0 liblcms2-2 libexif12 libhwy1t64
+
+COPY --from=ffmpeg-build /opt/ffmpeg /opt/ffmpeg
+COPY --from=vips-build /opt/vips /opt/vips
+RUN printf '%s\n' /opt/ffmpeg/lib /opt/vips/lib > /etc/ld.so.conf.d/viewport-media.conf && ldconfig
 
 WORKDIR /app
-ENV PATH="/app/.venv/bin:$PATH" \
+ENV PATH="/app/.venv/bin:/opt/ffmpeg/bin:$PATH" \
     PYTHONPATH="/app/src" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1
 
 COPY --from=build --chown=appuser:appgroup /app/.venv /app/.venv
-RUN python -c "import pyvips; image = pyvips.Image.black(2, 2, bands=3).copy(interpretation='srgb'); encoded = bytes(image.heifsave_buffer(compression='av1', Q=70)); assert encoded[4:12] == b'ftypavif'"
+RUN --mount=type=bind,source=ci/check_backend_media.py,target=/tmp/check_backend_media.py \
+    python /tmp/check_backend_media.py
 
 COPY --from=build --chown=appuser:appgroup /app/src /app/src
 

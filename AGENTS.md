@@ -122,6 +122,8 @@
   - `src/viewport/alembic/env.py` contains filtering for a known false-positive FK diff on `photos_gallery_id_fkey`; do not add cleanup scripts for this.
   - Keep cyclical FK metadata stable by using `use_alter=True` on `Gallery.cover_photo_id` FK to `photos.id`.
 - Backend checks:
+  - `vips-build` compiles Debian libvips with JPEG/PNG/AVIF, EXIF, Little CMS ICC and Highway SIMD; add formats to this stage and its runtime libraries if the upload contract expands. Python dependency bytecode is omitted and shared-library debug symbols are stripped before runtime/test use; preserve package data and dynamic symbols.
+  - Production FFmpeg is built from Debian's patched source in `Dockerfile.backend` (`ffmpeg-build`) without autodetected GUI/GPU/device dependencies. Preserve built-in input codecs, libdav1d AV1 decoding, libx264 H.264 encoding, AAC, PNG posters, scale/format/FPS filters and remux. `ci/check_backend_media.py` runs against the native production environment during both runtime and test builds. See `docs/backend-image-size.md`.
   - CI builds `Dockerfile.backend --target test` and runs pytest in that container with the production native media libraries. The default/final `runtime` target remains production-only. Testcontainers uses the isolated Linux runner's Docker socket, host networking, `TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1` and `TESTCONTAINERS_CONNECTION_MODE=docker_host`; retain Ryuk cleanup and export `.coverage`/`coverage.xml` through the report-only bind mount. See `docs/backend-ci.md`.
   - Format + autofix: `just pretty` / `make pretty` (Ruff).
   - Typecheck: `just mypy`.
