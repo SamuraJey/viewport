@@ -43,18 +43,6 @@ action rows. Share-link save/cancel actions share one row when space allows.
 Appearance previews have narrower mobile gutters and a width-bounded phone
 preview. Popovers are width-bounded and use anchor padding at screen edges.
 
-Pagination places previous/next controls above a wrapping row of page numbers
-on phones, so five-page navigation and larger page numbers fit narrow containers.
-The summary can wrap independently. Pagination controls use 44px touch targets.
-
-Gallery card cover actions and the inline rename button use 44px touch targets
-on phones, with title padding reserving space for rename. Gallery reorder handles
-also use a 44px height; desktop retains the compact card controls.
-The public gallery's mobile layout/density switches and the authentication forms'
-password visibility buttons use at least 44px-high touch targets.
-
-With enlarged text, project metric cards can shrink inside their grid and
-share-link action buttons wrap within the card instead of extending offscreen.
 
 ## Notched phones and the software keyboard
 
