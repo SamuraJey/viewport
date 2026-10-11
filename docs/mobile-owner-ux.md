@@ -43,7 +43,6 @@ action rows. Share-link save/cancel actions share one row when space allows.
 Appearance previews have narrower mobile gutters and a width-bounded phone
 preview. Popovers are width-bounded and use anchor padding at screen edges.
 
-
 ## Notched phones and the software keyboard
 
 - The viewport meta sets `viewport-fit=cover` and
