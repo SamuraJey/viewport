@@ -4,9 +4,14 @@ import type { UploadProgress } from '../../hooks/usePhotoUpload';
 interface UploadProgressContentProps {
   progress: UploadProgress;
   totalCount: number;
+  retriesAvailable?: boolean;
 }
 
-export const UploadProgressContent = ({ progress, totalCount }: UploadProgressContentProps) => {
+export const UploadProgressContent = ({
+  progress,
+  totalCount,
+  retriesAvailable = false,
+}: UploadProgressContentProps) => {
   const uploadedCount = progress.successCount ?? 0;
   const failedCount = progress.failedCount ?? 0;
   const completedCount = uploadedCount + failedCount;
@@ -40,7 +45,10 @@ export const UploadProgressContent = ({ progress, totalCount }: UploadProgressCo
           </div>
           {failedCount > 0 && (
             <p className="mt-1 text-xs font-semibold text-danger">
-              {failedCount} failed — retry will be available when this run finishes.
+              {failedCount} failed —{' '}
+              {retriesAvailable
+                ? 'you can retry other failed files now.'
+                : 'retry will be available when this run finishes.'}
             </p>
           )}
           {progress.currentBatch && progress.totalBatches && (

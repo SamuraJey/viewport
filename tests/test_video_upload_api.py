@@ -129,7 +129,9 @@ class TestBatchPresignedVideo:
         assert items[0]["success"] is False
         assert "exceeds" in items[0]["error"]
 
-    def test_mixed_image_and_video(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock]):
+    @pytest.mark.parametrize("video_first", [False, True])
+    @pytest.mark.parametrize("action", ["complete", "abort"])
+    def test_mixed_image_and_video(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock], video_first: bool, action: str):
         """Image goes single, video goes multipart in the same batch."""
         gallery_id, mock_s3 = video_gallery
         mock_s3.create_multipart_upload.return_value = "mix-upload"
@@ -140,21 +142,38 @@ class TestBatchPresignedVideo:
                 _video_file("move.mp4", 16 * 1024 * 1024),
             ]
         }
+        if video_first:
+            payload["files"].reverse()
         resp = authenticated_client.post(f"/galleries/{gallery_id}/photos/batch-presigned", json=payload)
         assert resp.status_code == 200, resp.text
         items = resp.json()["items"]
         assert len(items) == 2
 
-        img = items[0]
+        img = next(item for item in items if item["upload_mode"] == "single")
         assert img["success"] is True
         assert img["upload_mode"] == "single"
         assert img["presigned_data"] is not None
 
-        vid = items[1]
+        vid = next(item for item in items if item["upload_mode"] == "multipart")
         assert vid["success"] is True
         assert vid["upload_mode"] == "multipart"
         assert vid["upload_id"] == "mix-upload"
         assert len(vid["presigned_urls"]) == 1
+
+        # Exercise a new request so validation reads the persisted upload ID.
+        body = {"upload_id": vid["upload_id"]}
+        if action == "complete":
+            body["parts"] = [{"part_number": 1, "etag": "test-etag"}]
+        with patch("viewport.api.photo.process_videos_batch_task.delay"):
+            response = authenticated_client.post(
+                f"/galleries/{gallery_id}/photos/{vid['photo_id']}/multipart/{action}",
+                json=body,
+            )
+        assert response.status_code == 200, response.text
+        if action == "complete":
+            mock_s3.complete_multipart_upload.assert_awaited_once()
+        else:
+            mock_s3.abort_multipart_upload.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

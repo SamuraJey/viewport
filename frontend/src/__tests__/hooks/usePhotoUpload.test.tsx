@@ -286,6 +286,132 @@ describe('usePhotoUpload', () => {
     ]);
   });
 
+  it('runs retries independently, limits concurrency, and merges out-of-order results', async () => {
+    const files = Array.from({ length: 6 }, (_, index) => makeFile(`retry-${index}.jpg`));
+    const response = (names: string[], success: boolean): PhotoUploadResponse => ({
+      results: names.map((filename) => ({
+        filename,
+        original_filename: filename,
+        success,
+        retryable: true,
+      })),
+      total_files: names.length,
+      successful_uploads: success ? names.length : 0,
+      failed_uploads: success ? 0 : names.length,
+    });
+    vi.mocked(photoService.uploadPhotosPresigned).mockResolvedValue(
+      response(
+        files.map((file) => file.name),
+        false,
+      ),
+    );
+    const finish = new Map<string, (value: PhotoUploadResponse) => void>();
+    vi.mocked(photoService.retryFailedUploads).mockImplementation(
+      (_gallery, items) => new Promise((resolve) => finish.set(items[0].filename, resolve)),
+    );
+    const { result } = renderHook(() => usePhotoUpload('gallery-1', files));
+    await act(async () => {
+      await result.current.handleUpload();
+    });
+    let first!: Promise<void>;
+    act(() => {
+      first = result.current.handleRetryFile(result.current.jobs[0].id);
+    });
+    await waitFor(() => expect(finish.size).toBe(1));
+    expect(result.current.isUploading).toBe(true);
+    let others!: Promise<void>;
+    act(() => {
+      // Duplicate clicks and Retry all must not create a second intent for the first job.
+      result.current.handleRetryFile(result.current.jobs[0].id);
+      others = result.current.handleRetryFailed();
+    });
+    await waitFor(() => expect(finish.size).toBe(4));
+    expect(photoService.retryFailedUploads).toHaveBeenCalledTimes(4);
+    expect(result.current.jobs.filter((job) => job.status === 'queued')).toHaveLength(2);
+    await act(async () => {
+      finish.get(files[1].name)!(response([files[1].name], true));
+    });
+    await waitFor(() => expect(finish.size).toBe(5));
+    expect(result.current.jobs[1].status).toBe('success');
+    expect(result.current.jobs[0].status).toBe('uploading');
+    expect(result.current.isUploading).toBe(true);
+    await act(async () => {
+      finish.get(files[0].name)!(response([files[0].name], true));
+    });
+    await waitFor(() => expect(finish.size).toBe(6));
+    await act(async () => {
+      files.slice(2).forEach((file) => finish.get(file.name)!(response([file.name], true)));
+      await Promise.all([first, others]);
+    });
+    expect(result.current.jobs.every((job) => job.status === 'success')).toBe(true);
+    expect(result.current.result).toMatchObject({
+      total_files: 6,
+      successful_uploads: 6,
+      failed_uploads: 0,
+    });
+    expect(result.current.isUploading).toBe(false);
+  });
+
+  it('cancels all active and queued retries and preserves completed uploads', async () => {
+    const files = Array.from({ length: 6 }, (_, index) => makeFile(`cancel-${index}.jpg`));
+    const initialResult: PhotoUploadResponse = {
+      results: files.map((file) => ({ filename: file.name, success: false, retryable: true })),
+      total_files: 6,
+      successful_uploads: 0,
+      failed_uploads: 6,
+    };
+    vi.mocked(photoService.uploadPhotosPresigned).mockResolvedValue(initialResult);
+    const signals: AbortSignal[] = [];
+    let completeFirst!: (value: PhotoUploadResponse) => void;
+    vi.mocked(photoService.retryFailedUploads).mockImplementation(
+      (_gallery, _items, _progress, signal) => {
+        signals.push(signal!);
+        return new Promise((resolve) => {
+          if (signals.length === 1) completeFirst = resolve;
+          signal!.addEventListener('abort', () =>
+            resolve({
+              results: [],
+              total_files: 0,
+              successful_uploads: 0,
+              failed_uploads: 0,
+            }),
+          );
+        });
+      },
+    );
+    const { result } = renderHook(() => usePhotoUpload('gallery-1', files));
+    await act(async () => {
+      await result.current.handleUpload();
+    });
+    let retry!: Promise<void>;
+    act(() => {
+      retry = result.current.handleRetryFailed();
+    });
+    await waitFor(() => expect(signals).toHaveLength(4));
+    await act(async () => {
+      completeFirst({
+        results: [{ filename: files[0].name, success: true }],
+        total_files: 1,
+        successful_uploads: 1,
+        failed_uploads: 0,
+      });
+    });
+    await waitFor(() => expect(signals).toHaveLength(5));
+    let partial: PhotoUploadResponse | null = null;
+    await act(async () => {
+      partial = await result.current.cancelUpload();
+      await retry;
+    });
+    expect(signals.slice(1).every((signal) => signal.aborted)).toBe(true);
+    expect(photoService.retryFailedUploads).toHaveBeenCalledTimes(5);
+    expect(result.current.jobs[0].status).toBe('success');
+    expect(partial).toMatchObject({ successful_uploads: 1 });
+    expect(
+      result.current.jobs.slice(1).every((job) => job.status === 'failed' && job.retryable),
+    ).toBe(true);
+    expect(result.current.isUploading).toBe(false);
+  });
+
   it('prepares deterministic duplicate filenames without dropping distinct files', () => {
     const first = makeFile('photo.jpg');
     const second = new File(['other-image-data'], 'photo.jpg', {

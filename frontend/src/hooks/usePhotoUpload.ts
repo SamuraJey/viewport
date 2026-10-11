@@ -61,6 +61,16 @@ export const usePhotoUpload = (
   const sessionResultRef = useRef<PhotoUploadResponse | null>(null);
   const nextRunGenerationRef = useRef(0);
   const activeRunGenerationRef = useRef<number | null>(null);
+  const retryTasksRef = useRef(
+    new Map<
+      string,
+      { controller: AbortController; promise: Promise<PhotoUploadResponse | null> }
+    >(),
+  );
+  const retryPoolRef = useRef<{ active: number; waiting: (() => void)[] }>({
+    active: 0,
+    waiting: [],
+  });
   const retryJobStateSnapshotRef = useRef<Record<string, UploadJobState> | null>(null);
 
   const { preparedFiles, renameWarnings } = useMemo(() => {
@@ -146,9 +156,46 @@ export const usePhotoUpload = (
   );
 
   const applyProgress = useCallback(
-    (nextProgress: PhotoUploadProgress, runGeneration: number) => {
+    (nextProgress: PhotoUploadProgress, runGeneration: number, merge = false) => {
       if (activeRunGenerationRef.current !== runGeneration) return;
-      setProgress(nextProgress);
+      setProgress((current) => {
+        if (!merge) return nextProgress;
+        const files = { ...current?.files, ...nextProgress.files };
+        // Include settled files from the session as well as all scheduled retries.
+        const settledByFilename = new Map(
+          sessionResultRef.current?.results.map((entry) => [
+            entry.original_filename || entry.filename,
+            entry,
+          ]),
+        );
+        preparedFiles.forEach((item) => {
+          if (files[item.filename]) return;
+          const state = retryTasksRef.current.has(getUploadFileKey(item.file))
+            ? { status: 'queued' as const, percentage: 0 }
+            : settledByFilename.get(item.filename);
+          files[item.filename] =
+            state && 'success' in state
+              ? {
+                  status: state.success ? 'success' : 'failed',
+                  percentage: state.success ? 100 : 0,
+                }
+              : (state ?? { status: 'queued', percentage: 0 });
+        });
+        const total = preparedFiles.reduce((sum, item) => sum + item.file.size, 0);
+        const loaded = preparedFiles.reduce(
+          (sum, item) => sum + (item.file.size * (files[item.filename]?.percentage ?? 0)) / 100,
+          0,
+        );
+        return {
+          ...nextProgress,
+          files,
+          total,
+          loaded,
+          percentage: total ? Math.round((loaded / total) * 100) : 0,
+          successCount: Object.values(files).filter((file) => file.status === 'success').length,
+          failedCount: Object.values(files).filter((file) => file.status === 'failed').length,
+        };
+      });
       setJobStateById((current) => {
         const next = { ...current };
         Object.entries(nextProgress.files).forEach(([filename, fileProgress]) => {
@@ -164,17 +211,18 @@ export const usePhotoUpload = (
         return next;
       });
     },
-    [preparedByFilename],
+    [preparedByFilename, preparedFiles],
   );
 
   const applyResult = useCallback(
-    (uploadResult: PhotoUploadResponse, runGeneration: number) => {
+    (uploadResult: PhotoUploadResponse, runGeneration: number, updatedFilename?: string) => {
       if (activeRunGenerationRef.current !== runGeneration) return;
       setJobStateById((current) => {
         const next = { ...current };
         uploadResult.results.forEach((item) => {
           const prepared = preparedByFilename.get(item.original_filename || item.filename);
           if (!prepared) return;
+          if (updatedFilename && prepared.filename !== updatedFilename) return;
           next[getUploadFileKey(prepared.file)] = {
             status: item.success ? 'success' : 'failed',
             progress: item.success ? 100 : 0,
@@ -337,74 +385,105 @@ export const usePhotoUpload = (
 
   const retryPreparedFiles = useCallback(
     async (items: UploadPreparedFile[]) => {
-      if (items.length === 0 || isUploading) return;
-      const previousResult = sessionResultRef.current;
-      retryJobStateSnapshotRef.current = Object.fromEntries(
-        items.flatMap((item) => {
-          const id = getUploadFileKey(item.file);
-          const state = jobStateById[id];
-          return state ? [[id, state] as const] : [];
-        }),
-      );
-      setIsUploading(true);
-      setProgress(null);
-      setJobStateById((current) => {
-        const next = { ...current };
-        items.forEach((item) => {
-          next[getUploadFileKey(item.file)] = {
-            status: 'uploading',
-            progress: 0,
-          };
-        });
-        return next;
+      // Initial uploads own their pool; retries share four slots and can be added at any time.
+      if (activeUploadPromiseRef.current) return;
+      const failedIds = new Set(failedFilesRef.current.map((item) => getUploadFileKey(item.file)));
+      const eligible = items.filter((item) => {
+        const id = getUploadFileKey(item.file);
+        return !retryTasksRef.current.has(id) && failedIds.has(id);
       });
-
-      const runGeneration = ++nextRunGenerationRef.current;
-      activeRunGenerationRef.current = runGeneration;
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-      const uploadPromise = photoService
-        .retryFailedUploads(
-          galleryId,
-          items,
-          (nextProgress) => applyProgress(nextProgress, runGeneration),
-          abortController.signal,
-        )
-        .then((retryResult) => mergeUploadResults(previousResult, retryResult));
-      activeUploadPromiseRef.current = uploadPromise;
-      try {
-        const mergedResult = await uploadPromise;
-        applyResult(mergedResult, runGeneration);
-      } catch {
-        if (abortController.signal.aborted) return;
-        const retryFailure: PhotoUploadResponse = {
-          results: items.map((item) => ({
-            filename: item.filename,
-            original_filename: item.filename,
-            success: false,
-            error: 'Retry failed. Check your connection and try again.',
-          })),
-          total_files: items.length,
-          successful_uploads: 0,
-          failed_uploads: items.length,
-        };
-        applyResult(mergeUploadResults(previousResult, retryFailure), runGeneration);
-      } finally {
-        if (activeUploadPromiseRef.current === uploadPromise) {
-          activeUploadPromiseRef.current = null;
-        }
-        if (activeRunGenerationRef.current === runGeneration) {
-          activeRunGenerationRef.current = null;
-          retryJobStateSnapshotRef.current = null;
-          setIsUploading(false);
-          setProgress(null);
-          if (abortControllerRef.current === abortController) {
-            abortControllerRef.current = null;
-          }
-        }
+      if (eligible.length === 0) return;
+      if (retryTasksRef.current.size === 0) {
+        activeRunGenerationRef.current = ++nextRunGenerationRef.current;
+        retryJobStateSnapshotRef.current = {};
+        setProgress(null);
       }
+      const runGeneration = activeRunGenerationRef.current!;
+      setIsUploading(true);
+      const promises = eligible.map((item) => {
+        const id = getUploadFileKey(item.file);
+        retryJobStateSnapshotRef.current![id] = jobStateById[id];
+        setJobStateById((current) => ({
+          ...current,
+          [id]: { status: 'queued', progress: 0 },
+        }));
+        const controller = new AbortController();
+        const pool = retryPoolRef.current;
+        const ready = new Promise<void>((resolve) => {
+          if (pool.active < 4) {
+            pool.active += 1;
+            resolve();
+          } else pool.waiting.push(resolve);
+        });
+        setProgress((current) =>
+          current
+            ? {
+                ...current,
+                files: { ...current.files, [item.filename]: { status: 'queued', percentage: 0 } },
+              }
+            : current,
+        );
+        const promise = ready.then(async () => {
+          if (controller.signal.aborted) return null;
+          setJobStateById((current) => ({
+            ...current,
+            [id]: { status: 'uploading', progress: 0 },
+          }));
+          let retryResult: PhotoUploadResponse;
+          try {
+            retryResult = await photoService.retryFailedUploads(
+              galleryId,
+              [item],
+              (nextProgress) => applyProgress(nextProgress, runGeneration, true),
+              controller.signal,
+            );
+          } catch {
+            retryResult = {
+              results: [
+                {
+                  filename: item.filename,
+                  original_filename: item.filename,
+                  success: false,
+                  error: 'Retry failed. Check your connection and try again.',
+                },
+              ],
+              total_files: 1,
+              successful_uploads: 0,
+              failed_uploads: 1,
+            };
+          }
+          if (activeRunGenerationRef.current === runGeneration) {
+            applyResult(
+              mergeUploadResults(sessionResultRef.current, retryResult),
+              runGeneration,
+              item.filename,
+            );
+          }
+          return retryResult;
+        });
+        const task = { controller, promise };
+        retryTasksRef.current.set(id, task);
+        return promise.finally(() => {
+          const next = pool.waiting.shift();
+          if (next) next();
+          else pool.active -= 1;
+          if (retryTasksRef.current.get(id) !== task) return;
+          retryTasksRef.current.delete(id);
+          if (retryJobStateSnapshotRef.current) delete retryJobStateSnapshotRef.current[id];
+          if (
+            retryTasksRef.current.size === 0 &&
+            activeRunGenerationRef.current === runGeneration
+          ) {
+            activeRunGenerationRef.current = null;
+            retryJobStateSnapshotRef.current = null;
+            setIsUploading(false);
+            setProgress(null);
+          }
+        });
+      });
+      await Promise.all(promises);
     },
-    [applyProgress, applyResult, galleryId, isUploading, jobStateById],
+    [applyProgress, applyResult, galleryId, jobStateById],
   );
 
   const handleRetryFile = useCallback(
@@ -423,6 +502,11 @@ export const usePhotoUpload = (
   const cancelUpload = useCallback(async (): Promise<PhotoUploadResponse | null> => {
     const retryJobStateSnapshot = retryJobStateSnapshotRef.current;
     const activeUploadPromise = activeUploadPromiseRef.current;
+    const retryTasks = [...retryTasksRef.current.values()];
+    const previousResult = sessionResultRef.current;
+    retryTasks.forEach((task) => task.controller.abort());
+    retryTasksRef.current.clear();
+    retryPoolRef.current = { active: 0, waiting: [] };
     retryJobStateSnapshotRef.current = null;
     activeRunGenerationRef.current = null;
     abortControllerRef.current?.abort();
@@ -431,7 +515,7 @@ export const usePhotoUpload = (
       Object.fromEntries(
         Object.entries(current).map(([id, state]) => [
           id,
-          state.status === 'uploading'
+          state.status === 'uploading' || retryJobStateSnapshot?.[id]
             ? (retryJobStateSnapshot?.[id] ?? {
                 ...state,
                 status: 'queued',
@@ -447,7 +531,14 @@ export const usePhotoUpload = (
     setResult(null);
     setIsUploading(false);
 
-    if (!activeUploadPromise) return null;
+    if (!activeUploadPromise) {
+      const partials = await Promise.all(retryTasks.map((task) => task.promise));
+      const partial = partials.reduce<PhotoUploadResponse | null>(
+        (merged, incoming) => (incoming ? mergeUploadResults(merged, incoming) : merged),
+        previousResult,
+      );
+      return partial && partial.successful_uploads > 0 ? partial : null;
+    }
 
     try {
       const partialResult = await activeUploadPromise;

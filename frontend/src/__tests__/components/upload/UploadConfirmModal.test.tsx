@@ -118,6 +118,108 @@ describe('UploadConfirmModal', () => {
     );
   });
 
+  it('filters failures and keeps other retry buttons available during a retry', async () => {
+    const user = userEvent.setup();
+    const files = ['success.jpg', 'retrying.jpg', 'failed.jpg'].map(
+      (name) => new File(['image'], name, { type: 'image/jpeg' }),
+    );
+    const handleRetryFile = vi.fn();
+    const handleRetryFailed = vi.fn();
+    vi.mocked(usePhotoUpload).mockReturnValue(
+      idleUpload({
+        isUploading: true,
+        result: {
+          results: files.map((file, index) => ({ filename: file.name, success: index === 0 })),
+          total_files: 3,
+          successful_uploads: 1,
+          failed_uploads: 2,
+        },
+        jobs: files.map((file, index) => ({
+          id: `job-${index}`,
+          file,
+          filename: file.name,
+          status: index === 0 ? 'success' : index === 1 ? 'uploading' : 'failed',
+          progress: index === 0 ? 100 : 0,
+          retryable: true,
+        })),
+        handleRetryFile,
+        handleRetryFailed,
+      }) as ReturnType<typeof usePhotoUpload>,
+    );
+    render(
+      <UploadConfirmModal
+        isOpen
+        onClose={vi.fn()}
+        files={files}
+        galleryId="gallery-1"
+        onUploadComplete={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Failed uploads (2)' }));
+    expect(screen.queryByText('success.jpg')).not.toBeInTheDocument();
+    expect(screen.getByText('retrying.jpg')).toBeInTheDocument();
+    expect(screen.getByText('failed.jpg')).toBeInTheDocument();
+    const retryButton = screen.getByRole('button', { name: 'Retry failed.jpg' });
+    expect(retryButton).toBeEnabled();
+    await user.click(retryButton);
+    expect(handleRetryFile).toHaveBeenCalledWith('job-2');
+    await user.click(screen.getByRole('button', { name: 'Retry all failed (1)' }));
+    expect(handleRetryFailed).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole('button', { name: 'All files (3)' }));
+    expect(screen.getByText('success.jpg')).toBeInTheDocument();
+  });
+
+  it('shows failures once in the queue while preserving summary counts and retries', async () => {
+    const user = userEvent.setup();
+    const files = ['success.jpg', 'failed.jpg'].map(
+      (name) => new File(['image'], name, { type: 'image/jpeg' }),
+    );
+    const handleRetryFile = vi.fn();
+    vi.mocked(usePhotoUpload).mockReturnValue(
+      idleUpload({
+        result: {
+          results: [
+            { filename: files[0].name, success: true },
+            { filename: files[1].name, success: false, error: 'Network interrupted' },
+          ],
+          total_files: 2,
+          successful_uploads: 1,
+          failed_uploads: 1,
+        },
+        jobs: files.map((file, index) => ({
+          id: `job-${index}`,
+          file,
+          filename: file.name,
+          status: index === 0 ? 'success' : 'failed',
+          progress: index === 0 ? 100 : 0,
+          error: index === 0 ? undefined : 'Network interrupted',
+          retryable: true,
+        })),
+        handleRetryFile,
+      }) as ReturnType<typeof usePhotoUpload>,
+    );
+    render(
+      <UploadConfirmModal
+        isOpen
+        onClose={vi.fn()}
+        files={files}
+        galleryId="gallery-1"
+        onUploadComplete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('1 successful • 1 failed')).toBeInTheDocument();
+    expect(screen.queryByText('Failed uploads:')).not.toBeInTheDocument();
+    expect(screen.getAllByText('failed.jpg')).toHaveLength(1);
+    expect(screen.getAllByText('Network interrupted')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Failed uploads (1)' }));
+    expect(screen.queryByText('success.jpg')).not.toBeInTheDocument();
+    expect(screen.getByText('Network interrupted')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry failed.jpg' }));
+    expect(handleRetryFile).toHaveBeenCalledWith('job-1');
+  });
+
   it('can resize after a mounted modal closes and reopens', async () => {
     const user = userEvent.setup();
     const largeFile = new File(['image'], 'large.jpg', { type: 'image/jpeg' });
