@@ -204,7 +204,9 @@ const GalleryPhotoSectionComponent = ({
             <PhotoCard
               previewUrl={rotation?.getPreview(photo)}
               onRotatePhoto={actions.onRotatePhoto ? cardActions.onRotatePhoto : undefined}
-              key={photo.id}
+              // These are fixed positions on a paginated grid. Reuse their DOM
+              // while replacing all photo props; image state is URL-scoped.
+              key={`photo-slot-${index}`}
               photo={photo}
               index={index}
               isSelectionMode={state.isSelectionMode}

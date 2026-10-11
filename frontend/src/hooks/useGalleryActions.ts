@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, startTransition } from 'react';
 import { useNavigate } from 'react-router';
 import { galleryService } from '../services/galleryService';
 import { photoService } from '../services/photoService';
@@ -8,6 +8,7 @@ import { useErrorHandler } from './useErrorHandler';
 import { useModal } from './useModal';
 import { handleApiError } from '../lib/errorHandling';
 import { toast } from 'sonner';
+import { OwnerGalleryPageCache } from '../lib/ownerGalleryPageCache';
 import type { PhotoRotationResponse } from '../types/photo';
 import type {
   GalleryDetail,
@@ -74,6 +75,27 @@ export const useGalleryActions = ({
   const renameModal = useModal<{ id: string; filename: string }>();
 
   const { page, pageSize, setTotal } = pagination;
+  const requestSequence = useRef(0);
+  const pageCache = useMemo(
+    () =>
+      new OwnerGalleryPageCache((requestedPage) =>
+        galleryService.getGallery(galleryId, {
+          limit: pageSize,
+          offset: (requestedPage - 1) * pageSize,
+          search: filters.search,
+          sort_by: filters.sort_by,
+          order: filters.order,
+        }),
+      ),
+    [galleryId, pageSize, filters.search, filters.sort_by, filters.order],
+  );
+  useEffect(
+    () => () => {
+      requestSequence.current++;
+      pageCache.clear();
+    },
+    [pageCache],
+  );
 
   const isNotFoundError = useCallback(
     (error: unknown): boolean => handleApiError(error).statusCode === 404,
@@ -81,31 +103,48 @@ export const useGalleryActions = ({
   );
 
   const currentGalleryId = gallery?.id ?? null;
+  const loadCurrentPage = useCallback(
+    async (page: number, request: number) => {
+      // A write may invalidate a read that is already on the wire. Retry that
+      // page instead of publishing a response from before the mutation.
+      while (request === requestSequence.current) {
+        const revision = pageCache.revision;
+        const data = await pageCache.get(page);
+        if (request !== requestSequence.current) return null;
+        if (revision === pageCache.revision) return data;
+      }
+      return null;
+    },
+    [pageCache],
+  );
 
-  const applyRotationResponse = useCallback((response: PhotoRotationResponse) => {
-    const updates = new Map(
-      response.results
-        .filter((result) => result.photo)
-        .map((result) => [result.photo_id, result.photo!]),
-    );
-    setPhotoUrls((prev) => prev.map((photo) => updates.get(photo.id) ?? photo));
-    setGallery((prev) =>
-      prev ? { ...prev, pending_rotation_count: response.pending_rotation_count } : prev,
-    );
-  }, []);
+  const applyRotationResponse = useCallback(
+    (response: PhotoRotationResponse) => {
+      pageCache.clear();
+      const updates = new Map(
+        response.results
+          .filter((result) => result.photo)
+          .map((result) => [result.photo_id, result.photo!]),
+      );
+      setPhotoUrls((prev) => prev.map((photo) => updates.get(photo.id) ?? photo));
+      setGallery((prev) =>
+        prev ? { ...prev, pending_rotation_count: response.pending_rotation_count } : prev,
+      );
+    },
+    [pageCache],
+  );
 
   const refreshAfterRotation = useCallback(async () => {
-    const updated = await galleryService.getGallery(galleryId, {
-      limit: pageSize,
-      offset: (page - 1) * pageSize,
-      search: filters.search,
-      sort_by: filters.sort_by,
-      order: filters.order,
-    });
+    pageCache.clear();
+    const request = ++requestSequence.current;
+    const updated = await loadCurrentPage(page, request);
+    if (!updated) return;
     latestGalleryRef.current = updated;
     setGallery(updated);
     setPhotoUrls(updated.photos);
-  }, [galleryId, page, pageSize, filters.search, filters.sort_by, filters.order]);
+    setIsInitialLoading(false);
+    setIsLoadingPhotos(false);
+  }, [pageCache, page, loadCurrentPage]);
 
   const fetchShareLinks = useCallback(
     async (isInitial = true) => {
@@ -127,18 +166,24 @@ export const useGalleryActions = ({
     [galleryId],
   );
 
-  const removePhotoLocally = useCallback((photoId: string) => {
-    setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
-    setGallery((prev: GalleryDetail | null) => {
-      if (!prev || prev.cover_photo_id !== photoId) return prev;
-      const next = { ...prev, cover_photo_id: null };
-      latestGalleryRef.current = next;
-      return next;
-    });
-  }, []);
+  const removePhotoLocally = useCallback(
+    (photoId: string) => {
+      pageCache.clear();
+      setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
+      setGallery((prev: GalleryDetail | null) => {
+        if (!prev || prev.cover_photo_id !== photoId) return prev;
+        const next = { ...prev, cover_photo_id: null };
+        latestGalleryRef.current = next;
+        return next;
+      });
+    },
+    [pageCache],
+  );
 
   const fetchGalleryDetails = useCallback(
-    async (page: number, isInitial = false) => {
+    async (page: number, isInitial = false, useCache = false) => {
+      if (!useCache) pageCache.clear();
+      const request = ++requestSequence.current;
       if (isInitial) {
         setIsInitialLoading(true);
       } else {
@@ -146,27 +191,26 @@ export const useGalleryActions = ({
       }
       clearError();
       try {
-        const offset = (page - 1) * pageSize;
-        const galleryData = await galleryService.getGallery(galleryId, {
-          limit: pageSize,
-          offset,
-          search: filters.search,
-          sort_by: filters.sort_by,
-          order: filters.order,
-        });
+        const galleryData = await loadCurrentPage(page, request);
+        if (!galleryData) return;
         latestGalleryRef.current = galleryData;
         const shouldRefreshShareLinks = currentGalleryId !== galleryData.id;
-        setGallery(galleryData);
-        setPhotoUrls(galleryData.photos || []);
-        setTotal(galleryData.total_photos);
         const fallbackDate = galleryData.shooting_date || galleryData.created_at || '';
-        setShootingDateInput(fallbackDate.slice(0, 10));
+        startTransition(() => {
+          setGallery(galleryData);
+          setPhotoUrls(galleryData.photos || []);
+          setTotal(galleryData.total_photos);
+          setShootingDateInput(fallbackDate.slice(0, 10));
+          setIsInitialLoading(false);
+          setIsLoadingPhotos(false);
+        });
+        pageCache.prefetchNext(page, pageSize, galleryData);
         if (shouldRefreshShareLinks) {
           void fetchShareLinks(false);
         }
       } catch (err) {
+        if (request !== requestSequence.current) return;
         handleError(err);
-      } finally {
         if (isInitial) {
           setIsInitialLoading(false);
         } else {
@@ -176,40 +220,23 @@ export const useGalleryActions = ({
     },
     [
       currentGalleryId,
-      galleryId,
+      pageCache,
       pageSize,
       setTotal,
       clearError,
       handleError,
       fetchShareLinks,
-      filters.search,
-      filters.sort_by,
-      filters.order,
+      loadCurrentPage,
     ],
   );
 
   const handleUploadComplete = async (result: PhotoUploadResponse) => {
+    pageCache.clear();
     setUploadError('');
 
     if (result.successful_uploads > 0) {
-      try {
-        setActionInfo('');
-        setIsLoadingPhotos(true);
-        const offset = (page - 1) * pageSize;
-        const galleryData = await galleryService.getGallery(galleryId, {
-          limit: pageSize,
-          offset,
-          search: filters.search,
-          sort_by: filters.sort_by,
-          order: filters.order,
-        });
-        setPhotoUrls(galleryData.photos || []);
-        setTotal(galleryData.total_photos);
-      } catch (err) {
-        handleError(err);
-      } finally {
-        setIsLoadingPhotos(false);
-      }
+      setActionInfo('');
+      await fetchGalleryDetails(page);
     }
 
     if (result.failed_uploads > 0) {
@@ -219,6 +246,7 @@ export const useGalleryActions = ({
 
   const handleSaveShootingDate = useCallback(
     async (dateValue?: string): Promise<boolean> => {
+      pageCache.clear();
       const normalizedDate = (dateValue ?? shootingDateInput).trim();
 
       if (!normalizedDate) {
@@ -235,6 +263,7 @@ export const useGalleryActions = ({
         const updated = await galleryService.updateGallery(galleryId, {
           shooting_date: normalizedDate,
         });
+        pageCache.clear();
         setGallery((prev: GalleryDetail | null) =>
           prev ? { ...prev, shooting_date: updated.shooting_date } : prev,
         );
@@ -251,11 +280,12 @@ export const useGalleryActions = ({
         setIsSavingShootingDate(false);
       }
     },
-    [clearError, gallery?.shooting_date, galleryId, handleError, shootingDateInput],
+    [pageCache, clearError, gallery?.shooting_date, galleryId, handleError, shootingDateInput],
   );
 
   const handleSavePublicSortSettings = useCallback(
     async (publicSortBy: GalleryPhotoSortBy, publicSortOrder: SortOrder): Promise<boolean> => {
+      pageCache.clear();
       setIsSavingPublicSortSettings(true);
       clearError();
       try {
@@ -263,6 +293,7 @@ export const useGalleryActions = ({
           public_sort_by: publicSortBy,
           public_sort_order: publicSortOrder,
         });
+        pageCache.clear();
         setGallery((prev: GalleryDetail | null) =>
           prev
             ? {
@@ -280,7 +311,7 @@ export const useGalleryActions = ({
         setIsSavingPublicSortSettings(false);
       }
     },
-    [clearError, galleryId, handleError],
+    [pageCache, clearError, galleryId, handleError],
   );
 
   const mergeAppearanceUpdate = useCallback(
@@ -302,9 +333,11 @@ export const useGalleryActions = ({
 
   const handleSaveAppearanceSettings = useCallback(
     async (payload: GalleryAppearanceUpdatePayload): Promise<GalleryDetail> => {
+      pageCache.clear();
       clearError();
       try {
         const updated = await galleryService.updateGallery(galleryId, payload);
+        pageCache.clear();
         const baseGallery = latestGalleryRef.current ?? gallery;
         if (!baseGallery) {
           const refreshed = await galleryService.getGallery(galleryId);
@@ -332,6 +365,7 @@ export const useGalleryActions = ({
     },
     [
       gallery,
+      pageCache,
       galleryId,
       clearError,
       handleError,
@@ -424,8 +458,10 @@ export const useGalleryActions = ({
   );
 
   const handleSetCover = async (photoId: string) => {
+    pageCache.clear();
     try {
       const updatedGallery = await galleryService.setCoverPhoto(galleryId, photoId);
+      pageCache.clear();
       setGallery((prev: GalleryDetail | null) => {
         if (!prev) return null;
         const next = {
@@ -452,8 +488,10 @@ export const useGalleryActions = ({
   };
 
   const handleClearCover = async () => {
+    pageCache.clear();
     try {
       await galleryService.clearCoverPhoto(galleryId);
+      pageCache.clear();
       setGallery((prev: GalleryDetail | null) => {
         if (!prev) return null;
         const next = { ...prev, cover_photo_id: null };
@@ -524,6 +562,7 @@ export const useGalleryActions = ({
   };
 
   const handleRenameConfirm = async (newFilename: string) => {
+    pageCache.clear();
     if (!renameModal.data) return;
 
     try {
@@ -532,6 +571,7 @@ export const useGalleryActions = ({
         renameModal.data.id,
         newFilename,
       );
+      pageCache.clear();
       setPhotoUrls((prev) =>
         prev.map((photo) =>
           photo.id === renameModal.data!.id
@@ -596,6 +636,7 @@ export const useGalleryActions = ({
           throw err;
         }
 
+        pageCache.clear();
         const deletedOrMissingIds = [...result.deleted_ids, ...result.not_found_ids];
         const notFoundCount = result.not_found_ids.length;
 

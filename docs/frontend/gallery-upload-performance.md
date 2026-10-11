@@ -67,6 +67,46 @@ reads on every card. Loaded cards remain mounted during revalidation; the
 labeled skeleton is used when there are no loaded photos. The gallery route's
 existing 220ms initial reveal remains in place.
 
+### Owner page navigation
+
+Owner pagination retains all 100 native photo targets but reuses the grid's
+fixed positional slots. Every photo prop and callback changes with the incoming
+page. `OwnerPhotoThumbnail` is separately keyed by thumbnail URL, so a broken
+image or loading state cannot carry into another photo. Successful image loads
+set a native `data-loaded` attribute; CSS reveals the image and hides its
+placeholder without scheduling a React render for every thumbnail. Errors still
+use React state. Unknown natural dimensions are captured only when needed for a
+pending quarter-turn fit.
+
+One shared IntersectionObserver mounts action overlays near the viewport and
+releases them as cards leave it. The image and filename targets, cover/status
+badges and selection checkbox remain mounted. A focused card keeps its actions
+even when scrolled away. Actions follow the image in DOM order, allowing Tab to
+reach them when focusing a distant image activates the controls.
+
+`OwnerGalleryPageCache` belongs to one mounted owner route and filter combination
+(gallery, page size, search and sort). It retains at most three pages for 30
+seconds, deduplicates concurrent requests, and speculatively fetches only the
+next page during idle time. It skips speculation when hidden, on Save-Data/2G,
+on the last page, or while visible media/rotation is processing. Unfinished media
+is never cached. At most eight next-page thumbnails are retained and decoded
+with two concurrent `Image.decode()` calls; originals are never prefetched.
+
+Upload, rename, delete, cover/appearance/date/sort writes and rotation responses
+invalidate the cache. Writes invalidate both before and after publication where
+needed, so an in-flight speculative read cannot restore stale metadata. A
+foreground read invalidated during a mutation retries the requested page;
+request sequence guards prevent older pages or filter results from replacing
+the latest request. Cache cleanup also cancels idle work and releases warmed
+images. Explicit refresh/retry bypasses cached results. Nothing is stored in
+Web Storage, and changes from another client can remain cached for at most 30
+seconds. Page publication uses a React transition while the existing grid
+remains available during loading.
+
+The implementation follows the native
+[image decode lifecycle](https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement/decode)
+and [React transition behavior](https://react.dev/reference/react/startTransition).
+
 ## Reproduce measurements
 
 Use a disposable browser profile; the script replaces the open tab's contents
@@ -117,6 +157,46 @@ The browser verifier also opens the full owner `GalleryPage` route in demo mode
 with a 100-photo fixture, performs 25 actual selection clicks and checks that
 all selections persist. This full-route run reached 17ms frame p95 with no long
 tasks, including the page's real header, hooks, sidebar and selection toolbar.
+
+### Pagination measurements
+
+The pagination benchmark opens the actual owner route with 300 photos, three
+100-photo pages, distinct 640×427 JPEG thumbnails and an artificial 180ms API
+delay. It reports time to the incoming page's first DOM image, long tasks and
+frame intervals during replacement and a subsequent 400ms settling period.
+This is a synthetic development benchmark, not a server or paint-time measurement.
+
+```bash
+chromium --headless --no-sandbox --disable-dev-shm-usage \
+  --remote-debugging-port=9235 --user-data-dir=/tmp/viewport-pagination-browser about:blank
+PERF_URL=http://127.0.0.1:5173 CDP_URL=http://127.0.0.1:9235 \
+  PERF_VERIFY=1 PERF_CPU_RATE=1 node performance/gallery-pagination.mjs
+PERF_URL=http://127.0.0.1:5173 CDP_URL=http://127.0.0.1:9235 \
+  PERF_VERIFY=1 PERF_CPU_RATE=4 node performance/gallery-pagination.mjs
+```
+
+| Three-page navigation at 4× CPU slowdown | Before | After |
+| --- | --- | --- |
+| Incoming page DOM available | 639–683 ms | 302–341 ms |
+| Longest task per transition | 294–337 ms | 0–55 ms |
+| Frame interval p95 | 67–83 ms | 33–50 ms |
+| API reads over five page clicks | 6 including initial load | 3 including initial load and speculation |
+| Card action targets near the initial viewport | 700 | 250 |
+
+Without CPU slowdown, isolated runs reached 17ms frame p95, no long tasks and
+roughly 53–75ms to the incoming DOM. A separate run after scrolling through the
+whole grid retained only 225 action targets and reached 17ms frame p95 without
+long tasks. Its 4× CPU counterpart had a 68ms task and 33ms frame p95. Thus slow
+devices still have occasional frame-budget overruns; cache misses still incur
+network latency, and only eight next-page thumbnails are warmed. The changes
+reduce work rather than promise 60 FPS on all hardware.
+
+`PERF_VERIFY=1` additionally checks request reuse, bounded controls after a full
+scroll, all 100 lightbox/native targets, Tab access to deferred actions, lightbox
+opening/closing, mobile geometry, decoded visible thumbnails and hidden loading
+placeholders in dark theme. Unit tests cover cache expiry/eviction, deduplication,
+invalidation while reads are in flight, unfinished media, constrained connections,
+decode bounds/cleanup, stale page responses, mutation refresh and focus retention.
 
 ```bash
 npm run lint:fix

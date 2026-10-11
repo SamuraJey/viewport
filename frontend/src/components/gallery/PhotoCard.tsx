@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
   SquareCheck,
   Download,
@@ -16,6 +16,8 @@ import { canRotatePhoto, isRotationPending, normalizeRotation } from '../../lib/
 import { AppBadge } from '../ui/AppBadge';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
 import { formatDuration } from '../../lib/utils';
+import { observeViewportVisibility } from '../../lib/observeNearViewport';
+import { OwnerPhotoThumbnail } from './OwnerPhotoThumbnail';
 
 interface PhotoCardProps {
   photo: GalleryPhoto;
@@ -50,12 +52,19 @@ const PhotoCardComponent = ({
   onDownloadPhoto,
   onDeletePhoto,
 }: PhotoCardProps) => {
-  const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
-  const imageRef = useRef<HTMLImageElement | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [isNearViewport, setIsNearViewport] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const hasVisibleActions = isNearViewport || isFocused;
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    return observeViewportVisibility(card, setIsNearViewport);
+  }, []);
+  const src = previewUrl ?? photo.thumbnail_url;
   const areaRef = useRef<HTMLDivElement | null>(null);
   const [area, setArea] = useState({ width: 0, height: 0 });
-  const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
-  const src = previewUrl ?? photo.thumbnail_url;
+  const [naturalSize, setNaturalSize] = useState({ src, width: 0, height: 0 });
   const pending = isRotationPending(photo);
   const delta =
     pending && !previewUrl
@@ -76,8 +85,8 @@ const PhotoCardComponent = ({
   }, [delta]);
   let scale = 1;
   if (delta % 180 && area.width && area.height) {
-    const width = photo.width || naturalSize.width || 1;
-    const height = photo.height || naturalSize.height || 1;
+    const width = photo.width || (naturalSize.src === src ? naturalSize.width : 0) || 1;
+    const height = photo.height || (naturalSize.src === src ? naturalSize.height : 0) || 1;
     const fit = Math.min(area.width / width, area.height / height);
     scale = Math.min(area.width / (height * fit), area.height / (width * fit));
   }
@@ -85,17 +94,16 @@ const PhotoCardComponent = ({
     'bg-white/20 text-white enabled:hover:bg-white/40 focus-visible:outline-white';
   const cardButton = `flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white transition-colors @min-[300px]/photo:h-12 @min-[300px]/photo:w-12 @min-[400px]/photo:h-16 @min-[400px]/photo:w-16 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2`;
 
-  useEffect(() => {
-    const imageElement = imageRef.current;
-    if (imageElement?.complete) {
-      setImageState(imageElement.naturalWidth > 0 ? 'loaded' : 'error');
-      if (!photo.width || !photo.height)
-        setNaturalSize({ width: imageElement.naturalWidth, height: imageElement.naturalHeight });
-      return;
-    }
-
-    setImageState('loading');
-  }, [src, photo.width, photo.height]);
+  const captureNaturalSize = useCallback(
+    (width: number, height: number) => {
+      setNaturalSize((previous) =>
+        previous.src === src && previous.width === width && previous.height === height
+          ? previous
+          : { src, width, height },
+      );
+    },
+    [src],
+  );
 
   const handleDownload = (e: MouseEvent) => {
     e.stopPropagation();
@@ -109,6 +117,12 @@ const PhotoCardComponent = ({
 
   return (
     <div
+      ref={cardRef}
+      onFocusCapture={() => setIsFocused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setIsFocused(false);
+      }}
+      onPointerEnter={() => setIsNearViewport(true)}
       data-photo-card
       className={`owner-photo-card group @container/photo bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md focus-within:shadow-md ${
         isCover
@@ -211,57 +225,6 @@ const PhotoCardComponent = ({
             </div>
           )}
 
-        <div className="absolute inset-x-0 bottom-0 z-20 flex flex-wrap items-center justify-center gap-x-0 gap-y-2 bg-linear-to-t from-black/80 to-transparent px-0 pb-4 pt-6 opacity-100 @min-[260px]/photo:gap-x-1 @min-[260px]/photo:px-2 @min-[300px]/photo:gap-x-2 @min-[400px]/photo:gap-x-3.5 can-hover:opacity-0 can-hover:group-hover:opacity-100 can-hover:group-focus-within:opacity-100">
-          <button
-            type="button"
-            aria-label={isCover ? 'Remove cover' : 'Set as cover'}
-            title={isCover ? 'Remove cover' : 'Set as cover'}
-            aria-pressed={isCover}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (isCover) onClearCover();
-              else onSetCover(photo.id);
-            }}
-            className={`${cardButton} focus-visible:outline-amber-500 ${
-              isCover ? 'bg-amber-500/80 hover:bg-amber-500' : 'bg-white/20 hover:bg-amber-500/80'
-            }`}
-          >
-            <Star
-              className={`h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6 ${isCover ? 'fill-current' : ''}`}
-            />
-          </button>
-          {onRotatePhoto && (
-            <PhotoRotationButtons
-              disabled={!canRotatePhoto(photo)}
-              variant="card"
-              className={overlayButton}
-              onRotate={(direction) => onRotatePhoto(photo.id, direction)}
-            />
-          )}
-          <button
-            type="button"
-            aria-label="Download photo"
-            title={pending ? 'Rotation is saving' : 'Download photo'}
-            disabled={pending}
-            onClick={handleDownload}
-            className={`${cardButton} bg-white/20 enabled:hover:bg-green-500/80 focus-visible:outline-green-500`}
-          >
-            <Download className="h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6" />
-          </button>
-          <button
-            type="button"
-            aria-label="Delete photo"
-            title="Delete photo"
-            onClick={(event) => {
-              event.stopPropagation();
-              onDeletePhoto(photo.id);
-            }}
-            className={`${cardButton} bg-white/20 hover:bg-red-500/80 focus-visible:outline-red-500`}
-          >
-            <Trash2 className="h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6" />
-          </button>
-        </div>
-
         {/* Photo - takes full image area */}
         <button
           type="button"
@@ -280,50 +243,71 @@ const PhotoCardComponent = ({
               : 'Click to view'
           }
         >
-          {imageState === 'error' || photo.status === 'failed' ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-linear-to-br from-surface-1 via-surface to-surface-1/80 p-6 text-center dark:from-surface-dark-2 dark:via-surface-dark-1 dark:to-surface-dark-2">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border/50 bg-surface/80 text-muted shadow-inner dark:border-border/40 dark:bg-surface-dark-2/80">
-                {photo.media_type === 'video' ? (
-                  <VideoOff className="h-6 w-6" />
-                ) : (
-                  <ImageOff className="h-6 w-6" />
-                )}
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-text">Preview unavailable</p>
-                <p className="text-xs font-medium text-muted">Tap to open original</p>
-              </div>
-            </div>
-          ) : (
-            <img
-              ref={imageRef}
-              src={src}
-              alt={accessiblePhotoName}
-              className={`h-full w-full object-contain transition-opacity duration-300 ${
-                imageState === 'loaded' ? 'opacity-100' : 'opacity-0'
-              }`}
-              style={delta ? { transform: `rotate(${delta}deg) scale(${scale})` } : undefined}
-              loading="lazy"
-              decoding="async"
-              fetchPriority={index < 4 ? 'high' : 'auto'}
-              onLoad={(event) => {
-                setImageState('loaded');
-                if (!photo.width || !photo.height)
-                  setNaturalSize({
-                    width: event.currentTarget.naturalWidth,
-                    height: event.currentTarget.naturalHeight,
-                  });
-              }}
-              onError={() => setImageState('error')}
-            />
-          )}
-          {imageState === 'loading' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-linear-to-br from-surface-1/95 via-surface/95 to-surface-1/95 px-5 dark:from-surface-dark-2/95 dark:via-surface-dark-1/95 dark:to-surface-dark-2/95">
-              <div className="h-28 w-full max-w-48 animate-pulse rounded-2xl bg-surface-foreground/15 dark:bg-surface/25" />
-              <div className="h-2.5 w-24 animate-pulse rounded-full bg-surface-foreground/20 dark:bg-surface/30" />
-            </div>
-          )}
+          <OwnerPhotoThumbnail
+            key={src}
+            src={src}
+            alt={accessiblePhotoName}
+            index={index}
+            isVideo={photo.media_type === 'video'}
+            failed={photo.status === 'failed'}
+            transform={delta ? `rotate(${delta}deg) scale(${scale})` : undefined}
+            onNaturalSize={
+              delta % 180 && (!photo.width || !photo.height) ? captureNaturalSize : undefined
+            }
+          />
         </button>
+        {hasVisibleActions && (
+          <div className="absolute inset-x-0 bottom-0 z-20 flex flex-wrap items-center justify-center gap-x-0 gap-y-2 bg-linear-to-t from-black/80 to-transparent px-0 pb-4 pt-6 opacity-100 @min-[260px]/photo:gap-x-1 @min-[260px]/photo:px-2 @min-[300px]/photo:gap-x-2 @min-[400px]/photo:gap-x-3.5 can-hover:opacity-0 can-hover:group-hover:opacity-100 can-hover:group-focus-within:opacity-100">
+            <button
+              type="button"
+              aria-label={isCover ? 'Remove cover' : 'Set as cover'}
+              title={isCover ? 'Remove cover' : 'Set as cover'}
+              aria-pressed={isCover}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (isCover) onClearCover();
+                else onSetCover(photo.id);
+              }}
+              className={`${cardButton} focus-visible:outline-amber-500 ${
+                isCover ? 'bg-amber-500/80 hover:bg-amber-500' : 'bg-white/20 hover:bg-amber-500/80'
+              }`}
+            >
+              <Star
+                className={`h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6 ${isCover ? 'fill-current' : ''}`}
+              />
+            </button>
+            {onRotatePhoto && (
+              <PhotoRotationButtons
+                disabled={!canRotatePhoto(photo)}
+                variant="card"
+                className={overlayButton}
+                onRotate={(direction) => onRotatePhoto(photo.id, direction)}
+              />
+            )}
+            <button
+              type="button"
+              aria-label="Download photo"
+              title={pending ? 'Rotation is saving' : 'Download photo'}
+              disabled={pending}
+              onClick={handleDownload}
+              className={`${cardButton} bg-white/20 enabled:hover:bg-green-500/80 focus-visible:outline-green-500`}
+            >
+              <Download className="h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6" />
+            </button>
+            <button
+              type="button"
+              aria-label="Delete photo"
+              title="Delete photo"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDeletePhoto(photo.id);
+              }}
+              className={`${cardButton} bg-white/20 hover:bg-red-500/80 focus-visible:outline-red-500`}
+            >
+              <Trash2 className="h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Caption below the image */}

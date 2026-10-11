@@ -125,6 +125,99 @@ describe('useGalleryActions', () => {
       },
     );
 
+  it('ignores late responses from an earlier page and keeps the newest loading state', async () => {
+    let resolveFirst!: (data: GalleryDetail) => void;
+    vi.mocked(galleryService.getGallery)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+      )
+      .mockResolvedValueOnce({ ...baseGallery, photos: [photos[1]] });
+    const { result } = renderUseGalleryActions();
+    let first!: Promise<void>;
+    act(() => {
+      first = result.current.fetchGalleryDetails(1, true, true);
+    });
+    await act(async () => {
+      await result.current.fetchGalleryDetails(2, false, true);
+    });
+    expect(result.current.photoUrls).toEqual([photos[1]]);
+    expect(result.current.isInitialLoading).toBe(false);
+    await act(async () => {
+      resolveFirst(baseGallery);
+      await first;
+    });
+    expect(result.current.photoUrls).toEqual([photos[1]]);
+    expect(result.current.isLoadingPhotos).toBe(false);
+  });
+
+  it('invalidates cached pages after rename and upload, and reuses them between page clicks', async () => {
+    const { result } = renderUseGalleryActions();
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, true, true);
+    });
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, false, true);
+    });
+    expect(galleryService.getGallery).toHaveBeenCalledTimes(1);
+    act(() => result.current.handleRenamePhoto('photo-1', 'photo-1.jpg'));
+    vi.mocked(photoService.renamePhoto).mockResolvedValue({
+      ...photos[0],
+      filename: 'renamed.jpg',
+      gallery_id: 'gallery-1',
+      media_type: 'image',
+      status: 'successful',
+    });
+    await act(async () => {
+      await result.current.handleRenameConfirm('renamed.jpg');
+    });
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, false, true);
+    });
+    expect(galleryService.getGallery).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await result.current.handleUploadComplete({
+        total_files: 1,
+        successful_uploads: 1,
+        failed_uploads: 0,
+        results: [],
+      });
+    });
+    expect(galleryService.getGallery).toHaveBeenCalledTimes(3);
+  });
+
+  it('retries a read invalidated by a cover write instead of restoring the previous cover', async () => {
+    const { result } = renderUseGalleryActions();
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, true, true);
+    });
+    let resolveRead!: (data: GalleryDetail) => void;
+    const updated = { ...baseGallery, cover_photo_id: 'photo-2' };
+    vi.mocked(galleryService.getGallery)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        }),
+      )
+      .mockResolvedValue(updated);
+    vi.mocked(galleryService.setCoverPhoto).mockResolvedValue(updated);
+    let refresh!: Promise<void>;
+    act(() => {
+      refresh = result.current.fetchGalleryDetails(1);
+    });
+    await act(async () => {
+      await result.current.handleSetCover('photo-2');
+    });
+    await act(async () => {
+      resolveRead(baseGallery);
+      await refresh;
+    });
+    expect(result.current.gallery?.cover_photo_id).toBe('photo-2');
+    expect(result.current.isLoadingPhotos).toBe(false);
+    expect(galleryService.getGallery).toHaveBeenCalledTimes(3);
+  });
+
   it('keeps the returned cover thumbnail when setting a cover photo', async () => {
     const updatedGallery: Gallery = {
       ...baseGallery,

@@ -1,20 +1,37 @@
-// One observer for all upload cards, rather than one native observer per file.
-const callbacks = new Map<Element, () => void>();
+// Share a native observer between upload previews and owner-card controls.
+const callbacks = new Map<Element, { callback: (visible: boolean) => void; once: boolean }>();
 let observer: IntersectionObserver | null = null;
 
 export function observeNearViewport(element: Element, onVisible: () => void): () => void {
+  return observeVisibility(element, onVisible, true);
+}
+
+export function observeViewportVisibility(
+  element: Element,
+  onChange: (visible: boolean) => void,
+): () => void {
+  return observeVisibility(element, onChange, false);
+}
+
+function observeVisibility(
+  element: Element,
+  callback: (visible: boolean) => void,
+  once: boolean,
+): () => void {
   if (typeof IntersectionObserver === 'undefined') {
-    onVisible();
+    callback(true);
     return () => {};
   }
   observer ??= new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const callback = callbacks.get(entry.target);
-        callbacks.delete(entry.target);
-        observer?.unobserve(entry.target);
-        callback?.();
+        const registration = callbacks.get(entry.target);
+        if (!registration || (registration.once && !entry.isIntersecting)) continue;
+        if (registration.once) {
+          callbacks.delete(entry.target);
+          observer?.unobserve(entry.target);
+        }
+        registration.callback(entry.isIntersecting);
       }
       if (!callbacks.size) {
         observer?.disconnect();
@@ -23,7 +40,7 @@ export function observeNearViewport(element: Element, onVisible: () => void): ()
     },
     { rootMargin: '120px' },
   );
-  callbacks.set(element, onVisible);
+  callbacks.set(element, { callback, once });
   observer.observe(element);
   return () => {
     callbacks.delete(element);

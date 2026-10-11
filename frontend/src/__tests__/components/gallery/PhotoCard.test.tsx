@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { PhotoCard } from '../../../components/gallery/PhotoCard';
@@ -20,13 +20,14 @@ const createPhoto = (overrides: Partial<GalleryPhoto> = {}): GalleryPhoto => ({
 describe('PhotoCard', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('shows cached thumbnail when image is already complete', async () => {
     vi.spyOn(HTMLImageElement.prototype, 'complete', 'get').mockReturnValue(true);
     vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(1200);
 
-    const { container } = render(
+    render(
       <PhotoCard
         photo={createPhoto()}
         index={0}
@@ -45,11 +46,8 @@ describe('PhotoCard', () => {
 
     const image = screen.getByRole('img', { name: 'photo.jpg' });
 
-    await waitFor(() => {
-      expect(image).toHaveClass('opacity-100');
-    });
-
-    expect(container.querySelector('.animate-pulse')).not.toBeInTheDocument();
+    expect(image).toHaveAttribute('data-loaded', 'true');
+    expect(image).toHaveClass('data-[loaded=true]:opacity-100');
   });
 
   const callbacks = () => ({
@@ -65,6 +63,55 @@ describe('PhotoCard', () => {
     onDownloadPhoto: vi.fn(),
     onDeletePhoto: vi.fn(),
     onRotatePhoto: vi.fn(),
+  });
+
+  it('reuses a grid slot without retaining a failed image or the previous actions', async () => {
+    const actions = { ...callbacks(), isSelectionMode: false };
+    const { rerender } = render(<PhotoCard photo={createPhoto()} {...actions} />);
+    expect(document.querySelector('.owner-photo-placeholder')).toBeInTheDocument();
+    fireEvent.error(screen.getByRole('img'));
+    expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
+    expect(document.querySelector('.owner-photo-placeholder')).not.toBeInTheDocument();
+    const next = createPhoto({ id: 'next', filename: 'next.jpg', thumbnail_url: '/next.jpg' });
+    rerender(<PhotoCard photo={next} {...actions} />);
+    const image = screen.getByRole('img', { name: 'next.jpg' });
+    expect(image).not.toHaveAttribute('data-loaded');
+    fireEvent.load(image);
+    expect(image).toHaveAttribute('data-loaded', 'true');
+    expect(screen.queryByText('Preview unavailable')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete photo' }));
+    expect(actions.onDeletePhoto).toHaveBeenCalledExactlyOnceWith('next');
+    rerender(<PhotoCard photo={createPhoto()} {...actions} />);
+    expect(screen.getByRole('img', { name: 'photo.jpg' })).toBeInTheDocument();
+  });
+
+  it('defers offscreen actions and keeps focused actions available after scrolling away', async () => {
+    let visibility!: (entries: IntersectionObserverEntry[]) => void;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: typeof visibility) {
+          visibility = callback;
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    const { container } = render(<PhotoCard photo={createPhoto()} {...callbacks()} />);
+    const card = container.querySelector('[data-photo-card]')!;
+    expect(screen.queryByRole('button', { name: 'Delete photo' })).not.toBeInTheDocument();
+    act(() => visibility([{ target: card, isIntersecting: true } as IntersectionObserverEntry]));
+    const download = screen.getByRole('button', { name: 'Download photo' });
+    act(() => download.focus());
+    act(() => visibility([{ target: card, isIntersecting: false } as IntersectionObserverEntry]));
+    expect(download).toHaveFocus();
+    expect(download).toBeInTheDocument();
+    act(() => download.blur());
+    expect(screen.queryByRole('button', { name: 'Download photo' })).not.toBeInTheDocument();
+    act(() => screen.getByRole('button', { name: 'photo.jpg', exact: true }).focus());
+    await userEvent.tab();
+    expect(screen.getByRole('button', { name: 'Set as cover' })).toHaveFocus();
   });
 
   it('turns a selected image without changing selection or opening it', async () => {
