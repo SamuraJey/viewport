@@ -1381,12 +1381,6 @@ def test_public_share_route_inventory_is_explicitly_covered(app_client: TestClie
     }
     # FastAPI >= 0.137 keeps included routers as internal objects in app.routes,
     # so the stable public surface to assert against is the OpenAPI schema.
-    public_routes = {
-        (method.upper(), path)
-        for path, methods in app.openapi()["paths"].items()
-        if path.startswith("/s/{share_id}")
-        for method in methods
-        if method.upper() != "HEAD"
-    }
+    public_routes = {(method.upper(), path) for path, methods in app.openapi()["paths"].items() if path.startswith("/s/{share_id}") for method in methods if method.upper() != "HEAD"}
 
     assert public_routes == expected_routes

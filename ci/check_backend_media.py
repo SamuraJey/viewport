@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import wave
 from pathlib import Path
+from typing import cast
 
 import pyvips
 
@@ -18,7 +19,7 @@ def run(*args: str) -> str:
 
 
 def probe(path: Path) -> list[dict]:
-    return json.loads(run("ffprobe", "-v", "error", "-show_streams", "-of", "json", str(path)))["streams"]
+    return cast(list[dict], json.loads(run("ffprobe", "-v", "error", "-show_streams", "-of", "json", str(path)))["streams"])
 
 
 assert pyvips.API_mode
