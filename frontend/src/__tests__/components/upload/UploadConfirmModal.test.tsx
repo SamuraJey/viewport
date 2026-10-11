@@ -169,6 +169,57 @@ describe('UploadConfirmModal', () => {
     expect(screen.getByText('success.jpg')).toBeInTheDocument();
   });
 
+  it('shows failures once in the queue while preserving summary counts and retries', async () => {
+    const user = userEvent.setup();
+    const files = ['success.jpg', 'failed.jpg'].map(
+      (name) => new File(['image'], name, { type: 'image/jpeg' }),
+    );
+    const handleRetryFile = vi.fn();
+    vi.mocked(usePhotoUpload).mockReturnValue(
+      idleUpload({
+        result: {
+          results: [
+            { filename: files[0].name, success: true },
+            { filename: files[1].name, success: false, error: 'Network interrupted' },
+          ],
+          total_files: 2,
+          successful_uploads: 1,
+          failed_uploads: 1,
+        },
+        jobs: files.map((file, index) => ({
+          id: `job-${index}`,
+          file,
+          filename: file.name,
+          status: index === 0 ? 'success' : 'failed',
+          progress: index === 0 ? 100 : 0,
+          error: index === 0 ? undefined : 'Network interrupted',
+          retryable: true,
+        })),
+        handleRetryFile,
+      }) as ReturnType<typeof usePhotoUpload>,
+    );
+    render(
+      <UploadConfirmModal
+        isOpen
+        onClose={vi.fn()}
+        files={files}
+        galleryId="gallery-1"
+        onUploadComplete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('1 successful • 1 failed')).toBeInTheDocument();
+    expect(screen.queryByText('Failed uploads:')).not.toBeInTheDocument();
+    expect(screen.getAllByText('failed.jpg')).toHaveLength(1);
+    expect(screen.getAllByText('Network interrupted')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Failed uploads (1)' }));
+    expect(screen.queryByText('success.jpg')).not.toBeInTheDocument();
+    expect(screen.getByText('Network interrupted')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry failed.jpg' }));
+    expect(handleRetryFile).toHaveBeenCalledWith('job-1');
+  });
+
   it('can resize after a mounted modal closes and reopens', async () => {
     const user = userEvent.setup();
     const largeFile = new File(['image'], 'large.jpg', { type: 'image/jpeg' });

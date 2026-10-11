@@ -1,4 +1,4 @@
-import { TriangleAlert, CircleCheck, CircleX } from 'lucide-react';
+import { TriangleAlert, CircleCheck } from 'lucide-react';
 import type { PhotoUploadResponse } from '../../types';
 
 interface UploadResultContentProps {
@@ -6,8 +6,6 @@ interface UploadResultContentProps {
 }
 
 export const UploadResultContent = ({ result }: UploadResultContentProps) => {
-  const failedResults = result.results.filter((item) => !item.success);
-
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4 p-5 rounded-xl bg-linear-to-r from-green-50 to-green-50/50 dark:from-green-500/10 dark:to-green-500/5 border border-green-200 dark:border-green-500/20 shadow-xs">
@@ -59,26 +57,6 @@ export const UploadResultContent = ({ result }: UploadResultContentProps) => {
           </p>
         </div>
       </div>
-
-      {failedResults.length > 0 && (
-        <div className="space-y-3 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
-          <p className="text-sm font-semibold text-text">Failed uploads:</p>
-          {failedResults.map((failedResult, index) => (
-            <div
-              key={`${failedResult.filename}-${index}`}
-              className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-500/10 rounded-xl border border-red-200 dark:border-red-500/20"
-            >
-              <CircleX className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-text">{failedResult.filename}</p>
-                <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
-                  {failedResult.error}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 };

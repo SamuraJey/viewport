@@ -766,6 +766,9 @@ class GalleryRepository(BaseRepository):
         now = datetime.now(UTC)
         for data in photos_data:
             data["uploaded_at"] = now
+            # Multi-row VALUES uses the first row's columns. Include this on
+            # images too so mixed batches retain video multipart upload IDs.
+            data.setdefault("multipart_upload_id", None)
             if not data.get("display_name"):
                 object_key = str(data.get("object_key", ""))
                 data["display_name"] = object_key.split("/", 1)[1] if "/" in object_key else object_key

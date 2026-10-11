@@ -320,6 +320,8 @@ Backend suite is not required since the server contract is unchanged.
 ## Failed uploads and retries
 
 The review queue has **All files** and **Failed uploads** filters with counts.
+The completion summary shows counts only; error details and retry buttons live
+in the queue, without a separate scrolling error list.
 The failure view keeps queued and active retries visible until they succeed,
 so it also shows the progress of files being retried. Validation errors remain
 visible but cannot be retried until corrected.
