@@ -21,6 +21,99 @@ const createdLink: ShareLink = {
 };
 
 describe('ShareLinkSettingsModal', () => {
+  it('shows and hides a new password by keyboard without changing it or submitting', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn().mockResolvedValue(createdLink);
+    render(<ShareLinkSettingsModal isOpen mode="create" onClose={vi.fn()} onCreate={onCreate} />);
+
+    await user.click(screen.getByRole('button', { name: /require password/i }));
+    const input = screen.getByLabelText('New share password');
+    await user.type(input, 'Client-password-123');
+    expect(input).toHaveAttribute('type', 'password');
+
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Show password' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(input).toHaveAttribute('type', 'text');
+    expect(input).toHaveValue('Client-password-123');
+    expect(screen.getByRole('button', { name: 'Hide password' })).toHaveFocus();
+
+    await user.keyboard(' ');
+    expect(input).toHaveAttribute('type', 'password');
+    expect(input).toHaveValue('Client-password-123');
+    expect(onCreate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /create link/i }));
+    await waitFor(() =>
+      expect(onCreate).toHaveBeenCalledWith({
+        label: null,
+        is_active: true,
+        expires_at: null,
+        password: 'Client-password-123',
+      }),
+    );
+  });
+
+  it('hides the password again after changing password protection', async () => {
+    const user = userEvent.setup();
+    render(
+      <ShareLinkSettingsModal
+        isOpen
+        mode="create"
+        onClose={vi.fn()}
+        onCreate={vi.fn().mockResolvedValue(createdLink)}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /require password/i }));
+    await user.click(screen.getByRole('button', { name: 'Show password' }));
+    expect(screen.getByLabelText('New share password')).toHaveAttribute('type', 'text');
+    await user.click(screen.getByRole('button', { name: /no password/i }));
+    expect(screen.queryByLabelText('New share password')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /require password/i }));
+    expect(screen.getByLabelText('New share password')).toHaveAttribute('type', 'password');
+    expect(screen.getByRole('button', { name: 'Show password' })).toBeInTheDocument();
+  });
+
+  it('allows showing a replacement password and disables the toggle while saving', async () => {
+    const user = userEvent.setup();
+    let finishSave!: () => void;
+    const onSave = vi.fn().mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve;
+        }),
+    );
+    const onClose = vi.fn();
+    render(
+      <ShareLinkSettingsModal
+        isOpen
+        mode="edit"
+        link={{ ...createdLink, has_password: true }}
+        onClose={onClose}
+        onSave={onSave}
+      />,
+    );
+
+    await user.click(screen.getByRole('tab', { name: /access/i }));
+    await user.click(screen.getByRole('button', { name: /replace password/i }));
+    const input = screen.getByLabelText('New share password');
+    expect(input).toHaveAttribute('type', 'password');
+    await user.type(input, 'Replacement-password-123');
+    await user.click(screen.getByRole('button', { name: 'Show password' }));
+    expect(input).toHaveAttribute('type', 'text');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    expect(input).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Hide password' })).toBeDisabled();
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        password: 'Replacement-password-123',
+      }),
+    );
+    finishSave();
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
+
   it('renders setup content in order before creating a link', async () => {
     render(
       <ShareLinkSettingsModal

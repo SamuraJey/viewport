@@ -2,6 +2,8 @@
 
 Viewport share links can be optionally password-protected for both gallery and project shares. The photographer shares the normal public URL and sends the password through a separate channel.
 
+In share-link settings, the **New share password** field starts hidden. Use the eye button to show or hide the password while creating or replacing it. Changing the password protection option hides the field again.
+
 ## Owner behavior
 
 - Share-link create/update APIs accept a write-only `password` field.
