@@ -55,7 +55,10 @@ intact, as do all declared Python dependencies.
 
 Compilation uses four jobs by default; set `--build-arg FFMPEG_BUILD_JOBS=2`
 and `--build-arg VIPS_BUILD_JOBS=2` for a smaller builder. Cold builds take longer; the compiled stages are cached
-independently of application code and Python dependency changes. Rebuild with
+independently of application code and Python dependency changes. FFmpeg releases
+the apt cache mounts before compilation, so other build stages do not wait on
+its package-manager locks. CI builds runtime and test targets with one builder
+and seeds their shared cache from pushes to `main`; see [backend-ci.md](backend-ci.md). Rebuild with
 `--pull --no-cache` to pick up base image and Debian source/security updates.
 
 ## Verification and size measurements

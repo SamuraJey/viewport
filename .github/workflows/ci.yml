@@ -3,6 +3,8 @@ name: CI
 on:
   pull_request:
     branches: ["**"]
+  push:
+    branches: ["main"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -43,51 +45,10 @@ jobs:
               - 'frontend/**'
               - 'Dockerfile.frontend'
 
-  build-backend-image:
-    name: Build Backend Docker Image
-    runs-on: ubuntu-latest
-    # Cold builds compile FFmpeg/libvips and export intermediate build caches.
-    timeout-minutes: 20
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.backend == 'true' }}
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7.0.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4.2.0
-
-      - name: Restore uv package cache for Docker
-        uses: actions/cache@v5
-        with:
-          path: .uv-docker-cache
-          key: ${{ runner.os }}-docker-uv-cache-${{ hashFiles('uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-docker-uv-cache-
-
-      - name: Inject uv cache into Docker build
-        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
-        with:
-          cache-map: |
-            {".uv-docker-cache": "/root/.cache/uv"}
-
-      - name: Build backend image
-        uses: docker/build-push-action@v7.3.0
-        with:
-          context: .
-          file: ./Dockerfile.backend
-          target: runtime
-          push: false
-          github-token: ${{ github.token }}
-          cache-from: |
-            type=gha,scope=backend-image,ignore-error=true
-            type=gha,scope=backend-tests,ignore-error=true
-          cache-to: type=gha,mode=max,scope=backend-image,ignore-error=true
   python-tests:
-    name: Python Tests in Docker (coverage >= 75%)
+    name: Backend Images and Python Tests (coverage >= 75%)
     runs-on: ubuntu-latest
-    # Allow native compilation plus Testcontainers, pytest and report collection.
+    # One builder shares native stages between runtime and test targets.
     timeout-minutes: 30
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
@@ -117,6 +78,20 @@ jobs:
           cache-map: |
             {".uv-docker-test-cache": "/root/.cache/uv"}
 
+      # Validate the production target first; the test build reuses its native stages.
+      - name: Build backend image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile.backend
+          target: runtime
+          push: false
+          github-token: ${{ github.token }}
+          cache-from: |
+            type=gha,scope=backend,ignore-error=true
+            type=gha,scope=backend-tests,ignore-error=true
+            type=gha,scope=backend-image,ignore-error=true
+
       - name: Build test image
         uses: docker/build-push-action@v7.3.0
         with:
@@ -128,9 +103,10 @@ jobs:
           push: false
           github-token: ${{ github.token }}
           cache-from: |
+            type=gha,scope=backend,ignore-error=true
             type=gha,scope=backend-tests,ignore-error=true
             type=gha,scope=backend-image,ignore-error=true
-          cache-to: type=gha,mode=max,scope=backend-tests,ignore-error=true
+          cache-to: type=gha,mode=max,scope=backend,ignore-error=true
 
       - name: Run tests with coverage
         id: tests
@@ -158,7 +134,7 @@ jobs:
           done
 
       - name: Comment coverage on PR (non-blocking)
-        if: ${{ always() && hashFiles('coverage.xml') != '' }}
+        if: ${{ always() && github.event_name == 'pull_request' && hashFiles('coverage.xml') != '' }}
         continue-on-error: true
         uses: py-cov-action/python-coverage-comment-action@v4.1
         with:
