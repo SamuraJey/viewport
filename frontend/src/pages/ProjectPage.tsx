@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   CalendarDays,
   FolderPlus,
+  FolderUp,
   HardDrive,
   ImageIcon,
   Link2,
@@ -914,6 +915,21 @@ export const ProjectPage = () => {
               <FolderPlus className="h-4 w-4" />
               Add gallery
             </button>
+            {folderPickerSupported && project.galleries.length > 0 && (
+              <button
+                type="button"
+                onClick={() => folderInputRef.current?.click()}
+                disabled={isUploadingFolder}
+                className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+              >
+                {isUploadingFolder ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FolderUp className="h-4 w-4" />
+                )}
+                {isUploadingFolder ? 'Creating gallery…' : 'Upload folder'}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setIsShareLinkCreateOpen(true)}

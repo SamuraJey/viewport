@@ -1,8 +1,8 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { StrictMode } from 'react';
-import { PhotoUploader } from '../../components/PhotoUploader';
+import { createRef, StrictMode } from 'react';
+import { PhotoUploader, type PhotoUploaderHandle } from '../../components/PhotoUploader';
 import { GalleryDropZone } from '../../components/gallery/GalleryDropZone';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_VIDEO_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import { resizeImageForUpload } from '../../lib/imageResize';
@@ -88,6 +88,68 @@ describe('PhotoUploader', () => {
     // 1 call per file: for the thumbnail blob URL
     expect(URL.createObjectURL).toHaveBeenCalled();
   });
+
+  it.each(['page', 'review'])(
+    'stages all photos dropped onto the %s before event access expires',
+    async (surface) => {
+      const uploaderRef = createRef<PhotoUploaderHandle>();
+      const droppedFiles = ['first-drop.jpg', 'second-drop.jpg', 'third-drop.jpg'].map(
+        (name) => new File(['image'], name, { type: 'image/jpeg' }),
+      );
+      render(
+        <GalleryDropZone
+          onFilesAccepted={(files) => uploaderRef.current?.handleExternalFiles(files)}
+        >
+          <main>Gallery surface</main>
+          <PhotoUploader
+            ref={uploaderRef}
+            galleryId="test-gallery"
+            onUploadComplete={mockOnUploadComplete}
+            showDropzone={false}
+          />
+        </GalleryDropZone>,
+      );
+      if (surface === 'review') {
+        await userEvent.setup().upload(
+          screen
+            .getAllByLabelText('Choose photos or videos to upload')
+            .find((input) => input.classList.contains('hidden'))!,
+          new File(['existing'], 'existing.jpg', { type: 'image/jpeg' }),
+        );
+        await screen.findByText('existing.jpg');
+      }
+
+      let readable = true;
+      const items = droppedFiles.map((file) => {
+        const entry = {
+          isFile: true,
+          isDirectory: false,
+          fullPath: `/${file.name}`,
+          file: (success: (file: File) => void) => queueMicrotask(() => success(file)),
+        };
+        return {
+          kind: 'file',
+          type: file.type,
+          getAsFile: () => (readable ? file : null),
+          webkitGetAsEntry: () => (readable ? entry : null),
+        };
+      });
+      fireEvent.drop(
+        surface === 'review'
+          ? screen.getByRole('heading', { name: /review files/i })
+          : screen.getByText('Gallery surface'),
+        { dataTransfer: { files: droppedFiles, items, types: ['Files'] } },
+      );
+      readable = false;
+
+      await waitFor(() => {
+        for (const file of droppedFiles) {
+          expect(screen.getByText(file.name)).toBeInTheDocument();
+        }
+      });
+      expect(Boolean(screen.queryByText('existing.jpg'))).toBe(surface === 'review');
+    },
+  );
 
   it('should revoke preview URL when a selected file is removed', async () => {
     const user = userEvent.setup();
