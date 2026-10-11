@@ -22,6 +22,11 @@ and total through `aria-posinset` and `aria-setsize`. Unmounted items become
 available as the viewport moves; retained neighboring rows support sequential
 Tab navigation.
 
+Responsive column regrouping captures the focused file ID and control identity
+before rows are replaced and restores that control after commit, without
+scrolling. Reorder, remove, resize and retry controls have stable identifiers;
+restoration does not take focus from another element the user has selected.
+
 One shared intersection observer requests previews only near the viewport. A
 global two-slot scheduler bounds simultaneous decode/encode work. Supported
 browsers run `createImageBitmap` and `OffscreenCanvas` in module workers.
@@ -61,6 +66,11 @@ and lightbox scroll-to-photo. Intrinsic heights match the existing image and
 caption breakpoints; rendered cards remember their actual heights. See
 [MDN content visibility](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/content-visibility).
 
+Intrinsic fallback sizes use rem-based image height and caption padding, with
+the caption target and inner border accounted for separately. Readability mode's
+fixed 44px button minimum is included, so newly skipped cards reserve the correct
+height at 100%, 125% and 150% font scales rather than expanding when revealed.
+
 Cards attach a size observer only while a quarter-turn preview needs fitting.
 Measurements use ResizeObserver entries rather than synchronous client-size
 reads on every card. Loaded cards remain mounted during revalidation; the
@@ -68,6 +78,11 @@ labeled skeleton is used when there are no loaded photos. The gallery route's
 existing 220ms initial reveal remains in place.
 
 ### Owner page navigation
+
+Photo pagination appears above and below the owner grid when there is more than
+one page. Both controls use the same URL-synced pagination state and loading
+lock, with distinct navigation labels for assistive technology. The upper
+controls sit after the selection bar and before the photos on desktop and mobile.
 
 Owner pagination retains all 100 native photo targets but reuses the grid's
 fixed positional slots. Every photo prop and callback changes with the incoming
@@ -102,6 +117,11 @@ images. Explicit refresh/retry bypasses cached results. Nothing is stored in
 Web Storage, and changes from another client can remain cached for at most 30
 seconds. Page publication uses a React transition while the existing grid
 remains available during loading.
+
+Rotation refresh reuses this publication/error path silently: it publishes the
+total and shooting date with the photos and releases loading inherited from a
+superseded foreground request on success or failure. An obsolete failure cannot
+clear a newer request's loading state or report an error for that request.
 
 The implementation follows the native
 [image decode lifecycle](https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement/decode)

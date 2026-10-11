@@ -193,6 +193,15 @@ const GalleryPhotoSectionComponent = ({
         onDeleteMultiple={actions.onDeleteMultiplePhotos}
       />
 
+      {pagination.totalPages > 1 && (
+        <nav
+          aria-label="Photo pagination above grid"
+          className="border-b border-border/35 dark:border-border/25"
+        >
+          <PaginationControls pagination={pagination} isLoading={state.isLoadingPhotos} />
+        </nav>
+      )}
+
       {shouldShowGridSkeleton ? (
         <GalleryPhotoGridSkeleton page={pagination.page} />
       ) : state.photoUrls.length > 0 ? (
@@ -246,9 +255,12 @@ const GalleryPhotoSectionComponent = ({
       )}
 
       {pagination.totalPages > 1 && (
-        <div className="mt-6 border-t border-border/35 pt-4 dark:border-border/25">
+        <nav
+          aria-label="Photo pagination below grid"
+          className="mt-6 border-t border-border/35 pt-4 dark:border-border/25"
+        >
           <PaginationControls pagination={pagination} isLoading={state.isLoadingPhotos} />
-        </div>
+        </nav>
       )}
     </section>
   );

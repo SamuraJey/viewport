@@ -157,6 +157,7 @@ export const UploadQueueItem = memo(function UploadQueueItem({
           className="absolute left-2 top-2 z-20 inline-flex h-10 w-10 touch-none cursor-grab items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-black/80 focus:cursor-grabbing focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-35"
           aria-label={`Reorder ${displayedName}, position ${index + 1} of ${totalCount}`}
           title="Drag or use the keyboard to reorder"
+          data-upload-control="reorder"
         >
           <GripVertical className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -167,6 +168,7 @@ export const UploadQueueItem = memo(function UploadQueueItem({
           disabled={actionsDisabled}
           className="absolute right-2 top-2 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-danger focus:outline-none focus-visible:ring-[3px] focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-35"
           aria-label={`Remove ${displayedName}`}
+          data-upload-control="remove"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -250,6 +252,7 @@ export const UploadQueueItem = memo(function UploadQueueItem({
                 disabled={actionsDisabled || isResizing}
                 className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold text-accent transition-colors hover:bg-accent/10 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-45"
                 aria-label={`Resize ${displayedName} to fit size limit`}
+                data-upload-control="resize"
               >
                 {isResizing ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -266,6 +269,7 @@ export const UploadQueueItem = memo(function UploadQueueItem({
                 disabled={retryDisabled}
                 className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold text-accent transition-colors hover:bg-accent/10 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-45"
                 aria-label={`Retry ${displayedName}`}
+                data-upload-control="retry"
               >
                 <RotateCw className="h-4 w-4" aria-hidden="true" />
                 <span>Retry</span>

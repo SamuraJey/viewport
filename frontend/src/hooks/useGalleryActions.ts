@@ -134,18 +134,6 @@ export const useGalleryActions = ({
     [pageCache],
   );
 
-  const refreshAfterRotation = useCallback(async () => {
-    pageCache.clear();
-    const request = ++requestSequence.current;
-    const updated = await loadCurrentPage(page, request);
-    if (!updated) return;
-    latestGalleryRef.current = updated;
-    setGallery(updated);
-    setPhotoUrls(updated.photos);
-    setIsInitialLoading(false);
-    setIsLoadingPhotos(false);
-  }, [pageCache, page, loadCurrentPage]);
-
   const fetchShareLinks = useCallback(
     async (isInitial = true) => {
       if (isInitial) {
@@ -181,13 +169,15 @@ export const useGalleryActions = ({
   );
 
   const fetchGalleryDetails = useCallback(
-    async (page: number, isInitial = false, useCache = false) => {
+    async (page: number, isInitial = false, useCache = false, { silent = false } = {}) => {
       if (!useCache) pageCache.clear();
       const request = ++requestSequence.current;
-      if (isInitial) {
-        setIsInitialLoading(true);
-      } else {
-        setIsLoadingPhotos(true);
+      if (!silent) {
+        if (isInitial) {
+          setIsInitialLoading(true);
+        } else {
+          setIsLoadingPhotos(true);
+        }
       }
       clearError();
       try {
@@ -211,11 +201,8 @@ export const useGalleryActions = ({
       } catch (err) {
         if (request !== requestSequence.current) return;
         handleError(err);
-        if (isInitial) {
-          setIsInitialLoading(false);
-        } else {
-          setIsLoadingPhotos(false);
-        }
+        setIsInitialLoading(false);
+        setIsLoadingPhotos(false);
       }
     },
     [
@@ -228,6 +215,11 @@ export const useGalleryActions = ({
       fetchShareLinks,
       loadCurrentPage,
     ],
+  );
+
+  const refreshAfterRotation = useCallback(
+    () => fetchGalleryDetails(page, false, false, { silent: true }),
+    [page, fetchGalleryDetails],
   );
 
   const handleUploadComplete = async (result: PhotoUploadResponse) => {

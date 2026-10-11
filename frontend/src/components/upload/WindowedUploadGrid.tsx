@@ -27,6 +27,10 @@ export function WindowedUploadGrid({
   const measurements = useRef(new Map<number, RowSize>());
   const frame = useRef<number | null>(null);
   const observer = useRef<ResizeObserver | null>(null);
+  const committedColumns = useRef(2);
+  const regroupFocus = useRef<{ jobId: string; control: string; element: HTMLElement } | null>(
+    null,
+  );
   const [geometry, setGeometry] = useState({
     columns: 2,
     width: 0,
@@ -41,6 +45,18 @@ export function WindowedUploadGrid({
     const rect = element.getBoundingClientRect();
     const template = getComputedStyle(element).gridTemplateColumns;
     const columns = template && template !== 'none' ? template.split(' ').length : 2;
+    if (columns !== committedColumns.current) {
+      const active = document.activeElement;
+      const control = active instanceof HTMLElement ? active.dataset.uploadControl : undefined;
+      const jobId =
+        active instanceof HTMLElement
+          ? active.closest<HTMLElement>('[data-upload-job]')?.dataset.uploadJob
+          : undefined;
+      regroupFocus.current =
+        control && jobId && element.contains(active)
+          ? { jobId, control, element: active as HTMLElement }
+          : null;
+    }
     let parent = element.parentElement;
     while (parent && !/(auto|scroll)/.test(getComputedStyle(parent).overflowY))
       parent = parent.parentElement;
@@ -58,6 +74,24 @@ export function WindowedUploadGrid({
   const schedule = useCallback(() => {
     if (frame.current === null) frame.current = requestAnimationFrame(measure);
   }, [measure]);
+
+  useLayoutEffect(() => {
+    committedColumns.current = geometry.columns;
+    const saved = regroupFocus.current;
+    regroupFocus.current = null;
+    if (
+      !saved ||
+      (document.activeElement !== document.body && document.activeElement !== saved.element)
+    )
+      return;
+    const card = [...(root.current?.querySelectorAll<HTMLElement>('[data-upload-job]') ?? [])].find(
+      (node) => node.dataset.uploadJob === saved.jobId,
+    );
+    const control = [...(card?.querySelectorAll<HTMLElement>('[data-upload-control]') ?? [])].find(
+      (node) => node.dataset.uploadControl === saved.control,
+    );
+    control?.focus({ preventScroll: true });
+  }, [geometry.columns]);
 
   useLayoutEffect(() => {
     const element = root.current;

@@ -152,6 +152,134 @@ describe('useGalleryActions', () => {
     expect(result.current.isLoadingPhotos).toBe(false);
   });
 
+  it('publishes the unfiltered total when a rotation refresh supersedes clearing search', async () => {
+    const setTotal = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ search }: { search?: string }) =>
+        useGalleryActions({
+          galleryId: 'gallery-1',
+          filters: { search, sort_by: 'original_filename', order: 'asc' },
+          pagination: { page: 1, pageSize: 100, setTotal },
+        }),
+      {
+        initialProps: { search: 'photo' },
+        wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter>,
+      },
+    );
+    const filtered = { ...baseGallery, total_photos: 5 };
+    vi.mocked(galleryService.getGallery).mockResolvedValueOnce(filtered);
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, true);
+    });
+    expect(setTotal).toHaveBeenLastCalledWith(5);
+    rerender({ search: undefined });
+    let resolveForeground!: (data: GalleryDetail) => void;
+    const unfiltered = { ...baseGallery, total_photos: 300, shooting_date: '2026-03-02' };
+    vi.mocked(galleryService.getGallery)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveForeground = resolve;
+        }),
+      )
+      .mockResolvedValueOnce(unfiltered);
+    let foreground!: Promise<void>;
+    act(() => {
+      foreground = result.current.fetchGalleryDetails(1);
+    });
+    await act(async () => {
+      await result.current.refreshAfterRotation();
+    });
+    await act(async () => {
+      resolveForeground(unfiltered);
+      await foreground;
+    });
+    expect(result.current.gallery?.total_photos).toBe(300);
+    expect(setTotal).toHaveBeenLastCalledWith(300);
+    expect(result.current.shootingDateInput).toBe('2026-03-02');
+    expect(result.current.isLoadingPhotos).toBe(false);
+  });
+
+  it('reports a failed rotation replacement and releases foreground loading', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const { result } = renderUseGalleryActions();
+      await act(async () => {
+        await result.current.fetchGalleryDetails(1, true);
+      });
+      let resolveForeground!: (data: GalleryDetail) => void;
+      vi.mocked(galleryService.getGallery)
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveForeground = resolve;
+          }),
+        )
+        .mockRejectedValueOnce(new ApiError(400, 'Rotation refresh failed'));
+      let foreground!: Promise<void>;
+      act(() => {
+        foreground = result.current.fetchGalleryDetails(1);
+      });
+      expect(result.current.isLoadingPhotos).toBe(true);
+      await act(async () => {
+        await result.current.refreshAfterRotation().catch(() => {});
+      });
+      await act(async () => {
+        resolveForeground(baseGallery);
+        await foreground;
+      });
+      expect(result.current.isLoadingPhotos).toBe(false);
+      expect(result.current.error).toBeTruthy();
+      expect(errorLog).toHaveBeenCalledExactlyOnceWith('Error handled:', expect.any(ApiError));
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it('does not let a failed rotation refresh finish or fail a newer foreground request', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const { result } = renderUseGalleryActions();
+      await act(async () => {
+        await result.current.fetchGalleryDetails(1, true);
+      });
+      let rejectRotation!: (error: Error) => void;
+      let resolveForeground!: (data: GalleryDetail) => void;
+      vi.mocked(galleryService.getGallery)
+        .mockReturnValueOnce(
+          new Promise((_resolve, reject) => {
+            rejectRotation = reject;
+          }),
+        )
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            resolveForeground = resolve;
+          }),
+        );
+      let rotation!: Promise<void>;
+      let foreground!: Promise<void>;
+      act(() => {
+        rotation = result.current.refreshAfterRotation().catch(() => {});
+      });
+      act(() => {
+        foreground = result.current.fetchGalleryDetails(2);
+      });
+      await act(async () => {
+        rejectRotation(new ApiError(400, 'Old request failed'));
+        await rotation;
+      });
+      expect(result.current.isLoadingPhotos).toBe(true);
+      expect(result.current.error).toBeNull();
+      await act(async () => {
+        resolveForeground({ ...baseGallery, photos: [photos[1]] });
+        await foreground;
+      });
+      expect(result.current.isLoadingPhotos).toBe(false);
+      expect(result.current.photoUrls).toEqual([photos[1]]);
+      expect(errorLog).not.toHaveBeenCalled();
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
   it('invalidates cached pages after rename and upload, and reuses them between page clicks', async () => {
     const { result } = renderUseGalleryActions();
     await act(async () => {

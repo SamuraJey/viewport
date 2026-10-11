@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { UploadQueueList } from '../../../components/upload/UploadQueueList';
@@ -26,6 +26,51 @@ const makeJob = (id: string, status: UploadJob['status'] = 'queued', progress = 
 });
 
 describe('UploadQueueList', () => {
+  it.each([
+    { from: 4, to: 3, file: 0, control: 'Reorder' },
+    { from: 4, to: 3, file: 6, control: 'Remove' },
+    { from: 3, to: 2, file: 6, control: 'Reorder' },
+    { from: 2, to: 4, file: 6, control: 'Remove' },
+  ])(
+    'retains the same file and control when regrouping $from → $to columns ($control)',
+    async ({ from, to, file, control }) => {
+      let columns = from;
+      const originalStyle = window.getComputedStyle.bind(window);
+      const styleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+        const style = originalStyle(element);
+        if (element.getAttribute('role') === 'list')
+          Object.defineProperty(style, 'gridTemplateColumns', {
+            value: Array(columns).fill('240px').join(' '),
+            configurable: true,
+          });
+        return style;
+      });
+      try {
+        render(
+          <UploadQueueList
+            jobs={Array.from({ length: 100 }, (_, i) => makeJob(`queued-${i}`))}
+            onReorder={vi.fn()}
+            onRetry={vi.fn()}
+            onRemove={vi.fn()}
+          />,
+        );
+        const name = new RegExp(`^${control} queued-${file}\\.jpg`);
+        act(() => screen.getByRole('button', { name }).focus());
+        expect(screen.getByRole('button', { name })).toHaveFocus();
+        columns = to;
+        fireEvent.resize(window);
+        await waitFor(() => {
+          expect(
+            document.querySelectorAll('[data-queue-row="0"] > [data-upload-job]'),
+          ).toHaveLength(to);
+          expect(screen.getByRole('button', { name })).toHaveFocus();
+        });
+      } finally {
+        styleSpy.mockRestore();
+      }
+    },
+  );
+
   it('mounts a bounded window for an unbounded queue and reaches its final file', async () => {
     let top = 0;
     const rectSpy = vi
