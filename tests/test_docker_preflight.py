@@ -11,29 +11,33 @@ import pytest
 
 
 @pytest.mark.parametrize(
-    ("test_source", "args", "expected_skipped", "expected_probes", "docker_mode"),
+    ("test_source", "args", "expected_skipped", "expected_probes", "docker_mode", "expected_exit"),
     [
-        ("def test_db(db_session): assert False", [], 1, 1, "constructor_error"),
-        ("def test_db(db_session): assert False", ["-n", "4"], 1, 1, "constructor_error"),
-        ("import pytest\n@pytest.mark.requires_s3\ndef test_s3(): assert False", [], 1, 1, "constructor_error"),
-        ("def test_redis(valkey_container): assert False", [], 1, 1, "constructor_error"),
-        ("def test_unit(): pass", [], 0, 0, "constructor_error"),
-        ("def test_unit(): pass", ["-n", "2"], 0, 1, "constructor_error"),
-        ("def test_db(db_session): assert False", ["--collect-only"], 0, 0, "constructor_error"),
-        ("def test_redis(valkey_container): assert False", [], 1, 1, "ping_error"),
-        ("def test_redis(valkey_container): assert False", [], 1, 1, "ping_false"),
+        ("def test_db(db_session): assert False", [], 1, 1, "constructor_error", 0),
+        ("def test_db(db_session): assert False", ["-n", "4"], 1, 1, "constructor_error", 0),
+        ("import pytest\n@pytest.mark.requires_s3\ndef test_s3(): assert False", [], 1, 1, "constructor_error", 0),
+        ("def test_redis(valkey_container): assert False", [], 1, 1, "constructor_error", 0),
+        ("def test_unit(): pass", [], 0, 0, "constructor_error", 0),
+        ("def test_unit(): pass", ["-n", "2"], 0, 1, "constructor_error", 0),
+        ("def test_db(db_session): assert False", ["--collect-only"], 0, 0, "constructor_error", 0),
+        ("def test_redis(valkey_container): assert False", [], 1, 1, "ping_error", 0),
+        ("def test_redis(valkey_container): assert False", [], 1, 1, "ping_false", 0),
         (
             "import pytest\n@pytest.fixture\ndef valkey_container(): return 'ready'\ndef test_redis(valkey_container): assert valkey_container == 'ready'",
             [],
             0,
             1,
             "available",
+            0,
         ),
-        ("def test_db(db_session): assert False\ndef test_unit(): pass", ["-n", "4"], 1, 1, "constructor_error"),
-        ("def test_dynamic(request): request.getfixturevalue('valkey_container')", ["-n", "4"], 1, 1, "constructor_error"),
+        ("def test_db(db_session): assert False\ndef test_unit(): pass", ["-n", "4"], 1, 1, "constructor_error", 0),
+        ("def test_dynamic(request): request.getfixturevalue('valkey_container')", ["-n", "4"], 1, 1, "constructor_error", 0),
+        ("def test_db(db_session): assert False", ["--require-docker"], 0, 1, "constructor_error", 4),
+        ("def test_db(db_session): assert False", ["--require-docker", "-n", "4"], 0, 1, "constructor_error", 4),
+        ("def test_db(db_session): assert False", ["--require-docker", "--collect-only"], 0, 0, "constructor_error", 0),
     ],
 )
-def test_docker_preflight_skips_only_container_tests(tmp_path, test_source, args, expected_skipped, expected_probes, docker_mode):
+def test_docker_preflight_skips_only_container_tests(tmp_path, test_source, args, expected_skipped, expected_probes, docker_mode, expected_exit):
     shutil.copyfile(Path(__file__).with_name("conftest.py"), tmp_path / "conftest.py")
     (tmp_path / "pytest.ini").write_text("[pytest]\nmarkers = requires_s3: real S3\n", encoding="utf-8")
     (tmp_path / "test_example.py").write_text(test_source + "\n", encoding="utf-8")
@@ -88,7 +92,7 @@ def test_docker_preflight_skips_only_container_tests(tmp_path, test_source, args
         check=False,
     )
     output = result.stdout + result.stderr
-    assert result.returncode == 0, output
+    assert result.returncode == expected_exit, output
     probes = (tmp_path / "probes").read_text().splitlines() if (tmp_path / "probes").exists() else []
     assert len(probes) == expected_probes, output
     if docker_mode != "constructor_error":
@@ -107,6 +111,10 @@ def test_docker_preflight_skips_only_container_tests(tmp_path, test_source, args
         assert "AI agents must report this run as incomplete" in output
     else:
         assert "WARNING: INCOMPLETE VALIDATION" not in output
+    if expected_exit:
+        assert "Required Docker validation failed" in output
+        assert "Docker is unavailable" in output
+        assert "skipped" not in output
     assert "ERROR collecting" not in output
     if "def test_unit(): pass" in test_source:
         assert "1 passed" in output

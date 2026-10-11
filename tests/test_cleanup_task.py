@@ -1,7 +1,11 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import botocore.auth
+import freezegun.api
 import pytest
+from botocore.awsrequest import AWSRequest
+from botocore.credentials import Credentials
 from freezegun.api import FrozenDateTimeFactory
 from sqlalchemy.orm import Session
 
@@ -14,6 +18,32 @@ from viewport.s3_utils import get_s3_client, get_s3_settings
 @pytest.fixture
 def engine(sync_engine):
     return sync_engine
+
+
+@pytest.fixture(autouse=True)
+def real_s3_signing_clock(monkeypatch):
+    # RustFS uses wall time to validate SigV4; keep application time frozen.
+    def signing_datetime(remove_tzinfo=True):
+        now = freezegun.api.real_datetime.now(UTC)
+        return now.replace(tzinfo=None) if remove_tzinfo else now
+
+    monkeypatch.setattr(botocore.auth, "get_current_datetime", signing_datetime)
+
+
+def test_s3_signing_uses_wall_time_while_application_time_stays_frozen(freezer):
+    frozen_time = datetime(2025, 1, 1, 12, tzinfo=UTC)
+    freezer.move_to(frozen_time)
+    signer = botocore.auth.SigV4Auth(Credentials("test-key", "test-secret"), "s3", "us-east-1")
+
+    for elapsed in (timedelta(), timedelta(hours=1, minutes=1)):
+        freezer.tick(elapsed)
+        assert datetime.now(UTC) == frozen_time + elapsed
+        before = freezegun.api.real_datetime.now(UTC).strftime(botocore.auth.SIGV4_TIMESTAMP)
+        request = AWSRequest(method="PUT", url="https://s3.example.test/bucket/photo.jpg", data=b"dummy")
+        signer.add_auth(request)
+        after = freezegun.api.real_datetime.now(UTC).strftime(botocore.auth.SIGV4_TIMESTAMP)
+        assert before <= request.headers["X-Amz-Date"] <= after
+        assert datetime.now(UTC) == frozen_time + elapsed
 
 
 class TestCleanupTask:

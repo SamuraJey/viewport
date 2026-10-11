@@ -58,15 +58,18 @@ production/shared daemon. Pull-request jobs stay under `pull_request`, not
 ## Coverage and failures
 
 Before executing a selection that needs PostgreSQL, S3, or Valkey, pytest checks
-Docker availability with one ping and a two-second request timeout. If unavailable,
+Docker availability with one ping and a two-second request timeout. Required CI
+validation passes `--require-docker`: unavailable Docker fails immediately with a
+nonzero exit code before tests or containers start, including under xdist.
+Optional local runs omit this flag. In those runs, if Docker is unavailable,
 container-dependent tests are skipped before setup, without SDK tracebacks,
 container startup, or per-test connection attempts. Other tests continue to run,
 including in a mixed selection via `pytest -n 4 tests/`. A single
 `Docker is unavailable` explanation is printed in the terminal summary. Start Docker
 and check socket permissions / `DOCKER_HOST`, then rerun. Under xdist the controller
-checks once and passes the result to workers. Missing Docker alone does not
-make the run fail; skipped tests remain visible in pytest reports. The terminal
-summary warns that a green result / exit code 0 does not mean all checks passed:
+checks once and passes the result to workers. In optional local runs, missing
+Docker alone does not make the run fail; skipped tests remain visible in pytest
+reports. The terminal summary warns that a green result / exit code 0 does not mean all checks passed:
 Docker-dependent tests were skipped, not passed. AI agents must report incomplete
 validation and rerun the skipped tests with Docker before claiming full validation.
 

@@ -144,7 +144,7 @@ jobs:
             -e TESTCONTAINERS_CONNECTION_MODE=docker_host \
             -e COVERAGE_FILE=/reports/.coverage \
             viewport/backend-test:ci \
-            pytest -n auto --cov=src --cov-branch --cov-report=xml:/reports/coverage.xml \
+            pytest --require-docker -n auto --cov=src --cov-branch --cov-report=xml:/reports/coverage.xml \
             --cov-fail-under=75 --random-order-bucket=module --random-order-seed=$RANDOM tests/
 
       - name: Collect coverage from container

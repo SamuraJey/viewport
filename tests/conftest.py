@@ -273,11 +273,18 @@ def _docker_error(config: pytest.Config) -> str | None:
     return config.stash[_DOCKER_PREFLIGHT]
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption("--require-docker", action="store_true", help="Fail validation if the Docker preflight fails.")
+
+
 def pytest_configure(config: pytest.Config) -> None:
     if config.option.collectonly:
         return
     if _is_worker_process(config):
         config.stash[_DOCKER_PREFLIGHT] = config.workerinput["docker_preflight_error"]
+    elif config.getoption("--require-docker"):
+        if error := _docker_error(config):
+            raise pytest.UsageError(f"Required Docker validation failed. {error}")
     elif _xdist_enabled(config):
         # Workers reuse one probe instead of each trying an unavailable daemon.
         _docker_error(config)
