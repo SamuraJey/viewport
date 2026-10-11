@@ -14,6 +14,11 @@ height. The full file list and upload order remain in memory. No file-count cap
 is imposed, and the presigned image / multipart video APIs and four-file upload
 pool are unchanged.
 
+Changing queue order or height-affecting card content invalidates positional row
+measurements and synchronously remeasures every mounted row before publishing
+geometry. Unchanged rows retain their actual heights even when ResizeObserver
+does not report them again. Progress-only updates keep the measurement cache.
+
 Dragged and focused rows, plus their immediate neighbors, remain mounted during
 manual scrolling. The dnd-kit grip still supports both pointer and keyboard
 reorder. Keyboard scroll uses immediate movement so repeated arrow keys cannot

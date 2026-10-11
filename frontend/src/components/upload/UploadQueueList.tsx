@@ -77,6 +77,27 @@ export const UploadQueueList = ({
   // SortableContext must not broadcast a new item list for each progress tick.
   const idsKey = jobIds ? '' : JSON.stringify(jobs.map((job) => job.id));
   const sortableIds = useMemo<string[]>(() => jobIds ?? JSON.parse(idsKey), [jobIds, idsKey]);
+  // Invalidate positional row heights when their contents change. Progress and
+  // disabled controls do not change card geometry, so keep those updates cheap.
+  const hasResize = Boolean(onResize);
+  const layoutKey = useMemo(
+    () =>
+      JSON.stringify([
+        hasResize,
+        jobs.map((job) => [
+          job.id,
+          job.file.name,
+          job.file.size,
+          job.file.type,
+          job.filename,
+          job.status,
+          job.error,
+          job.retryable,
+          job.renameWarning,
+        ]),
+      ]),
+    [jobs, hasResize],
+  );
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     setDraggedId(null);
@@ -141,6 +162,7 @@ export const UploadQueueList = ({
         {jobs.length > 80 && typeof ResizeObserver !== 'undefined' ? (
           <WindowedUploadGrid
             count={jobs.length}
+            layoutKey={layoutKey}
             pinnedIndices={[
               jobs.findIndex((job) => job.id === draggedId),
               jobs.findIndex((job) => job.id === focusedId),

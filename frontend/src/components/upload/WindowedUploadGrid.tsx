@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 interface Props {
   count: number;
+  layoutKey: string;
   pinnedIndices: number[];
   children: (start: number, end: number) => ReactNode;
   onFocusCapture: React.FocusEventHandler<HTMLDivElement>;
@@ -18,6 +19,7 @@ type RowSize = { width: number; height: number };
 // rows mount cards, observers, sortables, and preview jobs; the queue is unbounded.
 export function WindowedUploadGrid({
   count,
+  layoutKey,
   pinnedIndices,
   children,
   onFocusCapture,
@@ -122,11 +124,29 @@ export function WindowedUploadGrid({
     };
   }, [measure, schedule]);
 
-  const attachRow = useCallback((node: HTMLDivElement | null) => {
-    if (!node) return;
-    observer.current?.observe(node);
-    return () => observer.current?.unobserve(node);
-  }, []);
+  const attachRow = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (!node) return;
+      const { width, height } = node.getBoundingClientRect();
+      measurements.current.set(Number(node.dataset.queueRow), { width, height });
+      observer.current?.observe(node);
+      if (observer.current) schedule();
+      return () => observer.current?.unobserve(node);
+    },
+    [schedule],
+  );
+
+  useLayoutEffect(() => {
+    // Offscreen rows may now contain different files. Unchanged mounted rows
+    // will not emit a ResizeObserver entry, so remeasure them before publishing.
+    measurements.current.clear();
+    root.current?.querySelectorAll<HTMLElement>('[data-queue-row]').forEach((row) => {
+      const { width, height } = row.getBoundingClientRect();
+      measurements.current.set(Number(row.dataset.queueRow), { width, height });
+    });
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    measure();
+  }, [layoutKey, geometry.columns, measure]);
   const rowCount = Math.ceil(count / geometry.columns);
   const offsets = useMemo(() => {
     const cardWidth = Math.max(
