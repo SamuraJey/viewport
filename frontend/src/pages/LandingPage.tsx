@@ -164,7 +164,7 @@ const LandingPreview = () => (
     <div className="absolute -inset-6 rounded-4xl bg-accent/15 blur-3xl dark:bg-accent/8" />
     <div className="relative overflow-hidden rounded-4xl border border-border/50 bg-surface/90 p-3 shadow-2xl backdrop-blur-xl dark:bg-surface-dark/85">
       <div className="rounded-3xl border border-border/40 bg-surface-1/90 p-4 dark:bg-surface-dark-1/85">
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-accent">
               Client delivery
@@ -282,7 +282,7 @@ export const LandingPage = () => {
       </div>
 
       <header className="sticky top-0 z-50 border-b border-border/40 bg-surface/90 backdrop-blur-xl dark:border-border/30 dark:bg-surface-dark/85">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6">
           <Link
             to="/"
             className="flex items-center gap-2.5 font-oswald text-xl font-bold uppercase tracking-wider text-text transition-opacity hover:opacity-80 dark:text-accent-foreground"
@@ -306,12 +306,12 @@ export const LandingPage = () => {
               FAQ
             </a>
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <ReadabilitySettingsButton />
             <ThemeSwitch variant="inline" />
             <Link
               to="/auth/login"
-              className="hidden rounded-xl border border-border/50 bg-surface-1/80 px-4 py-2 text-sm font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent sm:inline-flex dark:border-border/40 dark:bg-surface-dark-1/80 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-xl border border-border/50 bg-surface-1/80 px-3 py-2 text-sm font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent sm:px-4 dark:border-border/40 dark:bg-surface-dark-1/80 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
             >
               Log in
             </Link>
@@ -320,7 +320,7 @@ export const LandingPage = () => {
       </header>
 
       <main id="main-content" tabIndex={-1} className="relative z-10">
-        <section className="mx-auto grid w-full max-w-7xl gap-12 px-4 pb-16 pt-14 sm:px-6 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:pb-24 lg:pt-24">
+        <section className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-12 px-4 pb-16 pt-14 sm:px-6 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:pb-24 lg:pt-24">
           <motion.div
             initial={prefersReducedMotion ? false : { opacity: 0, y: 28 }}
             animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
@@ -608,7 +608,7 @@ export const LandingPage = () => {
             <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-accent/15 blur-3xl dark:bg-accent/10" />
             <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-accent/8 via-transparent to-surface-1/40 dark:to-surface-dark-2/30" />
 
-            <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="relative grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
               <div>
                 <p className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-sm font-bold text-accent">
                   <Zap className="h-4 w-4" />
@@ -616,7 +616,7 @@ export const LandingPage = () => {
                 </p>
                 <h2
                   id="landing-final-cta-title"
-                  className="mt-5 max-w-3xl font-oswald text-4xl font-bold uppercase tracking-wide text-text dark:text-accent-foreground sm:text-5xl"
+                  className="mt-5 max-w-3xl wrap-anywhere font-oswald text-4xl font-bold uppercase tracking-wide text-text dark:text-accent-foreground sm:text-5xl"
                 >
                   Make every delivery feel intentional.
                 </h2>

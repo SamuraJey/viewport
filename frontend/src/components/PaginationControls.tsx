@@ -23,7 +23,7 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
 
   return (
     <div className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm font-medium text-text">
           Page <span className="font-bold">{pagination.page}</span> of{' '}
           <span className="font-bold">{pagination.totalPages}</span>
@@ -33,12 +33,12 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
         </span>
       </div>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 sm:flex-nowrap sm:justify-start">
         <button
           type="button"
           onClick={pagination.previousPage}
           disabled={pagination.isFirstPage || isLoading}
-          className="inline-flex h-10 items-center gap-1 rounded-xl border border-border/50 bg-surface px-3 text-sm font-bold text-text shadow-xs transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface disabled:hover:border-border/50 disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
+          className="inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-xl border border-border/50 bg-surface px-3 text-sm font-bold text-text shadow-xs transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface disabled:hover:border-border/50 disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
           aria-label="Previous page"
         >
           {isLoading ? (
@@ -49,7 +49,7 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
           <span className="hidden sm:inline">Prev</span>
         </button>
 
-        <div className="flex items-center gap-1 px-1">
+        <div className="order-last flex w-full flex-wrap items-center justify-center gap-1 px-1 sm:order-none sm:w-auto sm:flex-nowrap">
           {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
             let pageNum: number;
 
@@ -70,7 +70,7 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
                 key={pageNum}
                 onClick={() => pagination.goToPage(pageNum)}
                 disabled={pageNum === pagination.page || isLoading}
-                className={`inline-flex h-10 min-w-10 items-center justify-center rounded-xl px-2 text-sm font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
+                className={`inline-flex h-11 min-w-11 items-center justify-center rounded-xl px-2 text-sm font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
                   pageNum === pagination.page
                     ? 'bg-accent text-accent-foreground shadow-sm scale-105'
                     : 'bg-transparent text-text hover:bg-surface-1 dark:hover:bg-surface-dark-1 hover:text-accent'
@@ -86,7 +86,7 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
           type="button"
           onClick={pagination.nextPage}
           disabled={pagination.isLastPage || isLoading}
-          className="inline-flex h-10 items-center gap-1 rounded-xl border border-border/50 bg-surface px-3 text-sm font-bold text-text shadow-xs transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface disabled:hover:border-border/50 disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
+          className="inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-xl border border-border/50 bg-surface px-3 text-sm font-bold text-text shadow-xs transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface disabled:hover:border-border/50 disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
           aria-label="Next page"
         >
           <span className="hidden sm:inline">Next</span>

@@ -337,7 +337,7 @@ const ShareLinksSectionComponent = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-end sm:self-center">
+                    <div className="flex max-w-full flex-wrap items-center justify-end gap-2 self-end sm:self-center">
                       {onOpenLinkAnalytics ? (
                         <button
                           type="button"
