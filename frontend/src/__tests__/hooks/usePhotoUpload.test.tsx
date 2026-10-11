@@ -23,6 +23,45 @@ describe('usePhotoUpload', () => {
     vi.clearAllMocks();
   });
 
+  it('preserves unchanged job objects across full progress snapshots', async () => {
+    const files = [makeFile('active.jpg'), makeFile('queued.jpg')];
+    let report!: (progress: PhotoUploadProgress) => void;
+    let finish!: (response: PhotoUploadResponse) => void;
+    vi.mocked(photoService.uploadPhotosPresigned).mockImplementation((_id, _files, onProgress) => {
+      report = onProgress!;
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    });
+    const { result } = renderHook(() => usePhotoUpload('gallery-1', files));
+    act(() => {
+      void result.current.handleUpload();
+    });
+    const snapshot = (percentage: number): PhotoUploadProgress => ({
+      loaded: percentage,
+      total: 100,
+      percentage,
+      currentFile: 'active.jpg',
+      successCount: 0,
+      failedCount: 0,
+      files: {
+        'active.jpg': { status: 'uploading', percentage },
+        'queued.jpg': { status: 'queued', percentage: 0 },
+      },
+    });
+    act(() => report(snapshot(10)));
+    const [active, queued] = result.current.jobs;
+    act(() => report(snapshot(20)));
+    expect(result.current.jobs[0]).not.toBe(active);
+    expect(result.current.jobs[1]).toBe(queued);
+    const updated = result.current.jobs;
+    act(() => report(snapshot(20)));
+    expect(result.current.jobs).toBe(updated);
+    await act(async () =>
+      finish({ results: [], total_files: 0, successful_uploads: 0, failed_uploads: 0 }),
+    );
+  });
+
   it('tracks inline progress and retries only the failed file', async () => {
     const first = makeFile('first.jpg');
     const second = makeFile('second.jpg');

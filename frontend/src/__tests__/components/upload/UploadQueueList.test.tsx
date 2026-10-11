@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { UploadQueueList } from '../../../components/upload/UploadQueueList';
@@ -26,6 +26,89 @@ const makeJob = (id: string, status: UploadJob['status'] = 'queued', progress = 
 });
 
 describe('UploadQueueList', () => {
+  it('mounts a bounded window for an unbounded queue and reaches its final file', async () => {
+    let top = 0;
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function () {
+        const y = this.getAttribute('role') === 'list' ? top : 0;
+        return {
+          x: 0,
+          y,
+          top: y,
+          bottom: y + 800,
+          left: 0,
+          right: 1000,
+          width: 1000,
+          height: 800,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+    try {
+      const { container } = render(
+        <UploadQueueList
+          jobs={Array.from({ length: 10000 }, (_, i) => makeJob(`queued-${i}`))}
+          onReorder={vi.fn()}
+          onRetry={vi.fn()}
+          onRemove={vi.fn()}
+        />,
+      );
+      expect(container.querySelectorAll('[data-upload-job]').length).toBeLessThan(80);
+      expect(
+        screen.getByRole('button', { name: /Reorder queued-0.jpg/ }).closest('li'),
+      ).toHaveAttribute('aria-setsize', '10000');
+      top = -10000000;
+      fireEvent.scroll(document);
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Remove queued-9999.jpg' })).toBeInTheDocument(),
+      );
+      expect(container.querySelectorAll('[data-upload-job]').length).toBeLessThan(80);
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('retains the focused file during manual scrolling', async () => {
+    let top = 0;
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function () {
+        const y = this.getAttribute('role') === 'list' ? top : 0;
+        return {
+          x: 0,
+          y,
+          top: y,
+          bottom: y + 800,
+          left: 0,
+          right: 1000,
+          width: 1000,
+          height: 800,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+    try {
+      render(
+        <UploadQueueList
+          jobs={Array.from({ length: 1000 }, (_, i) => makeJob(`queued-${i}`))}
+          onReorder={vi.fn()}
+          onRetry={vi.fn()}
+          onRemove={vi.fn()}
+        />,
+      );
+      const handle = screen.getByRole('button', { name: /Reorder queued-0.jpg/ });
+      fireEvent.focus(handle);
+      top = -1000000;
+      fireEvent.scroll(document);
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Remove queued-999.jpg' })).toBeInTheDocument(),
+      );
+      expect(handle).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Remove queued-2.jpg' })).toBeInTheDocument();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
   it('supports keyboard reordering from the focused drag handle', async () => {
     const user = userEvent.setup();
     const jobs = [makeJob('first'), makeJob('second')];
@@ -102,7 +185,7 @@ describe('UploadQueueList', () => {
 
     const preview = await screen.findByRole('img', { name: 'Preview of proof.jpg' });
     expect(preview).toHaveClass('h-full', 'w-full', 'object-cover');
-    expect(createImageThumbnail).toHaveBeenCalledWith(job.file, 400);
+    expect(createImageThumbnail).toHaveBeenCalledWith(job.file, 400, expect.any(AbortSignal));
   });
 
   it('does not generate thumbnails for queue rows outside the viewport', () => {

@@ -63,13 +63,17 @@ const PhotoCardComponent = ({
       : 0;
   useEffect(() => {
     const element = areaRef.current;
-    if (!element || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() =>
-      setArea({ width: element.clientWidth, height: element.clientHeight }),
-    );
+    if (!element || !delta || delta % 180 === 0 || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      setArea((previous) =>
+        previous.width === width && previous.height === height ? previous : { width, height },
+      );
+    });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [delta]);
   let scale = 1;
   if (delta % 180 && area.width && area.height) {
     const width = photo.width || naturalSize.width || 1;
@@ -85,11 +89,13 @@ const PhotoCardComponent = ({
     const imageElement = imageRef.current;
     if (imageElement?.complete) {
       setImageState(imageElement.naturalWidth > 0 ? 'loaded' : 'error');
+      if (!photo.width || !photo.height)
+        setNaturalSize({ width: imageElement.naturalWidth, height: imageElement.naturalHeight });
       return;
     }
 
     setImageState('loading');
-  }, [src]);
+  }, [src, photo.width, photo.height]);
 
   const handleDownload = (e: MouseEvent) => {
     e.stopPropagation();
@@ -104,7 +110,7 @@ const PhotoCardComponent = ({
   return (
     <div
       data-photo-card
-      className={`group @container/photo bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md focus-within:shadow-md ${
+      className={`owner-photo-card group @container/photo bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md focus-within:shadow-md ${
         isCover
           ? 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-400/20 dark:ring-amber-500/20'
           : isSelected
@@ -298,12 +304,15 @@ const PhotoCardComponent = ({
               }`}
               style={delta ? { transform: `rotate(${delta}deg) scale(${scale})` } : undefined}
               loading="lazy"
+              decoding="async"
+              fetchPriority={index < 4 ? 'high' : 'auto'}
               onLoad={(event) => {
                 setImageState('loaded');
-                setNaturalSize({
-                  width: event.currentTarget.naturalWidth,
-                  height: event.currentTarget.naturalHeight,
-                });
+                if (!photo.width || !photo.height)
+                  setNaturalSize({
+                    width: event.currentTarget.naturalWidth,
+                    height: event.currentTarget.naturalHeight,
+                  });
               }}
               onError={() => setImageState('error')}
             />

@@ -246,17 +246,21 @@ export function usePhotoRotation({ galleryId, photos, pendingCount, onUpdate, on
     [setAngles],
   );
 
-  const displayPhotos = photos.map((photo) => {
-    const current = mergedPhotos.get(photo.id);
-    const confirmed = isStaleRotation(photo, current) ? current! : photo;
-    return optimistic[photo.id] === undefined
-      ? confirmed
-      : {
-          ...confirmed,
-          requested_rotation: optimistic[photo.id],
-          rotation_status: 'pending' as const,
-        };
-  });
+  const displayPhotos = useMemo(
+    () =>
+      photos.map((photo) => {
+        const current = mergedPhotos.get(photo.id);
+        const confirmed = isStaleRotation(photo, current) ? current! : photo;
+        return optimistic[photo.id] === undefined
+          ? confirmed
+          : {
+              ...confirmed,
+              requested_rotation: optimistic[photo.id],
+              rotation_status: 'pending' as const,
+            };
+      }),
+    [photos, mergedPhotos, optimistic],
+  );
   const getPhoto = (id: string) => {
     const photo = mergedPhotos.get(id);
     return photo && optimistic[id] !== undefined

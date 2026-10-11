@@ -1764,3 +1764,22 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   max-width: 100% !important;
   max-height: 100% !important;
 }
+/* Native rendering containment retains every owner card in the accessibility
+   tree while skipping layout/paint of distant cards. Match the fixed image
+   heights plus the 44px caption target, padding and borders at each breakpoint. */
+.owner-photo-card {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 327px;
+}
+
+@media (width >= 640px) {
+  .owner-photo-card {
+    contain-intrinsic-block-size: auto 359px;
+  }
+}
+
+@media (width >= 768px) {
+  .owner-photo-card {
+    contain-intrinsic-block-size: auto 391px;
+  }
+}

@@ -319,6 +319,20 @@ Backend suite is not required since the server contract is unchanged.
 
 ## Failed uploads and retries
 
+Large queues (more than 80 files) render only nearby, measured rows. This is
+windowing, not a file-count limit: every staged file is uploaded through the
+same four-file pool in the chosen order. Focused/dragged rows and their neighbors
+stay mounted during scrolling, and keyboard scrolling during reorder is immediate.
+Per-file validation and retry messages determine each row's measured height.
+
+Previews are requested near the viewport through a shared observer. A separate
+two-slot scheduler decodes and encodes 400px previews in Web Workers where
+supported, with a bounded fallback for other browsers. A 64-entry compressed
+preview cache avoids repeat work when returning to recent rows. Unmounting rows
+cancels queued work and releases their object URLs; the cache does not retain
+original files or decoded bitmaps. See
+[frontend performance verification](frontend/gallery-upload-performance.md).
+
 The review queue has **All files** and **Failed uploads** filters with counts.
 The completion summary shows counts only; error details and retry buttons live
 in the queue, without a separate scrolling error list.

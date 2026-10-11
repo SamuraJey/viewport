@@ -514,6 +514,19 @@ describe('photoService', () => {
       successCount: 2,
       failedCount: 0,
     });
+    const snapshots = progressSpy.mock.calls.map(([progress]) => progress);
+    expect(snapshots[0].files['a.jpg'].status).toBe('uploading');
+    expect(snapshots[0].files['b.jpg'].status).toBe('queued');
+    expect(lastProgress.files['a.jpg'].status).toBe('success');
+    expect(lastProgress.files['b.jpg'].status).toBe('success');
+    const unchangedIndex = snapshots.findIndex(
+      (snapshot) =>
+        snapshot.changedFilenames.length === 1 && snapshot.changedFilenames[0] === 'b.jpg',
+    );
+    expect(unchangedIndex).toBeGreaterThan(0);
+    expect(snapshots[unchangedIndex].files['a.jpg']).toBe(
+      snapshots[unchangedIndex - 1].files['a.jpg'],
+    );
 
     expect(api.post).toHaveBeenCalledWith(
       '/galleries/gallery-1/photos/batch-confirm',
