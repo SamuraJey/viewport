@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.14
-ARG UV_VERSION=0.11.21
+ARG UV_VERSION=0.13.0
 ARG APP_UID=1001
 ARG APP_GID=1001
 
@@ -24,8 +24,9 @@ WORKDIR /tmp/ffmpeg
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=apt-ffmpeg-source,target=/var/lib/apt,sharing=locked \
     apt-get update && \
-    apt-get source --only-source ffmpeg && \
-    cd "$(find . -maxdepth 1 -type d -name 'ffmpeg-*' -print -quit)" && \
+    apt-get source --only-source ffmpeg
+# Release the apt cache locks before compiling so other stages can install packages.
+RUN cd "$(find . -maxdepth 1 -type d -name 'ffmpeg-*' -print -quit)" && \
     ./configure --prefix=/opt/ffmpeg \
         --disable-autodetect --disable-debug --disable-doc --disable-ffplay \
         --disable-avdevice --disable-network --disable-static --enable-shared \
@@ -35,7 +36,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     make install && \
     rm -rf /opt/ffmpeg/include /opt/ffmpeg/lib/pkgconfig /opt/ffmpeg/share/ffmpeg && \
     mkdir -p /opt/ffmpeg/share/licenses && \
-    cp COPYING* /opt/ffmpeg/share/licenses/
+    cp COPYING* /opt/ffmpeg/share/licenses/ && \
+    rm -rf /tmp/ffmpeg/*
 
 # Only JPEG/PNG uploads and AVIF derivatives are used by the photo pipeline.
 # Retain color management, EXIF and SIMD, without PDF/SVG/RAW/scientific loaders.

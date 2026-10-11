@@ -1,8 +1,9 @@
 # Backend tests in Docker
 
-The Python CI job builds the `test` target of `Dockerfile.backend` and runs
-pytest through `docker run`. No Python or media-library installation on the
-GitHub runner is needed. The production image is still built in its own job.
+The backend CI job builds the `runtime` and `test` targets of
+`Dockerfile.backend` sequentially on one BuildKit builder, then runs pytest
+through `docker run`. The test build reuses the production build stages. No
+Python or media-library installation on the GitHub runner is needed.
 
 ## Image targets
 
@@ -32,10 +33,18 @@ GitHub runner is needed. The production image is still built in its own job.
 
 Testcontainers needs a live Docker daemon, so integration tests run **after**
 image build, not in a Dockerfile `RUN pytest` instruction. BuildKit and uv
-download caches are retained; test and production jobs use separate cache write
-scopes, and each build may read both production and test layer caches. This lets
-either job reuse previously compiled FFmpeg/libvips stages without concurrent
-writes to the same cache scope. Cache reuse does not replace cold-build budgets.
+download caches are retained. Both builds read the shared `backend` layer cache
+(and the former `backend-image` / `backend-tests` scopes during migration); only
+the test build exports `mode=max` to `backend`, once per job. CI also runs on
+pushes to `main`, so new pull requests can read the default branch cache instead
+of recompiling native dependencies with an empty cache. GitHub limits cache
+visibility by branch: caches written by one PR cannot seed another PR.
+
+FFmpeg source download uses apt cache mounts, but compilation runs in a separate
+step without those mounts. This releases the shared apt locks before the long
+compile, allowing other stages to install packages. The installed codecs and
+final image contents remain the same. Cold builds and base-image updates still
+require native compilation; cache reuse does not replace cold-build budgets.
 
 ## Testcontainers and runner isolation
 
@@ -93,9 +102,10 @@ imported corrupts subclass construction and makes startup tests depend on which
 modules a worker imported first.
 
 The existing 75% coverage gate with branch measurement, pytest-xdist and randomized
-module order are preserved. Production image builds have a 20-minute job timeout
-for cold FFmpeg/libvips compilation and cache export. The Python test job has a
-30-minute timeout for cold builds, integration tests and report collection.
+module order are preserved. The combined backend job has a 30-minute timeout
+for cold builds, integration tests, cache export and report collection. The
+coverage action comments on pull requests and saves baseline data on pushes to
+`main` whenever a coverage report exists, including after test failures.
 Coverage uses relative source paths and writes `.coverage`
 and `coverage.xml` under `/reports`, backed by `.ci-reports` on the runner.
 An always-run collection step restores runner ownership and copies existing
