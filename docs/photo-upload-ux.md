@@ -179,8 +179,9 @@ presign, and multipart contracts are untouched.
   hidden in browsers that do not support it, so the single-click file path is
   always available and no misleading folder action is shown. A directory can
   also be dropped anywhere on the gallery page or onto the open review modal.
-  The Project page's empty state ("Build this project with galleries") also
-  offers an **Upload folder** action: it creates a new gallery named after the
+  The Project page also offers **Upload folder**: in the empty state
+  ("Build this project with galleries") and beside **Add gallery** in the
+  project header once galleries exist. It creates a new gallery named after the
   chosen folder (truncated to the gallery-name limit) and opens it with the
   folder's top-level supported files already staged in the review queue.
 - **Project-page folder handoff.** Because the new gallery does not exist until

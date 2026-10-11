@@ -59,6 +59,7 @@ vi.mock('../../components/appearance/ProjectAppearanceSection', () => ({
 }));
 
 import { ProjectPage } from '../../pages/ProjectPage';
+import { consumePendingFiles } from '../../lib/pendingFilesQueue';
 
 vi.mock('../../services/projectService', () => ({
   projectService: {
@@ -255,6 +256,66 @@ describe('ProjectPage', () => {
     expect(screen.getByRole('button', { name: /all links/i })).toBeInTheDocument();
     expect(screen.getByText('Client proofing')).toBeInTheDocument();
   });
+
+  it('uploads a folder into a new gallery when the project already has galleries', async () => {
+    Object.defineProperty(HTMLInputElement.prototype, 'webkitdirectory', {
+      configurable: true,
+      value: '',
+    });
+    try {
+      const user = userEvent.setup();
+      const { projectService } = await import('../../services/projectService');
+      const project = await projectService.getProject('project-1');
+      vi.mocked(projectService.createProjectGallery).mockResolvedValueOnce({
+        ...project.galleries[0],
+        id: 'folder-gallery',
+        name: 'Reception',
+        public_sort_by: 'uploaded_at',
+        public_sort_order: 'asc',
+        cover_focal_x: 50,
+        cover_focal_y: 50,
+        cover_display_option: 'centered_title',
+        public_photo_spacing: 'medium',
+        public_color_scheme: 'light',
+      });
+      const router = createMemoryRouter(
+        [
+          { path: '/projects/:id', element: <ProjectPage /> },
+          { path: '/projects/:projectId/galleries/:galleryId', element: <p>New gallery</p> },
+        ],
+        { initialEntries: ['/projects/project-1'] },
+      );
+      render(<RouterProvider router={router} />);
+
+      const uploadButton = await screen.findByRole('button', { name: 'Upload folder' });
+      const input = screen.getByLabelText('Choose a folder to upload into a new gallery');
+      const clickSpy = vi.spyOn(input, 'click');
+      await user.click(uploadButton);
+      expect(clickSpy).toHaveBeenCalledOnce();
+
+      const files = ['Reception/one.jpg', 'Reception/two.jpg', 'Reception/nested/skip.jpg'].map(
+        (path) => {
+          const file = new File(['image'], path.split('/').pop()!, { type: 'image/jpeg' });
+          Object.defineProperty(file, 'webkitRelativePath', { value: path });
+          return file;
+        },
+      );
+      fireEvent.change(input, { target: { files } });
+
+      await screen.findByText('New gallery');
+      expect(projectService.createProjectGallery).toHaveBeenCalledExactlyOnceWith('project-1', {
+        name: 'Reception',
+        shooting_date: '2026-04-18',
+        project_visibility: 'listed',
+      });
+      expect(router.state.location.pathname).toBe('/projects/project-1/galleries/folder-gallery');
+      expect(consumePendingFiles('folder-gallery')).toEqual(files.slice(0, 2));
+    } finally {
+      consumePendingFiles('folder-gallery');
+      delete (HTMLInputElement.prototype as unknown as Record<string, unknown>).webkitdirectory;
+    }
+  });
+
   it('requires confirmation before deleting a project share link', async () => {
     const user = userEvent.setup();
     const { shareLinkService } = await import('../../services/shareLinkService');
