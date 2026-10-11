@@ -316,3 +316,19 @@ Verify the folder picker and both drop entry points, the scanning state, the
 top-level `photo.jpg` and `clip.mp4` rows, and that the nested
 `sub/nested-photo.jpg` and `ignored/readme.txt` are **not** in the queue.
 Backend suite is not required since the server contract is unchanged.
+
+## Failed uploads and retries
+
+The review queue has **All files** and **Failed uploads** filters with counts.
+The failure view keeps queued and active retries visible until they succeed,
+so it also shows the progress of files being retried. Validation errors remain
+visible but cannot be retried until corrected.
+
+After the initial upload finishes, each retry button works independently.
+**Retry all failed** adds all remaining retryable failures to the same pool.
+The pool runs at most four files at once; extra retries wait in queue, and
+repeated clicks cannot schedule the same file twice. Each attempt uses the
+existing fresh-intent retry service. Results merge into the latest session
+summary regardless of completion order, preserving successful uploads.
+Cancelling aborts every active retry, skips queued retries, restores unfinished
+failures, and returns completed uploads to the gallery.

@@ -84,8 +84,10 @@ export const UploadConfirmModal = memo(
       handleReplaceJob,
       handleUpload,
       handleRetryFile,
+      handleRetryFailed,
       cancelUpload,
     } = usePhotoUpload(galleryId, files, existingFilenames, onFilesChange);
+    const [queueFilter, setQueueFilter] = useState<'all' | 'failed'>('all');
     const [showCancelWarning, setShowCancelWarning] = useState(false);
     const [resizingJobId, setResizingJobId] = useState<string | null>(null);
     const [isResizingAll, setIsResizingAll] = useState(false);
@@ -98,6 +100,27 @@ export const UploadConfirmModal = memo(
       () => jobs.filter((job) => isResizableOversizedImage(job.file)),
       [jobs],
     );
+    const failedFilenames = useMemo(
+      () =>
+        new Set(
+          result?.results
+            .filter((item) => !item.success)
+            .map((item) => item.original_filename || item.filename),
+        ),
+      [result],
+    );
+    const failedJobs = jobs.filter(
+      (job) =>
+        job.status === 'failed' ||
+        ((job.status === 'queued' || job.status === 'uploading') &&
+          failedFilenames.has(job.filename)),
+    );
+    const visibleJobs = queueFilter === 'failed' ? failedJobs : jobs;
+    const retryableCount = jobs.filter(
+      (job) => job.status === 'failed' && job.retryable !== false,
+    ).length;
+    const retryDisabled = (isUploading && !result) || isResizingAll || resizingJobId !== null;
+
     const intakeDisabled =
       !onFilesAdded ||
       isUploading ||
@@ -183,6 +206,7 @@ export const UploadConfirmModal = memo(
       if (partialResult) {
         onUploadComplete(partialResult);
       }
+      setQueueFilter('all');
       onClose();
       onModalStateChange?.(false);
     }, [cancelUpload, onClose, onModalStateChange, onUploadComplete]);
@@ -193,11 +217,13 @@ export const UploadConfirmModal = memo(
         onUploadComplete(result);
         setResult(null);
         setShowCancelWarning(false);
+        setQueueFilter('all');
         onClose();
         onModalStateChange?.(false);
         return;
       }
       if (files.length === 0) {
+        setQueueFilter('all');
         onClose();
         onModalStateChange?.(false);
         return;
@@ -305,17 +331,19 @@ export const UploadConfirmModal = memo(
                     ) : (
                       <Images className="h-3.5 w-3.5" aria-hidden="true" />
                     )}
-                    {result ? 'Transfer summary' : isUploading ? 'Uploading' : 'Upload queue'}
+                    {isUploading ? 'Uploading' : result ? 'Transfer summary' : 'Upload queue'}
                   </span>
                   <span className="text-xs font-bold uppercase tracking-[0.14em] text-muted">
                     {files.length} file{files.length === 1 ? '' : 's'} · {formatFileSize(totalSize)}
                   </span>
                 </div>
                 <AppDialogTitle className="font-oswald text-2xl font-bold uppercase text-text sm:text-3xl">
-                  {result
-                    ? 'Upload finished'
-                    : isUploading
-                      ? 'Keep this window open'
+                  {isUploading
+                    ? result
+                      ? 'Retrying uploads'
+                      : 'Keep this window open'
+                    : result
+                      ? 'Upload finished'
                       : 'Review files'}
                 </AppDialogTitle>
                 <AppDialogDescription className="mt-2 max-w-2xl text-sm font-medium leading-6 text-muted">
@@ -337,7 +365,11 @@ export const UploadConfirmModal = memo(
             </div>
             {progress && (
               <div className="mt-4 border-t border-border/40 pt-4">
-                <UploadProgressContent progress={progress} totalCount={files.length} />
+                <UploadProgressContent
+                  progress={progress}
+                  totalCount={files.length}
+                  retriesAvailable={Boolean(result)}
+                />
               </div>
             )}
           </div>
@@ -392,15 +424,54 @@ export const UploadConfirmModal = memo(
               </div>
             )}
 
+            <div
+              className="mb-4 flex flex-wrap items-center justify-between gap-3"
+              aria-label="Upload queue filters"
+            >
+              <div className="flex flex-wrap gap-2">
+                {(['all', 'failed'] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    aria-pressed={queueFilter === filter}
+                    onClick={() => setQueueFilter(filter)}
+                    className="inline-flex min-h-11 items-center rounded-xl border border-border px-4 text-sm font-bold text-muted transition-colors hover:text-text aria-pressed:border-accent aria-pressed:bg-accent/10 aria-pressed:text-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
+                  >
+                    {filter === 'all'
+                      ? `All files (${jobs.length})`
+                      : `Failed uploads (${failedJobs.length})`}
+                  </button>
+                ))}
+              </div>
+              {result && retryableCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void handleRetryFailed()}
+                  disabled={retryDisabled}
+                  className="inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-bold text-white hover:bg-accent/90 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:opacity-45"
+                >
+                  Retry all failed ({retryableCount})
+                </button>
+              )}
+            </div>
+            {queueFilter === 'failed' && visibleJobs.length === 0 && (
+              <p role="status" className="py-8 text-center text-sm font-semibold text-muted">
+                No failed uploads.
+              </p>
+            )}
             <UploadQueueList
-              jobs={jobs}
+              jobs={visibleJobs}
               reorderDisabled={
-                isUploading || isResizingAll || resizingJobId !== null || Boolean(result)
+                isUploading ||
+                isResizingAll ||
+                resizingJobId !== null ||
+                Boolean(result) ||
+                queueFilter !== 'all'
               }
               actionsDisabled={
                 isUploading || isResizingAll || resizingJobId !== null || Boolean(result)
               }
-              retryDisabled={isUploading || isResizingAll || resizingJobId !== null}
+              retryDisabled={retryDisabled}
               resizingJobId={resizingJobId}
               onReorder={handleReorderJobs}
               onRetry={(jobId) => void handleRetryFile(jobId)}
