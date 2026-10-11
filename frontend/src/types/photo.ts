@@ -78,6 +78,8 @@ export interface PhotoUploadProgress {
   successCount: number;
   failedCount: number;
   files: Record<string, UploadFileProgress>;
+  /** Optional delta hint; files remains the complete, immutable snapshot. */
+  changedFilenames?: string[];
 }
 
 // Presigned upload types

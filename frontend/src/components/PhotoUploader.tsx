@@ -65,7 +65,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
     {
       galleryId,
       onUploadComplete,
-      existingFilenames = [],
+      existingFilenames,
       showDropzone = true,
       onModalStateChange,
     },

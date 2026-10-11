@@ -1764,3 +1764,33 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   max-width: 100% !important;
   max-height: 100% !important;
 }
+/* Native rendering containment retains every owner card in the accessibility
+   tree while skipping layout/paint of distant cards. Match rem-based image
+   heights, caption padding and the caption target at each breakpoint. */
+.owner-photo-preview[data-loaded="true"] + .owner-photo-placeholder {
+  display: none;
+}
+
+.owner-photo-card {
+  --owner-photo-caption-height: 2.75rem;
+
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto calc(17.5rem + var(--owner-photo-caption-height) + 1px);
+}
+
+html[data-readability-mode='on'] .owner-photo-card {
+  /* Readability fixes button minimum heights at 44px, independent of root font size. */
+  --owner-photo-caption-height: 44px;
+}
+
+@media (width >= 640px) {
+  .owner-photo-card {
+    contain-intrinsic-block-size: auto calc(19.5rem + var(--owner-photo-caption-height) + 1px);
+  }
+}
+
+@media (width >= 768px) {
+  .owner-photo-card {
+    contain-intrinsic-block-size: auto calc(21.5rem + var(--owner-photo-caption-height) + 1px);
+  }
+}

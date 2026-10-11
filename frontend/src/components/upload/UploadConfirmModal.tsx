@@ -62,7 +62,7 @@ export const UploadConfirmModal = memo(
     isOpen,
     onClose,
     files,
-    existingFilenames = [],
+    existingFilenames,
     galleryId,
     onUploadComplete,
     onFilesAdded,
@@ -76,6 +76,7 @@ export const UploadConfirmModal = memo(
       result,
       setResult,
       jobs,
+      jobIds,
       totalSize,
       validUploadCount,
       hasValidFiles,
@@ -461,6 +462,7 @@ export const UploadConfirmModal = memo(
             )}
             <UploadQueueList
               jobs={visibleJobs}
+              jobIds={queueFilter === 'all' ? jobIds : undefined}
               reorderDisabled={
                 isUploading ||
                 isResizingAll ||
@@ -474,9 +476,9 @@ export const UploadConfirmModal = memo(
               retryDisabled={retryDisabled}
               resizingJobId={resizingJobId}
               onReorder={handleReorderJobs}
-              onRetry={(jobId) => void handleRetryFile(jobId)}
+              onRetry={handleRetryFile}
               onRemove={handleRemoveJob}
-              onResize={(jobId) => void handleResize(jobId)}
+              onResize={handleResize}
             />
           </div>
 

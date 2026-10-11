@@ -702,9 +702,15 @@ const uploadPhotosPresigned = async (
       { status: PhotoUploadProgress['files'][string]['status']; error?: string }
     >(files.map((item) => [item.filename, { status: 'queued' }]));
     let lastProgressEmittedAt: number | null = null;
+    const fileSizes = new Map(files.map((item) => [item.filename, item.file.size]));
+    const dirtyFilenames = new Set<string>();
+    let fileSnapshot: PhotoUploadProgress['files'] = Object.fromEntries(
+      files.map((item) => [item.filename, { status: 'queued', percentage: 0 }]),
+    );
 
     const emitProgress = (currentFile: string, { force = false }: { force?: boolean } = {}) => {
       if (!onProgress) return;
+      dirtyFilenames.add(currentFile);
 
       const now = Date.now();
       if (
@@ -718,6 +724,24 @@ const uploadPhotosPresigned = async (
 
       const loaded = completedBytes + Array.from(fileProgress.values()).reduce((a, b) => a + b, 0);
       const percentage = totalSize > 0 ? Math.min(100, Math.round((loaded * 100) / totalSize)) : 0;
+      const changedFilenames = [...dirtyFilenames];
+      dirtyFilenames.clear();
+      fileSnapshot = { ...fileSnapshot };
+      for (const filename of changedFilenames) {
+        const state = fileStates.get(filename) ?? { status: 'queued' as const };
+        const uploadedBytes = fileProgress.get(filename) ?? 0;
+        const size = fileSizes.get(filename) ?? 0;
+        fileSnapshot[filename] = {
+          percentage:
+            state.status === 'success'
+              ? 100
+              : size > 0
+                ? Math.min(100, Math.round((uploadedBytes * 100) / size))
+                : 0,
+          status: state.status,
+          ...(state.error ? { error: state.error } : {}),
+        };
+      }
 
       onProgress({
         loaded,
@@ -726,26 +750,8 @@ const uploadPhotosPresigned = async (
         currentFile,
         successCount: successfulUploads,
         failedCount: failedUploads,
-        files: Object.fromEntries(
-          files.map((item) => {
-            const state = fileStates.get(item.filename) ?? { status: 'queued' as const };
-            const uploadedBytes = fileProgress.get(item.filename) ?? 0;
-            const percentage =
-              state.status === 'success'
-                ? 100
-                : item.file.size > 0
-                  ? Math.min(100, Math.round((uploadedBytes * 100) / item.file.size))
-                  : 0;
-            return [
-              item.filename,
-              {
-                percentage,
-                status: state.status,
-                ...(state.error ? { error: state.error } : {}),
-              },
-            ];
-          }),
-        ),
+        files: fileSnapshot,
+        changedFilenames,
       });
     };
 

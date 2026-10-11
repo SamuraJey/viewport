@@ -13,12 +13,33 @@ import type {
 } from '../types';
 
 export type UploadProgress = PhotoUploadProgress;
+const EMPTY_FILENAMES: string[] = [];
 
 interface UploadJobState {
   status: UploadJob['status'];
   progress: number;
   error?: string;
   retryable?: boolean;
+}
+
+function createJobResolver(baseJobs: UploadJob[]) {
+  const cache = new WeakMap<UploadJobState, UploadJob>();
+  return (states: Record<string, UploadJobState>) =>
+    baseJobs.map((job) => {
+      const state = states[job.id];
+      if (!state) return job;
+      let updated = cache.get(state);
+      if (!updated) {
+        updated = {
+          ...job,
+          ...state,
+          error: state.error ?? job.error,
+          retryable: job.error ? false : state.retryable,
+        };
+        cache.set(state, updated);
+      }
+      return updated;
+    });
 }
 
 const mergeUploadResults = (
@@ -48,7 +69,7 @@ const mergeUploadResults = (
 export const usePhotoUpload = (
   galleryId: string,
   files: File[],
-  existingFilenames: string[] = [],
+  existingFilenames: string[] = EMPTY_FILENAMES,
   onFilesChange?: (files: File[]) => void,
 ) => {
   const [isUploading, setIsUploading] = useState(false);
@@ -75,18 +96,20 @@ export const usePhotoUpload = (
 
   const { preparedFiles, renameWarnings } = useMemo(() => {
     const occupied = new Set(existingFilenames);
+    const nextSuffix = new Map<string, number>();
     const planned: UploadPreparedFile[] = [];
     const warnings: UploadRenameWarning[] = [];
 
     for (const file of files) {
       const { stem, ext } = getSafeNameAndExtension(file.name);
       let uniqueName = `${stem}${ext}`;
-      let counter = 1;
+      let counter = nextSuffix.get(uniqueName) ?? 1;
 
       while (occupied.has(uniqueName)) {
         uniqueName = `${stem} (${counter})${ext}`;
         counter += 1;
       }
+      nextSuffix.set(`${stem}${ext}`, counter);
 
       occupied.add(uniqueName);
       if (uniqueName !== file.name) {
@@ -107,6 +130,10 @@ export const usePhotoUpload = (
     () => new Map(preparedFiles.map((item) => [getUploadFileKey(item.file), item])),
     [preparedFiles],
   );
+  const jobIdByFilename = useMemo(
+    () => new Map(preparedFiles.map((item) => [item.filename, getUploadFileKey(item.file)])),
+    [preparedFiles],
+  );
 
   const { totalSize, hasLargeFiles, validUploadCount, hasValidFiles, hasInvalidTypes } =
     useMemo(() => {
@@ -124,26 +151,31 @@ export const usePhotoUpload = (
       };
     }, [files]);
 
-  const jobs = useMemo<UploadJob[]>(
+  const baseJobs = useMemo<UploadJob[]>(
     () =>
       preparedFiles.map((item) => {
         const id = getUploadFileKey(item.file);
         const validationError = getUploadValidationError(item.file);
-        const state = jobStateById[id];
         const renameWarning = item.filename !== item.file.name ? item.filename : undefined;
         return {
           id,
           file: item.file,
           filename: item.filename,
-          status: state?.status ?? (validationError ? 'failed' : 'queued'),
-          progress: state?.progress ?? 0,
-          error: state?.error ?? validationError ?? undefined,
-          retryable: validationError ? false : state?.retryable,
+          status: validationError ? 'failed' : 'queued',
+          progress: 0,
+          error: validationError ?? undefined,
+          retryable: validationError ? false : undefined,
           renameWarning,
         };
       }),
-    [jobStateById, preparedFiles],
+    [preparedFiles],
   );
+
+  // Metadata/validation is independent of network progress. Cache each derived
+  // job by its state identity so memoized cards see changes only to their file.
+  const resolveJobs = useMemo(() => createJobResolver(baseJobs), [baseJobs]);
+  const jobIds = useMemo(() => baseJobs.map((job) => job.id), [baseJobs]);
+  const jobs = useMemo(() => resolveJobs(jobStateById), [resolveJobs, jobStateById]);
 
   const syncFailedFiles = useCallback(
     (uploadResult: PhotoUploadResponse) => {
@@ -197,21 +229,41 @@ export const usePhotoUpload = (
         };
       });
       setJobStateById((current) => {
-        const next = { ...current };
-        Object.entries(nextProgress.files).forEach(([filename, fileProgress]) => {
-          const prepared = preparedByFilename.get(filename);
-          if (!prepared) return;
-          next[getUploadFileKey(prepared.file)] = {
+        let next = current;
+        const changedFilenames = nextProgress.changedFilenames ?? Object.keys(nextProgress.files);
+        for (const filename of changedFilenames) {
+          if (!Object.hasOwn(nextProgress.files, filename)) continue;
+          const fileProgress = nextProgress.files[filename];
+          const id = jobIdByFilename.get(filename);
+          if (!id) continue;
+          const previous = current[id];
+          if (
+            !previous &&
+            fileProgress.status === 'queued' &&
+            fileProgress.percentage === 0 &&
+            !fileProgress.error
+          )
+            continue;
+          const retryable = fileProgress.status === 'failed' ? true : undefined;
+          if (
+            previous?.status === fileProgress.status &&
+            previous.progress === fileProgress.percentage &&
+            previous.error === fileProgress.error &&
+            previous.retryable === retryable
+          )
+            continue;
+          if (next === current) next = { ...current };
+          next[id] = {
             status: fileProgress.status,
             progress: fileProgress.percentage,
             error: fileProgress.error,
-            retryable: fileProgress.status === 'failed' ? true : undefined,
+            retryable,
           };
-        });
+        }
         return next;
       });
     },
-    [preparedByFilename, preparedFiles],
+    [jobIdByFilename, preparedFiles],
   );
 
   const applyResult = useCallback(
@@ -320,22 +372,9 @@ export const usePhotoUpload = (
     setResult(null);
     sessionResultRef.current = null;
     failedFilesRef.current = [];
-    setJobStateById(
-      Object.fromEntries(
-        preparedFiles.map((item) => {
-          const validationError = getUploadValidationError(item.file);
-          return [
-            getUploadFileKey(item.file),
-            {
-              status: validationError ? 'failed' : 'queued',
-              progress: 0,
-              error: validationError ?? undefined,
-              retryable: validationError ? false : undefined,
-            } satisfies UploadJobState,
-          ];
-        }),
-      ),
-    );
+    // Queued/validation states already live in baseJobs. Keep the changing
+    // progress table sparse instead of copying thousands of idle entries.
+    setJobStateById({});
 
     const runGeneration = ++nextRunGenerationRef.current;
     activeRunGenerationRef.current = runGeneration;
@@ -558,6 +597,7 @@ export const usePhotoUpload = (
     result,
     setResult,
     jobs,
+    jobIds,
     totalSize,
     hasLargeFiles,
     validUploadCount,

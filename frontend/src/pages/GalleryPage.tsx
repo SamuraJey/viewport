@@ -766,7 +766,7 @@ export const GalleryPage = () => {
   useEffect(() => {
     // Determine if this is the initial load (no gallery data yet)
     const isInitial = gallery === null;
-    fetchGalleryDetails(pagination.page, isInitial);
+    fetchGalleryDetails(pagination.page, isInitial, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagination.page, galleryId, activeSearch, sortBy, sortOrder]);
 

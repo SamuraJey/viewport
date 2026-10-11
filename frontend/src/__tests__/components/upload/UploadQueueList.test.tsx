@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { UploadQueueList } from '../../../components/upload/UploadQueueList';
@@ -26,6 +26,237 @@ const makeJob = (id: string, status: UploadJob['status'] = 'queued', progress = 
 });
 
 describe('UploadQueueList', () => {
+  it.each(['reorder', 'remove', 'message'] as const)(
+    'invalidates offscreen heights after %s and remeasures unchanged mounted rows',
+    async (change) => {
+      let top = 0;
+      const measuredRows = vi.fn();
+      let reportSizes = (_rows: HTMLElement[]) => {};
+      const observerSpy = vi
+        .spyOn(window, 'ResizeObserver')
+        .mockImplementation(function (callback) {
+          const observer: ResizeObserver = {
+            observe(target) {
+              if (target.getAttribute('role') === 'list')
+                reportSizes = (rows) =>
+                  callback(
+                    rows.map(
+                      (row) =>
+                        ({
+                          target: row,
+                          contentRect: row.getBoundingClientRect(),
+                        }) as ResizeObserverEntry,
+                    ),
+                    observer,
+                  );
+            },
+            unobserve() {},
+            disconnect() {},
+          };
+          return observer;
+        });
+      const rectSpy = vi
+        .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        .mockImplementation(function () {
+          const isRow = this.dataset.queueRow !== undefined;
+          if (isRow) measuredRows(this);
+          const height = isRow ? (this.textContent?.includes('Connection lost') ? 320 : 180) : 800;
+          const y = this.getAttribute('role') === 'list' ? top : 0;
+          return {
+            x: 0,
+            y,
+            top: y,
+            bottom: y + height,
+            left: 0,
+            right: 400,
+            width: 400,
+            height,
+            toJSON: () => ({}),
+          } as DOMRect;
+        });
+      try {
+        let jobs = Array.from({ length: 100 }, (_, i) => makeJob(`queued-${i}`, 'uploading'));
+        jobs[0] = makeJob('queued-0', 'failed');
+        const actions = { onReorder: vi.fn(), onRetry: vi.fn(), onRemove: vi.fn() };
+        const { container, rerender } = render(<UploadQueueList jobs={jobs} {...actions} />);
+        const queue = screen.getByRole('list', { name: 'Upload queue' });
+        act(() => reportSizes([...container.querySelectorAll<HTMLElement>('[data-queue-row]')]));
+        await waitFor(() => {
+          expect(container.querySelector<HTMLElement>('[data-queue-row="1"]')?.style.top).toBe(
+            '332px',
+          );
+        });
+        top = -100000;
+        fireEvent.scroll(document);
+        await waitFor(() =>
+          expect(screen.getByRole('button', { name: 'Remove queued-99.jpg' })).toBeInTheDocument(),
+        );
+        act(() => reportSizes([...container.querySelectorAll<HTMLElement>('[data-queue-row]')]));
+        await act(async () => {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        });
+        expect(container.querySelector('[data-queue-row="0"]')).toBeNull();
+        const unchangedRow = container.querySelector<HTMLElement>('[data-queue-row="48"]')!;
+        measuredRows.mockClear();
+        if (change === 'reorder') jobs = [...jobs.slice(2), ...jobs.slice(0, 2)];
+        else if (change === 'remove') jobs = jobs.slice(2);
+        else
+          jobs = jobs.map((job, i) =>
+            i === 0 ? { ...job, status: 'uploading', error: undefined } : job,
+          );
+        await act(async () => rerender(<UploadQueueList jobs={jobs} {...actions} />));
+        // Even rows whose DOM and height are unchanged must be measured again.
+        expect(measuredRows).toHaveBeenCalledWith(unchangedRow);
+        const rows = [...container.querySelectorAll<HTMLElement>('[data-queue-row]')];
+        const estimated = 194 * 0.75 + 84;
+        const rowCount = Math.ceil(jobs.length / 2);
+        const measured = rows.reduce(
+          (sum, row) => sum + (row.textContent?.includes('Connection lost') ? 320 : 180),
+          0,
+        );
+        expect(Number.parseFloat(queue.style.height)).toBeCloseTo(
+          measured + (rowCount - rows.length) * estimated + (rowCount - 1) * 12,
+        );
+        // A progress-only update keeps the measurements without layout reads.
+        measuredRows.mockClear();
+        jobs = jobs.map((job) => ({ ...job, progress: 42 }));
+        await act(async () => rerender(<UploadQueueList jobs={jobs} {...actions} />));
+        expect(measuredRows).not.toHaveBeenCalled();
+      } finally {
+        rectSpy.mockRestore();
+        observerSpy.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    { from: 4, to: 3, file: 0, control: 'Reorder' },
+    { from: 4, to: 3, file: 6, control: 'Remove' },
+    { from: 3, to: 2, file: 6, control: 'Reorder' },
+    { from: 2, to: 4, file: 6, control: 'Remove' },
+  ])(
+    'retains the same file and control when regrouping $from → $to columns ($control)',
+    async ({ from, to, file, control }) => {
+      let columns = from;
+      const originalStyle = window.getComputedStyle.bind(window);
+      const styleSpy = vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+        const style = originalStyle(element);
+        if (element.getAttribute('role') === 'list')
+          Object.defineProperty(style, 'gridTemplateColumns', {
+            value: Array(columns).fill('240px').join(' '),
+            configurable: true,
+          });
+        return style;
+      });
+      try {
+        render(
+          <UploadQueueList
+            jobs={Array.from({ length: 100 }, (_, i) => makeJob(`queued-${i}`))}
+            onReorder={vi.fn()}
+            onRetry={vi.fn()}
+            onRemove={vi.fn()}
+          />,
+        );
+        const name = new RegExp(`^${control} queued-${file}\\.jpg`);
+        act(() => screen.getByRole('button', { name }).focus());
+        expect(screen.getByRole('button', { name })).toHaveFocus();
+        columns = to;
+        fireEvent.resize(window);
+        await waitFor(() => {
+          expect(
+            document.querySelectorAll('[data-queue-row="0"] > [data-upload-job]'),
+          ).toHaveLength(to);
+          expect(screen.getByRole('button', { name })).toHaveFocus();
+        });
+      } finally {
+        styleSpy.mockRestore();
+      }
+    },
+  );
+
+  it('mounts a bounded window for an unbounded queue and reaches its final file', async () => {
+    let top = 0;
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function () {
+        const y = this.getAttribute('role') === 'list' ? top : 0;
+        return {
+          x: 0,
+          y,
+          top: y,
+          bottom: y + 800,
+          left: 0,
+          right: 1000,
+          width: 1000,
+          height: 800,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+    try {
+      const { container } = render(
+        <UploadQueueList
+          jobs={Array.from({ length: 10000 }, (_, i) => makeJob(`queued-${i}`))}
+          onReorder={vi.fn()}
+          onRetry={vi.fn()}
+          onRemove={vi.fn()}
+        />,
+      );
+      expect(container.querySelectorAll('[data-upload-job]').length).toBeLessThan(80);
+      expect(
+        screen.getByRole('button', { name: /Reorder queued-0.jpg/ }).closest('li'),
+      ).toHaveAttribute('aria-setsize', '10000');
+      top = -10000000;
+      fireEvent.scroll(document);
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Remove queued-9999.jpg' })).toBeInTheDocument(),
+      );
+      expect(container.querySelectorAll('[data-upload-job]').length).toBeLessThan(80);
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('retains the focused file during manual scrolling', async () => {
+    let top = 0;
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function () {
+        const y = this.getAttribute('role') === 'list' ? top : 0;
+        return {
+          x: 0,
+          y,
+          top: y,
+          bottom: y + 800,
+          left: 0,
+          right: 1000,
+          width: 1000,
+          height: 800,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+    try {
+      render(
+        <UploadQueueList
+          jobs={Array.from({ length: 1000 }, (_, i) => makeJob(`queued-${i}`))}
+          onReorder={vi.fn()}
+          onRetry={vi.fn()}
+          onRemove={vi.fn()}
+        />,
+      );
+      const handle = screen.getByRole('button', { name: /Reorder queued-0.jpg/ });
+      fireEvent.focus(handle);
+      top = -1000000;
+      fireEvent.scroll(document);
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Remove queued-999.jpg' })).toBeInTheDocument(),
+      );
+      expect(handle).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Remove queued-2.jpg' })).toBeInTheDocument();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
   it('supports keyboard reordering from the focused drag handle', async () => {
     const user = userEvent.setup();
     const jobs = [makeJob('first'), makeJob('second')];
@@ -102,7 +333,7 @@ describe('UploadQueueList', () => {
 
     const preview = await screen.findByRole('img', { name: 'Preview of proof.jpg' });
     expect(preview).toHaveClass('h-full', 'w-full', 'object-cover');
-    expect(createImageThumbnail).toHaveBeenCalledWith(job.file, 400);
+    expect(createImageThumbnail).toHaveBeenCalledWith(job.file, 400, expect.any(AbortSignal));
   });
 
   it('does not generate thumbnails for queue rows outside the viewport', () => {

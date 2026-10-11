@@ -72,7 +72,7 @@ interface GalleryPhotoSectionProps {
 
 const PHOTO_GRID_SKELETON_CARDS = 10;
 
-const GalleryPhotoGridSkeleton = ({ page, renderNonce }: { page: number; renderNonce: number }) => (
+const GalleryPhotoGridSkeleton = ({ page }: { page: number }) => (
   <div
     className="pt-4"
     data-testid="private-gallery-skeleton-grid"
@@ -88,7 +88,7 @@ const GalleryPhotoGridSkeleton = ({ page, renderNonce }: { page: number; renderN
     <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 sm:gap-4">
       {Array.from({ length: PHOTO_GRID_SKELETON_CARDS }).map((_, index) => (
         <div
-          key={`photo-skeleton-${renderNonce}-${index}`}
+          key={`photo-skeleton-${page}-${index}`}
           className="overflow-hidden rounded-2xl border border-border/45 bg-surface shadow-xs dark:border-border/35 dark:bg-surface-dark-1"
         >
           <div className="h-64 p-4 sm:h-72 md:h-80">
@@ -112,17 +112,29 @@ const GalleryPhotoSectionComponent = ({
   actions,
   rotation,
 }: GalleryPhotoSectionProps) => {
-  const shouldShowGridSkeleton = state.isLoadingPhotos;
-  const [skeletonRenderNonce, setSkeletonRenderNonce] = React.useState(0);
-
-  const [lastSkeletonKey, setLastSkeletonKey] = React.useState<string | null>(null);
-  const skeletonKey = `${pagination.page}|${state.activeSearchTerm}|${shouldShowGridSkeleton}`;
-  if (skeletonKey !== lastSkeletonKey) {
-    setLastSkeletonKey(skeletonKey);
-    if (shouldShowGridSkeleton) {
-      setSkeletonRenderNonce((value) => value + 1);
-    }
-  }
+  // Keep existing content available during refresh/upload/rotation revalidation.
+  const shouldShowGridSkeleton = state.isLoadingPhotos && state.photoUrls.length === 0;
+  const latestActions = React.useRef(actions);
+  React.useLayoutEffect(() => {
+    latestActions.current = actions;
+  }, [actions]);
+  // Page orchestration may create new closures (selection, dialogs, rotation).
+  // Cards receive stable event handlers that call the latest committed actions.
+  const cardActions = React.useMemo(
+    () => ({
+      onToggleSelection: (id: string, shift: boolean) =>
+        latestActions.current.onTogglePhotoSelection(id, shift),
+      onOpenPhoto: (index: number) => latestActions.current.onOpenPhoto(index),
+      onSetCover: (id: string) => latestActions.current.onSetCover(id),
+      onClearCover: () => latestActions.current.onClearCover(),
+      onRenamePhoto: (id: string, name: string) => latestActions.current.onRenamePhoto(id, name),
+      onDownloadPhoto: (id: string) => latestActions.current.onDownloadPhoto(id),
+      onDeletePhoto: (id: string) => latestActions.current.onDeletePhoto(id),
+      onRotatePhoto: (id: string, direction: -90 | 90 | 'reset' | 'retry') =>
+        latestActions.current.onRotatePhoto?.(id, direction),
+    }),
+    [],
+  );
 
   return (
     <section className="px-0 py-0" data-photos-section aria-label="Gallery photos">
@@ -181,8 +193,17 @@ const GalleryPhotoSectionComponent = ({
         onDeleteMultiple={actions.onDeleteMultiplePhotos}
       />
 
+      {pagination.totalPages > 1 && (
+        <nav
+          aria-label="Photo pagination above grid"
+          className="border-b border-border/35 dark:border-border/25"
+        >
+          <PaginationControls pagination={pagination} isLoading={state.isLoadingPhotos} />
+        </nav>
+      )}
+
       {shouldShowGridSkeleton ? (
-        <GalleryPhotoGridSkeleton page={pagination.page} renderNonce={skeletonRenderNonce} />
+        <GalleryPhotoGridSkeleton page={pagination.page} />
       ) : state.photoUrls.length > 0 ? (
         <div
           className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 pt-4 sm:gap-4"
@@ -191,20 +212,22 @@ const GalleryPhotoSectionComponent = ({
           {state.photoUrls.map((photo, index) => (
             <PhotoCard
               previewUrl={rotation?.getPreview(photo)}
-              onRotatePhoto={actions.onRotatePhoto}
-              key={photo.id}
+              onRotatePhoto={actions.onRotatePhoto ? cardActions.onRotatePhoto : undefined}
+              // These are fixed positions on a paginated grid. Reuse their DOM
+              // while replacing all photo props; image state is URL-scoped.
+              key={`photo-slot-${index}`}
               photo={photo}
               index={index}
               isSelectionMode={state.isSelectionMode}
               isSelected={selection.isPhotoSelected(photo.id)}
               isCover={selection.isCoverPhoto(photo.id)}
-              onToggleSelection={actions.onTogglePhotoSelection}
-              onOpenPhoto={actions.onOpenPhoto}
-              onSetCover={actions.onSetCover}
-              onClearCover={actions.onClearCover}
-              onRenamePhoto={actions.onRenamePhoto}
-              onDownloadPhoto={actions.onDownloadPhoto}
-              onDeletePhoto={actions.onDeletePhoto}
+              onToggleSelection={cardActions.onToggleSelection}
+              onOpenPhoto={cardActions.onOpenPhoto}
+              onSetCover={cardActions.onSetCover}
+              onClearCover={cardActions.onClearCover}
+              onRenamePhoto={cardActions.onRenamePhoto}
+              onDownloadPhoto={cardActions.onDownloadPhoto}
+              onDeletePhoto={cardActions.onDeletePhoto}
             />
           ))}
         </div>
@@ -232,9 +255,12 @@ const GalleryPhotoSectionComponent = ({
       )}
 
       {pagination.totalPages > 1 && (
-        <div className="mt-6 border-t border-border/35 pt-4 dark:border-border/25">
+        <nav
+          aria-label="Photo pagination below grid"
+          className="mt-6 border-t border-border/35 pt-4 dark:border-border/25"
+        >
           <PaginationControls pagination={pagination} isLoading={state.isLoadingPhotos} />
-        </div>
+        </nav>
       )}
     </section>
   );
