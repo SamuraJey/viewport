@@ -126,7 +126,7 @@ export const EnhancedGalleryCard = ({
                       event.stopPropagation();
                       onShare(gallery);
                     }}
-                    className="flex h-11 w-11 items-center justify-center rounded-lg bg-black/60 sm:h-8 sm:w-8 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
+                    className="flex h-11 w-11 items-center justify-center rounded-lg bg-black/60 can-hover:h-8 can-hover:w-8 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
                     title="Share Gallery"
                     aria-label={`Share ${galleryTitle}`}
                   >
@@ -140,7 +140,7 @@ export const EnhancedGalleryCard = ({
                     event.stopPropagation();
                     onDelete(gallery);
                   }}
-                  className="flex h-11 w-11 items-center justify-center rounded-lg bg-black/60 sm:h-8 sm:w-8 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-[3px] focus-visible:ring-danger"
+                  className="flex h-11 w-11 items-center justify-center rounded-lg bg-black/60 can-hover:h-8 can-hover:w-8 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-[3px] focus-visible:ring-danger"
                   title="Delete Gallery"
                   aria-label={`Delete ${galleryTitle}`}
                 >
@@ -226,7 +226,7 @@ export const EnhancedGalleryCard = ({
             <Link
               to={resolveGalleryPath(gallery)}
               aria-describedby={descriptionId}
-              className="flex flex-1 flex-col justify-center pr-12 no-underline sm:pr-5 transition-colors"
+              className="flex flex-1 flex-col justify-center pr-12 no-underline can-hover:pr-5 transition-colors"
             >
               <CollectionCardTitle as="h3" className={titleTextSizeClass}>
                 {galleryTitle}
@@ -238,7 +238,7 @@ export const EnhancedGalleryCard = ({
             <button
               type="button"
               onClick={beginRenameFromEvent}
-              className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center sm:top-1 sm:h-4 sm:w-4 text-muted transition-opacity duration-200 hover:text-accent focus:opacity-100 focus:outline-none can-hover:opacity-0 can-hover:group-hover/card:opacity-100 can-hover:group-focus-within/card:opacity-100"
+              className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center can-hover:top-1 can-hover:h-4 can-hover:w-4 text-muted transition-opacity duration-200 hover:text-accent focus:opacity-100 focus:outline-none can-hover:opacity-0 can-hover:group-hover/card:opacity-100 can-hover:group-focus-within/card:opacity-100"
               aria-label={`Rename ${galleryTitle}`}
               title="Rename gallery"
             >

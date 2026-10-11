@@ -18,4 +18,4 @@ export const cardVariants = {
 };
 
 export const VISIBILITY_ACTION_BUTTON_CLASS =
-  'flex h-11 w-11 items-center justify-center rounded-lg bg-black/60 sm:h-8 sm:w-8 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent';
+  'flex h-11 w-11 items-center justify-center rounded-lg bg-black/60 can-hover:h-8 can-hover:w-8 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent';

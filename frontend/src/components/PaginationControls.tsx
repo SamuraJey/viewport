@@ -49,7 +49,7 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
           <span className="hidden sm:inline">Prev</span>
         </button>
 
-        <div className="order-last flex w-full flex-wrap items-center justify-center gap-1 px-1 sm:order-none sm:w-auto sm:flex-nowrap">
+        <div className="flex w-full flex-wrap items-center justify-center gap-1 px-1 sm:w-auto sm:flex-nowrap">
           {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
             let pageNum: number;
 
