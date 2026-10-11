@@ -74,7 +74,7 @@ const SortableProjectGallery = ({
       {...attributes}
       {...listeners}
       disabled={disabled}
-      className="inline-flex h-9 touch-none cursor-grab items-center justify-center gap-1.5 rounded-xl border border-border/55 bg-surface-1 px-3 text-xs font-semibold text-muted shadow-xs transition-colors hover:border-accent/45 hover:text-accent focus:cursor-grabbing focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent dark:border-border/40 dark:bg-surface-dark-1 disabled:cursor-not-allowed disabled:opacity-45"
+      className="inline-flex h-11 touch-none can-hover:h-9 cursor-grab items-center justify-center gap-1.5 rounded-xl border border-border/55 bg-surface-1 px-3 text-xs font-semibold text-muted shadow-xs transition-colors hover:border-accent/45 hover:text-accent focus:cursor-grabbing focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent dark:border-border/40 dark:bg-surface-dark-1 disabled:cursor-not-allowed disabled:opacity-45"
       aria-label={`Move ${gallery.name}`}
       title="Drag to change presentation order"
       onClick={(event) => {

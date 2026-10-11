@@ -43,6 +43,11 @@ action rows. Share-link save/cancel actions share one row when space allows.
 Appearance previews have narrower mobile gutters and a width-bounded phone
 preview. Popovers are width-bounded and use anchor padding at screen edges.
 
+Gallery card actions, rename and reorder controls retain 44px touch targets at
+every viewport width. Compact sizes use `can-hover` for fine pointers with hover.
+On phones, pagination follows its DOM order: Previous, page numbers, then Next;
+the page numbers wrap onto their own row, with the wider layout kept inline.
+
 ## Notched phones and the software keyboard
 
 - The viewport meta sets `viewport-fit=cover` and

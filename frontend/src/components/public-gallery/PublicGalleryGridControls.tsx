@@ -49,7 +49,9 @@ const SegmentedControl = <T extends string>({
       : 'inline-flex overflow-hidden rounded-lg border border-border/40 bg-surface/60';
 
   const buttonClass =
-    size === 'desktop' ? 'px-4 py-2 text-sm font-medium' : 'px-3 py-1.5 text-xs font-medium';
+    size === 'desktop'
+      ? 'px-4 py-2 text-sm font-medium'
+      : 'min-h-11 px-3 py-1.5 text-xs font-medium';
 
   return (
     <div className={wrapperClass}>

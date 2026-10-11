@@ -8,7 +8,7 @@ interface MetricCardProps {
 }
 
 export const MetricCard = ({ label, value, helper, icon: Icon }: MetricCardProps) => (
-  <div className="rounded-3xl border border-border/50 bg-surface-1 p-4 shadow-xs transition-all duration-200 hover:border-accent/25 hover:shadow-sm dark:border-white/8 dark:bg-white/[0.03] dark:hover:border-accent/30">
+  <div className="min-w-0 rounded-3xl border border-border/50 bg-surface-1 p-4 shadow-xs transition-all duration-200 hover:border-accent/25 hover:shadow-sm dark:border-white/8 dark:bg-white/[0.03] dark:hover:border-accent/30">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">{label}</p>
