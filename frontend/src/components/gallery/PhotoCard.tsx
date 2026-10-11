@@ -5,15 +5,12 @@ import {
   ImageOff,
   LoaderCircle,
   Play,
-  RotateCcw,
   Square,
   Star,
-  StarOff,
   Trash2,
   VideoOff,
 } from 'lucide-react';
 import type { GalleryPhoto } from '../../types';
-import { AppPopover } from '../ui/AppPopover';
 import { PhotoRotationButtons } from './PhotoRotationButtons';
 import { canRotatePhoto, isRotationPending, normalizeRotation } from '../../lib/photoRotation';
 import { AppBadge } from '../ui/AppBadge';
@@ -83,8 +80,6 @@ const PhotoCardComponent = ({
   const overlayButton =
     'bg-white/20 text-white enabled:hover:bg-white/40 focus-visible:outline-white';
   const cardButton = `flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white transition-colors @min-[300px]/photo:h-12 @min-[300px]/photo:w-12 @min-[400px]/photo:h-16 @min-[400px]/photo:w-16 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2`;
-  const menuButton =
-    'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm text-text hover:bg-surface-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent dark:hover:bg-surface-dark-2';
 
   useEffect(() => {
     const imageElement = imageRef.current;
@@ -211,48 +206,24 @@ const PhotoCardComponent = ({
           )}
 
         <div className="absolute inset-x-0 bottom-0 z-20 flex flex-wrap items-center justify-center gap-x-0 gap-y-2 bg-linear-to-t from-black/80 to-transparent px-0 pb-4 pt-6 opacity-100 @min-[260px]/photo:gap-x-1 @min-[260px]/photo:px-2 @min-[300px]/photo:gap-x-2 @min-[400px]/photo:gap-x-3.5 can-hover:opacity-0 can-hover:group-hover:opacity-100 can-hover:group-focus-within:opacity-100">
-          <AppPopover
-            buttonAriaLabel="Cover and orientation actions"
-            buttonClassName={`${cardButton} focus-visible:outline-amber-500 ${
+          <button
+            type="button"
+            aria-label={isCover ? 'Remove cover' : 'Set as cover'}
+            title={isCover ? 'Remove cover' : 'Set as cover'}
+            aria-pressed={isCover}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (isCover) onClearCover();
+              else onSetCover(photo.id);
+            }}
+            className={`${cardButton} focus-visible:outline-amber-500 ${
               isCover ? 'bg-amber-500/80 hover:bg-amber-500' : 'bg-white/20 hover:bg-amber-500/80'
             }`}
-            buttonContent={
-              <Star
-                className={`h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6 ${isCover ? 'fill-current' : ''}`}
-              />
-            }
-            panelFocus
-            panelClassName="w-64 rounded-xl border border-border/50 bg-surface p-1.5 shadow-lg dark:bg-surface-dark-1"
-            panel={(close) => (
-              <>
-                <button
-                  type="button"
-                  className={menuButton}
-                  onClick={() => {
-                    close();
-                    if (isCover) onClearCover();
-                    else onSetCover(photo.id);
-                  }}
-                >
-                  {isCover ? <StarOff className="h-4 w-4" /> : <Star className="h-4 w-4" />}
-                  {isCover ? 'Remove cover' : 'Set as cover'}
-                </button>
-                {onRotatePhoto && canRotatePhoto(photo) && (
-                  <button
-                    type="button"
-                    className={menuButton}
-                    onClick={() => {
-                      close();
-                      onRotatePhoto(photo.id, 'reset');
-                    }}
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Reset orientation
-                  </button>
-                )}
-              </>
-            )}
-          />
+          >
+            <Star
+              className={`h-5 w-5 @min-[400px]/photo:h-6 @min-[400px]/photo:w-6 ${isCover ? 'fill-current' : ''}`}
+            />
+          </button>
           {onRotatePhoto && (
             <PhotoRotationButtons
               disabled={!canRotatePhoto(photo)}

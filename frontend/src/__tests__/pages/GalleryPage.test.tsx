@@ -244,13 +244,6 @@ const fillInput = (input: HTMLElement, value: string) => {
   fireEvent.change(input, { target: { value } });
 };
 
-const openPhotoActions = async (container: HTMLElement) => {
-  const button = within(container).getByRole('button', { name: 'Cover and orientation actions' });
-  // jsdom has no layout. Headless UI closes panels whose trigger has a zero rect.
-  vi.spyOn(button, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 20, 44, 44));
-  await userEvent.click(button);
-};
-
 describe('GalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -777,8 +770,9 @@ describe('GalleryPage', () => {
       expect(photoContainer).toBeInTheDocument();
 
       await userEvent.hover(photoContainer!);
-      await openPhotoActions(photoContainer! as HTMLElement);
-      const setCoverButton = await screen.findByRole('button', { name: /set as cover/i });
+      const setCoverButton = within(photoContainer! as HTMLElement).getByRole('button', {
+        name: /set as cover/i,
+      });
       await userEvent.click(setCoverButton);
 
       await waitFor(() => {

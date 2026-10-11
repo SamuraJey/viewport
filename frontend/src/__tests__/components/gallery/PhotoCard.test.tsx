@@ -128,11 +128,10 @@ describe('PhotoCard', () => {
     expect(actions.onRotatePhoto).toHaveBeenCalledWith('photo-1', 'retry');
   });
 
-  it('retains cover in the accessible cover menu', async () => {
+  it('sets cover directly from the star button', async () => {
     const actions = callbacks();
     render(<PhotoCard photo={createPhoto()} {...actions} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Cover and orientation actions' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Set as cover' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Set as cover' }));
     expect(actions.onSetCover).toHaveBeenCalledWith('photo-1');
   });
 });
