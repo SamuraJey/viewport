@@ -134,7 +134,7 @@ jobs:
           done
 
       - name: Comment coverage on PR (non-blocking)
-        if: ${{ always() && github.event_name == 'pull_request' && hashFiles('coverage.xml') != '' }}
+        if: ${{ always() && hashFiles('coverage.xml') != '' }}
         continue-on-error: true
         uses: py-cov-action/python-coverage-comment-action@v4.1
         with:

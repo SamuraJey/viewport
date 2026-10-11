@@ -104,7 +104,8 @@ modules a worker imported first.
 The existing 75% coverage gate with branch measurement, pytest-xdist and randomized
 module order are preserved. The combined backend job has a 30-minute timeout
 for cold builds, integration tests, cache export and report collection. The
-coverage comment runs only for pull requests.
+coverage action comments on pull requests and saves baseline data on pushes to
+`main` whenever a coverage report exists, including after test failures.
 Coverage uses relative source paths and writes `.coverage`
 and `coverage.xml` under `/reports`, backed by `.ci-reports` on the runner.
 An always-run collection step restores runner ownership and copies existing
