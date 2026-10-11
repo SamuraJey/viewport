@@ -68,6 +68,44 @@ const MULTIPART_UPLOAD_CONCURRENCY = 4;
 const MULTIPART_PART_TIMEOUT_MS = 120_000;
 const MULTIPART_COMPLETE_MAX_RETRIES = 3;
 
+// Stop waiting on cancellation without aborting required confirmation cleanup.
+const waitUntilSettledOrAborted = (work: Promise<void>, signal?: AbortSignal): Promise<void> => {
+  if (!signal) return work;
+  if (signal.aborted) return Promise.resolve();
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    work.then(
+      () => {
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(error);
+      },
+    );
+  });
+};
+
+const waitForUploadDelay = async (ms: number, signal?: AbortSignal): Promise<void> => {
+  if (signal?.aborted) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await waitUntilSettledOrAborted(
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, ms);
+      }),
+      signal,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const EMPTY_BATCH_DELETE_RESULT: BatchDeletePhotosResponse = {
   requested_count: 0,
   deleted_ids: [],
@@ -326,7 +364,7 @@ const completeMultipartUpload = async (
       if (signal?.aborted || !isTransient || attempt === MULTIPART_COMPLETE_MAX_RETRIES - 1) {
         throw error;
       }
-      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
+      await waitForUploadDelay(250 * 2 ** attempt, signal);
     }
   }
 };
@@ -449,7 +487,7 @@ const uploadToS3 = async (
       if (attempt < MAX_RETRIES && (is400 || is413 || isNetworkError || isTransient5xx)) {
         // Exponential backoff: 100ms, 300ms, 900ms, 2700ms, 8100ms
         const delay = Math.min(100 * Math.pow(3, attempt - 1), 10000);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await waitForUploadDelay(delay, signal);
         continue;
       }
 
@@ -565,7 +603,7 @@ const uploadMultipartToS3 = async (
         if (lastError.message === 'Upload cancelled') throw lastError;
         if (attempt < MAX_RETRIES) {
           const delay = Math.min(100 * Math.pow(2, attempt - 1), 5000);
-          await new Promise((resolve) => setTimeout(resolve, delay));
+          await waitForUploadDelay(delay, signal);
           continue;
         }
         throw lastError;
@@ -650,7 +688,6 @@ const uploadPhotosPresigned = async (
   const BATCH_SIZE = 50; // Request presigned URLs in batches of 50
   const INTER_UPLOAD_DELAY_MS = 5; // Delay between uploads
   const PROGRESS_EMIT_INTERVAL_MS = 100;
-  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   return (async () => {
     const totalSize = files.reduce((sum, item) => sum + item.file.size, 0);
@@ -865,7 +902,7 @@ const uploadPhotosPresigned = async (
           });
           completedBytes += file.file.size;
           emitProgress(file.filename, { force: true });
-          await wait(INTER_UPLOAD_DELAY_MS);
+          await waitForUploadDelay(INTER_UPLOAD_DELAY_MS, signal);
           return;
         }
 
@@ -971,7 +1008,7 @@ const uploadPhotosPresigned = async (
 
         emitProgress(file.filename, { force: true });
         if (!cancellationRequested) {
-          await wait(INTER_UPLOAD_DELAY_MS);
+          await waitForUploadDelay(INTER_UPLOAD_DELAY_MS, signal);
         }
       };
 
@@ -994,17 +1031,18 @@ const uploadPhotosPresigned = async (
       // control-plane request and deliberately does not reuse the transfer
       // signal: cancellation must not strand files that already reached S3.
       if (batchSuccessfulPhotoIds.length > 0 || batchFailedPhotoIds.length > 0) {
-        try {
-          await batchConfirmUploads(
-            galleryId,
-            batchSuccessfulPhotoIds,
-            batchFailedPhotoIds,
-            undefined,
-          );
-        } catch (error) {
-          console.error('Failed to confirm batch uploads:', error);
-          // Non-fatal - uploads are still in S3, just not confirmed
-        }
+        const confirmation = batchConfirmUploads(
+          galleryId,
+          batchSuccessfulPhotoIds,
+          batchFailedPhotoIds,
+          undefined,
+        )
+          .then(() => undefined)
+          .catch((error) => {
+            console.error('Failed to confirm batch uploads:', error);
+            // Non-fatal - uploads are still in S3, just not confirmed
+          });
+        await waitUntilSettledOrAborted(confirmation, signal);
       }
 
       if (cancellationRequested || signal?.aborted) break;

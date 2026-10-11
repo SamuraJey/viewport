@@ -334,3 +334,5 @@ existing fresh-intent retry service. Results merge into the latest session
 summary regardless of completion order, preserving successful uploads.
 Cancelling aborts every active retry, skips queued retries, restores unfinished
 failures, and returns completed uploads to the gallery.
+
+Cancellation interrupts retry backoff and inter-file pauses immediately. Image batch confirmation continues without the aborted transfer signal, but cancellation returns the completed transfer results without waiting for that confirmation request. Confirmation failures retain the existing error logging and recovery behavior.

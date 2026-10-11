@@ -663,6 +663,101 @@ describe('photoService', () => {
     );
   });
 
+  it.each(['image', 'video'] as const)(
+    'interrupts %s retry backoff immediately on cancellation',
+    async (media) => {
+      vi.useFakeTimers();
+      const controller = new AbortController();
+      const file = createFile(
+        media === 'video' ? 'clip.mp4' : 'photo.jpg',
+        100,
+        media === 'video' ? 'video/mp4' : 'image/jpeg',
+      );
+      if (media === 'video') {
+        mockMultipartUploadApi(file.filename, 1, 100);
+      } else {
+        vi.mocked(api.post).mockResolvedValue({
+          data: {
+            items: [
+              {
+                filename: file.filename,
+                success: true,
+                photo_id: 'photo-1',
+                presigned_data: { url: 'https://s3/upload', headers: {} },
+              },
+            ],
+          },
+        } as any);
+      }
+      MockXMLHttpRequest.sendQueue = [{ type: 'error' }];
+      const upload = photoService.uploadPhotosPresigned(
+        'gallery-1',
+        [file],
+        undefined,
+        controller.signal,
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(MockXMLHttpRequest.instances).toHaveLength(1);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      controller.abort();
+      // No timer advance: the backoff must release immediately.
+      await expect(upload).resolves.toMatchObject({
+        total_files: 0,
+        successful_uploads: 0,
+        failed_uploads: 0,
+      });
+      expect(MockXMLHttpRequest.instances).toHaveLength(1);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it.each([false, true])(
+    'does not wait for confirmation after cancellation (already aborted: %s)',
+    async (abortBeforeConfirmation) => {
+      const controller = new AbortController();
+      let finishConfirmation!: () => void;
+      const confirmation = new Promise<void>((resolve) => {
+        finishConfirmation = resolve;
+      });
+      vi.mocked(api.post).mockImplementation((url) => {
+        if (String(url).endsWith('/batch-presigned')) {
+          return Promise.resolve({
+            data: {
+              items: [
+                {
+                  filename: 'photo.jpg',
+                  success: true,
+                  photo_id: 'photo-1',
+                  presigned_data: { url: 'https://s3/upload', headers: {} },
+                },
+              ],
+            },
+          } as any);
+        }
+        if (abortBeforeConfirmation) controller.abort();
+        return confirmation.then(() => ({ data: {} }) as any);
+      });
+      const upload = photoService.uploadPhotosPresigned(
+        'gallery-1',
+        [createFile('photo.jpg', 100)],
+        undefined,
+        controller.signal,
+      );
+      await vi.waitFor(() =>
+        expect(api.post).toHaveBeenCalledWith(
+          '/galleries/gallery-1/photos/batch-confirm',
+          { items: [{ photo_id: 'photo-1', success: true }] },
+          { signal: undefined },
+        ),
+      );
+      controller.abort();
+      await expect(upload).resolves.toMatchObject({ successful_uploads: 1, total_files: 1 });
+      // Cleanup remains live even though the upload promise has settled.
+      finishConfirmation();
+      await confirmation;
+    },
+  );
+
   it('marks empty files as failed and confirms failed ids', async () => {
     const emptyFile = createFile('empty.jpg', 0);
 

@@ -4,6 +4,9 @@ This folder contains comprehensive guides for deploying and maintaining Viewport
 
 ## Contents
 
+### [План полного перехода на same origin](../plans/PLAN_SAME_ORIGIN_S3_UPLOADS.md)
+Реконфигурация Traefik для API и всех S3 GET/PUT, разделение внутреннего и публичного endpoint, выкладка и откат.
+
 ### 🐳 [Docker Setup](./docker.md)
 Complete Docker and Docker Compose configuration for all services.
 
