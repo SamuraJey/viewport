@@ -12,7 +12,7 @@ def main_module():
         patch("viewport.logging_config.configure_logging"),
         patch("viewport.metrics.setup_metrics"),
         patch("viewport.models.db.get_engine", return_value=MagicMock(name="engine")),
-        patch("sqladmin.Admin"),
+        patch("viewport.admin.ViewportAdmin"),
     ):
         import viewport.main as imported_main
 
@@ -33,7 +33,7 @@ def test_import_main_does_not_initialize_admin_db_sessionmaker():
             "viewport.admin.auth.get_session_maker",
             side_effect=AssertionError("sessionmaker should be lazy"),
         ) as mock_get_session_maker,
-        patch("sqladmin.Admin"),
+        patch("viewport.admin.ViewportAdmin"),
     ):
         try:
             import viewport.main as imported_main

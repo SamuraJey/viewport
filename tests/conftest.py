@@ -11,20 +11,23 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import boto3
+import docker
 import jwt
 import pytest
 import pytest_asyncio
 from botocore.config import Config
 from fastapi.testclient import TestClient
+from requests.exceptions import RequestException
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from testcontainers.core.container import DockerContainer
+from testcontainers.core.docker_client import get_docker_host
 from testcontainers.postgres import PostgresContainer
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
-S3_IMAGE = "rustfs/rustfs:1.0.0-beta.8"
+S3_IMAGE = "rustfs/rustfs:1.0.1"
 S3_ROOT_ACCESS_KEY = "testaccesskey"
 S3_ROOT_SECRET_KEY = "testsecretkey"
 S3_PORT = 9000
@@ -49,10 +52,16 @@ DB_TRIGGER_FIXTURES = {
 
 logger = logging.getLogger(__name__)
 
-_SHARED_POSTGRES_CONTAINER: PostgresContainer | None = None
-_SHARED_POSTGRES_INFO: dict[str, Any] | None = None
-_SHARED_S3_CONTAINER: DockerContainer | None = None
-_SHARED_S3_INFO: dict[str, Any] | None = None
+DOCKER_PREFLIGHT_TIMEOUT = 2
+DOCKER_PREFLIGHT_MESSAGE = (
+    "Docker is unavailable. Integration tests require a running Docker daemon. Start Docker and check daemon/socket access and DOCKER_HOST, then rerun pytest. No test containers were started."
+)
+DOCKER_PREFLIGHT_WARNING = (
+    "WARNING: INCOMPLETE VALIDATION. Docker-dependent tests were SKIPPED, not passed. "
+    "A green pytest result or exit code 0 does NOT mean all checks passed. "
+    "AI agents must report this run as incomplete and rerun the skipped tests with Docker available before claiming full validation."
+)
+_DOCKER_PREFLIGHT = pytest.StashKey[str | None]()
 
 os.environ.update(
     {
@@ -239,54 +248,72 @@ def _worker_redis_db_index(config: pytest.Config) -> int:
     return (worker_num % 15) + 1
 
 
+def _docker_preflight_error() -> str | None:
+    """Probe the same endpoint as Testcontainers without starting containers/retries."""
+    client = None
+    try:
+        environment = dict(os.environ)
+        if host := get_docker_host():
+            environment["DOCKER_HOST"] = host
+        # A fixed version avoids Docker SDK's eager API-version negotiation.
+        client = docker.from_env(environment=environment, timeout=DOCKER_PREFLIGHT_TIMEOUT, version="1.41", use_ssh_client=True)
+        if not client.ping():
+            return DOCKER_PREFLIGHT_MESSAGE
+    except docker.errors.DockerException, RequestException, OSError, ValueError:
+        return DOCKER_PREFLIGHT_MESSAGE
+    finally:
+        if client is not None:
+            client.close()
+    return None
+
+
+def _docker_error(config: pytest.Config) -> str | None:
+    if _DOCKER_PREFLIGHT not in config.stash:
+        config.stash[_DOCKER_PREFLIGHT] = _docker_preflight_error()
+    return config.stash[_DOCKER_PREFLIGHT]
+
+
 def pytest_configure(config: pytest.Config) -> None:
-    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO, _SHARED_S3_CONTAINER, _SHARED_S3_INFO
-
-    if _is_worker_process(config) or not _xdist_enabled(config):
+    if config.option.collectonly:
         return
-
-    if _SHARED_POSTGRES_CONTAINER is None:
-        try:
-            container = PostgresContainer(image=POSTGRES_IMAGE)
-            container.start()
-            _SHARED_POSTGRES_CONTAINER = container
-            _SHARED_POSTGRES_INFO = _connection_info_from_container(container).to_dict()
-        except Exception:
-            pass  # Docker not available, skip shared container
-
-    if _SHARED_S3_CONTAINER is None:
-        try:
-            s3_container = _start_s3_container()
-            _SHARED_S3_CONTAINER = s3_container
-            _SHARED_S3_INFO = _connection_info_from_s3_container(s3_container).to_dict()
-        except Exception:
-            pass  # Docker not available, skip shared container
-
-
-def pytest_configure_node(node) -> None:
-    if _SHARED_POSTGRES_INFO is not None:
-        node.workerinput["shared_postgres"] = _SHARED_POSTGRES_INFO
-    if _SHARED_S3_INFO is not None:
-        node.workerinput["shared_s3"] = _SHARED_S3_INFO
-
-
-def pytest_unconfigure(config: pytest.Config) -> None:
-    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO, _SHARED_S3_CONTAINER, _SHARED_S3_INFO
-
     if _is_worker_process(config):
+        config.stash[_DOCKER_PREFLIGHT] = config.workerinput["docker_preflight_error"]
+    elif _xdist_enabled(config):
+        # Workers reuse one probe instead of each trying an unavailable daemon.
+        _docker_error(config)
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_configure_node(node) -> None:
+    if not node.config.option.collectonly:
+        node.workerinput["docker_preflight_error"] = _docker_error(node.config)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    if config.option.collectonly:
         return
+    container_fixtures = DB_TRIGGER_FIXTURES | S3_TRIGGER_FIXTURES | {"_postgres_server", "valkey_container"}
+    container_items = [item for item in items if container_fixtures.intersection(item.fixturenames) or item.get_closest_marker("requires_s3")]
+    if not container_items or (error := _docker_error(config)) is None:
+        return
+    # Skip before setup so autouse cleanup and service fixtures never run.
+    for item in container_items:
+        item.add_marker(pytest.mark.skip(reason=error))
 
-    if _SHARED_POSTGRES_CONTAINER is None:
-        pass
-    else:
-        _SHARED_POSTGRES_CONTAINER.stop()
-        _SHARED_POSTGRES_CONTAINER = None
-        _SHARED_POSTGRES_INFO = None
 
-    if _SHARED_S3_CONTAINER is not None:
-        _SHARED_S3_CONTAINER.stop()
-        _SHARED_S3_CONTAINER = None
-        _SHARED_S3_INFO = None
+def pytest_terminal_summary(terminalreporter) -> None:
+    # xdist forwards skip reports to the controller; show one explanation there.
+    if any(DOCKER_PREFLIGHT_MESSAGE in str(report.longrepr) for report in terminalreporter.stats.get("skipped", [])):
+        terminalreporter.write_sep("-", "Docker unavailable")
+        terminalreporter.write_line(DOCKER_PREFLIGHT_MESSAGE)
+        terminalreporter.write_line(DOCKER_PREFLIGHT_WARNING, yellow=True)
+
+
+def _require_docker(config: pytest.Config) -> None:
+    # Guard dynamically requested fixtures too, without repeating failed probes.
+    if error := _docker_error(config):
+        pytest.skip(error)
 
 
 @contextmanager
@@ -386,17 +413,8 @@ def _needs_db_for_request(request: pytest.FixtureRequest) -> bool:
 
 @pytest.fixture(scope="session")
 def _postgres_server(request: pytest.FixtureRequest) -> Generator[PostgresConnectionInfo]:
-    """Provide PostgreSQL server connection info.
-
-    Under xdist this reuses one server started by master process.
-    Without xdist it starts a regular testcontainer for the session.
-    """
-    worker_input = getattr(request.config, "workerinput", {})
-    shared_info = worker_input.get("shared_postgres")
-
-    if shared_info:
-        yield PostgresConnectionInfo.from_dict(shared_info)
-        return
+    """Start PostgreSQL lazily once per worker that requests a database."""
+    _require_docker(request.config)
 
     with PostgresContainer(image=POSTGRES_IMAGE) as container:
         yield _connection_info_from_container(container)
@@ -529,19 +547,8 @@ async def db_session(async_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
 @pytest.fixture(scope="session")
 def s3_container(request: pytest.FixtureRequest) -> Generator[S3ConnectionInfo | DockerContainer]:
     """S3 testcontainer shared for the entire test session."""
-    worker_input = getattr(request.config, "workerinput", {})
-    shared_info = worker_input.get("shared_s3")
+    _require_docker(request.config)
     default_bucket = f"test-viewport-default-{_worker_id_from_config(request.config)}"
-
-    if shared_info:
-        s3_info = S3ConnectionInfo.from_dict(shared_info)
-        env_updates = _build_s3_env(endpoint_url=s3_info.endpoint_url, bucket_name=default_bucket)
-
-        with _temporary_env_vars(env_updates):
-            if not _ensure_s3_bucket(s3_info.endpoint_url, default_bucket, env_updates["S3_SIGNATURE_VERSION"]):
-                raise RuntimeError(f"Unable to ensure S3 bucket {default_bucket} for tests")
-            yield s3_info
-        return
 
     container = _start_s3_container()
     try:
@@ -586,6 +593,7 @@ def _s3_test_bucket(request: pytest.FixtureRequest) -> Generator[None]:
 @pytest.fixture(scope="session")
 def valkey_container(request: pytest.FixtureRequest) -> Generator[str]:
     """Start Valkey lazily once per pytest worker that requests it."""
+    _require_docker(request.config)
     db_index = _worker_redis_db_index(request.config)
 
     container = _start_valkey_container()
