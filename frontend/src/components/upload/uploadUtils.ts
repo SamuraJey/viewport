@@ -243,12 +243,11 @@ const readFileEntry = (entry: AnyEntry): Promise<File> => {
   });
 };
 
-const extractFilesFromItem = async (item: DataTransferItem): Promise<File[]> => {
-  const entry = getAsEntry(item);
-  // `null` (no Entry API) and `undefined` (the Entry API threw) both fall back
-  // to `getAsFile()` so a dropped file is never silently lost.
-  if (entry === undefined || entry === null) {
-    const file = item.getAsFile();
+const extractFilesFromSource = async (
+  entry: FileSystemEntry | null | undefined,
+  file: File | null,
+): Promise<File[]> => {
+  if (!entry) {
     return file ? [file] : [];
   }
   if (entry.isDirectory) {
@@ -281,14 +280,18 @@ export const extractFilesFromEvent = async (
   const files: File[] = [];
   let hadDirectory = false;
   try {
-    for (const item of items) {
-      if (item.kind !== 'file') continue;
-      // Resolve the entry only to flag directory drops; `extractFilesFromItem`
-      // re-resolves it and falls back to `getAsFile()` when the Entry API is
-      // unavailable or throws, so every file item is preserved.
-      const entry = getAsEntry(item);
+    // Capture every entry/file before awaiting: browsers protect the drag data
+    // store after the drop handler returns, even if its async reads are pending.
+    // Keeping DataTransferItems alone does not preserve access to their files.
+    const sources = items
+      .filter((item) => item.kind === 'file')
+      .map((item) => {
+        const entry = getAsEntry(item);
+        return { entry, file: entry ? null : item.getAsFile() };
+      });
+    for (const { entry, file } of sources) {
       if (entry && entry.isDirectory) hadDirectory = true;
-      const extracted = await extractFilesFromItem(item);
+      const extracted = await extractFilesFromSource(entry, file);
       files.push(...extracted);
     }
   } catch (error) {

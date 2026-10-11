@@ -182,6 +182,64 @@ describe('deduplication with source paths', () => {
 /* ------------------------------------------------------------------ */
 
 describe('extractFilesFromEvent', () => {
+  it.each(['available', 'unavailable', 'throws'])(
+    'preserves every dropped file after event access expires with Entry API %s',
+    async (entryApi) => {
+      const droppedFiles = [file('first.jpg'), file('second.jpg'), file('third.jpg')];
+      let readable = true;
+      const items = droppedFiles.map((f) => {
+        const entry = makeFileEntry(`/photos/${f.name}`, f);
+        return {
+          kind: 'file',
+          type: f.type,
+          getAsFile: () => (readable ? f : null),
+          webkitGetAsEntry: () => {
+            if (entryApi === 'throws') throw new Error('Entry API unavailable');
+            return readable && entryApi === 'available' ? entry : null;
+          },
+        } as unknown as DataTransferItem;
+      });
+
+      const extraction = extractFilesFromEvent(makeDropEvent(items));
+      // Browsers protect the drag data store after the drop handler returns.
+      readable = false;
+      const { files, hadDirectory } = await extraction;
+
+      expect(files).toEqual(droppedFiles);
+      expect(hadDirectory).toBe(false);
+      expect(files.map(getUploadSourcePath)).toEqual(
+        droppedFiles.map((f) => (entryApi === 'available' ? `photos/${f.name}` : '')),
+      );
+    },
+  );
+
+  it('preserves later files and folders while the first folder is being read', async () => {
+    const first = file('first.jpg');
+    const loose = file('loose.jpg');
+    const last = file('last.jpg');
+    const entries = [
+      makeDirEntry('first-folder', [makeFileEntry('first-folder/first.jpg', first)]),
+      makeFileEntry('loose.jpg', loose),
+      makeDirEntry('last-folder', [makeFileEntry('last-folder/last.jpg', last)]),
+    ];
+    let readable = true;
+    const items = entries.map(
+      (entry) =>
+        ({
+          kind: 'file',
+          getAsFile: () => null,
+          webkitGetAsEntry: () => (readable ? entry : null),
+        }) as unknown as DataTransferItem,
+    );
+
+    const extraction = extractFilesFromEvent(makeDropEvent(items));
+    readable = false;
+    const { files, hadDirectory } = await extraction;
+
+    expect(files).toEqual([first, loose, last]);
+    expect(hadDirectory).toBe(true);
+  });
+
   it('extracts a file entry and attaches its source path', async () => {
     const f = file('photo.jpg');
     const entry = makeFileEntry('dir/photo.jpg', f);
