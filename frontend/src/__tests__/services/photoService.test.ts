@@ -306,6 +306,15 @@ describe('photoService', () => {
     expect(url.searchParams.has('include_videos')).toBe(false);
   });
 
+  it('requests publication files for a gallery from the owner endpoint', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { requested_count: 4, skipped_count: 2 },
+    });
+    const result = await photoService.requestPublicationPhotos('gallery-1');
+    expect(api.post).toHaveBeenCalledWith('/galleries/gallery-1/publication');
+    expect(result).toEqual({ requested_count: 4, skipped_count: 2 });
+  });
+
   it('requires authentication after a successful estimate', async () => {
     useAuthStore.setState({ user: null, tokens: null, isAuthenticated: false });
     await expect(photoService.downloadGalleryZip('gallery-1', originalOptions)).rejects.toThrow('Not authenticated');

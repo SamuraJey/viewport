@@ -42,6 +42,8 @@ export interface PhotoResponse extends PhotoRotationFields {
   filename: string;
   file_size: number;
   uploaded_at: string;
+  /** Owner-only publication download readiness; null while not yet generated. */
+  publication_state?: 'ready' | null;
 }
 
 export type GalleryPhoto = Omit<PhotoResponse, 'gallery_id'>;

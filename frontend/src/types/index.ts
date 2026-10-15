@@ -50,6 +50,8 @@ export type {
 
 export type { UploadJob, UploadStatus } from './upload';
 
+export type { PublicationRequestResponse } from './download';
+
 // Share link types
 export type {
   ShareScopeType,

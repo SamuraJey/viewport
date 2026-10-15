@@ -23,18 +23,10 @@ from viewport.models.refresh_token_session import RefreshTokenSession
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 from viewport.photo_rotation import ROTATION_PENDING_STATUSES, get_photo_delivery_key, is_rotation_pending
-from viewport.s3_utils import (
-    create_publication_image_from_path,
-    create_thumbnail,
-    create_thumbnail_from_path,
-    generate_playback_object_key,
-    generate_thumbnail_object_key,
-    get_s3_client,
-    get_s3_settings,
-)
+from viewport.s3_utils import create_thumbnail, create_thumbnail_from_path, generate_playback_object_key, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.services.redis_service import RedisService
 from viewport.task_utils import BatchTaskResult, task_db_session
-from viewport.thumbnail_tasks import THUMBNAIL_TASK_BATCH_SIZE, ThumbnailTaskItem, ThumbnailTaskPayload, chunk_thumbnail_task_payloads, to_thumbnail_task_payloads
+from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, chunk_thumbnail_task_payloads, to_thumbnail_task_payloads
 from viewport.video_metrics import VIDEO_QUEUE_DEPTH, report_cleanup_failure, report_derivative_sizes, report_original_size, report_processing_error, report_retry, report_transcode_duration
 
 logger = logging.getLogger(__name__)
@@ -293,8 +285,6 @@ def _process_single_photo(
                     result_tracker.add_error(photo_id, "Invalid image file")
                     return
                 thumbnail_bytes, width, height = create_thumbnail_from_path(image_path)
-                publication_bytes = create_publication_image_from_path(image_path)
-                publication_size = len(publication_bytes)
         except ThumbnailScratchError as scratch_error:
             raise ThumbnailTransientError(f"Retryable local scratch error for {photo_id}") from scratch_error
         except ThumbnailSourceError as source_error:
@@ -317,7 +307,6 @@ def _process_single_photo(
             return
 
         prefix = f"{snapshot['gallery_id']}/{photo_id}_rotations/{snapshot['rotation_revision']}-{uuid.uuid4().hex}"
-        publication_key = f"{prefix}/publication.jpg"
         thumbnail_object_key = generate_thumbnail_object_key(object_key) if snapshot["expected_status"] == PhotoUploadStatus.PROCESSING else f"{prefix}/thumbnail.avif"
 
         # CRITICAL: Check again if photo still exists before uploading thumbnail
@@ -327,13 +316,11 @@ def _process_single_photo(
                 exists = db_check.execute(photo_check_stmt).scalar_one_or_none()
         except Exception as db_error:
             del thumbnail_bytes
-            del publication_bytes
             raise ThumbnailTransientError(f"Retryable DB error checking photo existence for {photo_id}") from db_error
         if not exists:
             logger.warning("Photo %s deleted during processing, skipping upload", photo_id)
             result_tracker.add_skipped(photo_id, "Photo deleted during processing")
             del thumbnail_bytes
-            del publication_bytes
             return
 
         # Upload thumbnail with aggressive caching (immutable content)
@@ -346,18 +333,10 @@ def _process_single_photo(
                 CacheControl="public, max-age=31536000, immutable",
             )
             del thumbnail_bytes
-            s3_client.put_object(
-                Body=publication_bytes,
-                Bucket=bucket,
-                Key=publication_key,
-                ContentType="image/jpeg",
-                CacheControl="public, max-age=31536000, immutable",
-            )
         except Exception as upload_error:
             if _is_retryable_s3_error(upload_error):
                 raise ThumbnailTransientError(f"Retryable S3 upload error for {photo_id}") from upload_error
             raise
-        del publication_bytes
 
         logger.info("Successfully created thumbnail for photo %s", photo_id)
         result_tracker.add_success(
@@ -365,8 +344,6 @@ def _process_single_photo(
             thumbnail_object_key=thumbnail_object_key,
             width=width,
             height=height,
-            publication_object_key=publication_key,
-            publication_file_size=publication_size,
         )
 
     except ThumbnailTransientError:
@@ -522,8 +499,6 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
                     continue
                 if result["status"] == "success":
                     photo.thumbnail_object_key = result["thumbnail_object_key"]
-                    photo.publication_object_key = result["publication_object_key"]
-                    photo.publication_file_size = result["publication_file_size"]
                     photo.width, photo.height = result["width"], result["height"]
                     photo.status = PhotoUploadStatus.SUCCESSFUL
                 elif photo.status == PhotoUploadStatus.PROCESSING:
@@ -1486,13 +1461,10 @@ def reconcile_storage_quotas_task() -> dict:
 
 @celery_app.task(name="reconcile_successful_uploads")
 def reconcile_successful_uploads_task() -> dict:
-    """Repair metadata and fairly backfill missing publication JPEGs separately."""
-
-    from viewport.publication_tasks import create_publication_images_batch_task
+    """Repair metadata for successful uploads missing thumbnails/metadata."""
 
     now = datetime.now(UTC).replace(tzinfo=None)
     threshold = now - timedelta(minutes=5)
-    publication_threshold = now - timedelta(minutes=35)
     max_batch = 500
 
     with task_db_session() as db:
@@ -1514,36 +1486,12 @@ def reconcile_successful_uploads_task() -> dict:
             .limit(max_batch)
         )
         rows = db.execute(stmt).all()
-        publication_ids = db.scalars(
-            select(Photo.id)
-            .join(Photo.gallery)
-            .where(
-                Photo.status == PhotoUploadStatus.SUCCESSFUL,
-                Photo.media_type == MediaType.IMAGE.value,
-                Gallery.is_deleted.is_(False),
-                Photo.rotation_status.not_in(ROTATION_PENDING_STATUSES),
-                Photo.publication_object_key.is_(None),
-                Photo.publication_file_size.is_(None),
-                or_(Photo.publication_attempted_at.is_(None), Photo.publication_attempted_at < publication_threshold),
-            )
-            .order_by(Photo.publication_attempted_at.asc().nulls_first(), Photo.id)
-            .limit(max_batch)
-            .with_for_update(skip_locked=True, of=Photo)
-        ).all()
-        if publication_ids:
-            db.execute(update(Photo).where(Photo.id.in_(publication_ids)).values(publication_attempted_at=now))
 
     photos = to_thumbnail_task_payloads(ThumbnailTaskItem(row[0], row[1]) for row in rows)
     for batch in chunk_thumbnail_task_payloads(photos):
         create_thumbnails_batch_task.delay(batch)
     logger.info("Requeued %s successful uploads missing thumbnails/metadata", len(photos))
-    for start in range(0, len(publication_ids), THUMBNAIL_TASK_BATCH_SIZE):
-        batch_ids = [str(photo_id) for photo_id in publication_ids[start : start + THUMBNAIL_TASK_BATCH_SIZE]]
-        try:
-            create_publication_images_batch_task.delay(batch_ids)
-        except Exception:
-            logger.warning("Could not enqueue publication backfill for %s", batch_ids, exc_info=True)
-    return {"requeued_count": len(photos), "publication_requeued_count": len(publication_ids)}
+    return {"requeued_count": len(photos)}
 
 
 @celery_app.task(name="notify_selection_submitted", bind=True, max_retries=3, acks_late=True)

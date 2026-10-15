@@ -13,3 +13,8 @@ export interface DownloadEstimate {
   publication_size_bytes: number | null;
   publication_pending_count: number;
 }
+
+export interface PublicationRequestResponse {
+  requested_count: number;
+  skipped_count: number;
+}

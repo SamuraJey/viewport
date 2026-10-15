@@ -41,6 +41,7 @@ vi.mock('../../services/photoService', () => ({
     downloadGalleryZip: vi.fn(),
     downloadSelectedPhotosZip: vi.fn(),
     downloadPhoto: vi.fn(),
+    requestPublicationPhotos: vi.fn(),
   },
 }));
 
@@ -104,6 +105,7 @@ describe('useGalleryActions', () => {
     vi.mocked(photoService.downloadGalleryZip).mockReset();
     vi.mocked(photoService.downloadSelectedPhotosZip).mockReset();
     vi.mocked(photoService.downloadPhoto).mockReset();
+    vi.mocked(photoService.requestPublicationPhotos).mockReset();
     vi.mocked(galleryService.getGallery).mockResolvedValue(baseGallery);
   });
 
@@ -575,6 +577,61 @@ describe('useGalleryActions', () => {
         })).rejects.toBe(failure);
       });
       expect(result.current.error).toBe('Server error. Please try again later.');
+      expect(toastMock.success).not.toHaveBeenCalled();
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it('requests publication files after confirmation and refreshes gallery details with counts', async () => {
+    vi.mocked(photoService.requestPublicationPhotos).mockResolvedValue({
+      requested_count: 2, skipped_count: 1,
+    });
+    const { result } = renderUseGalleryActions();
+    act(() => {
+      result.current.handleRequestPublication();
+    });
+    expect(photoService.requestPublicationPhotos).not.toHaveBeenCalled();
+    expect(result.current.isConfirmationOpen).toBe(true);
+    await act(async () => {
+      await result.current.handleRequestPublicationConfirm();
+    });
+    expect(photoService.requestPublicationPhotos).toHaveBeenCalledWith('gallery-1');
+    expect(toastMock.success).toHaveBeenCalledWith(
+      'Preparing 2 photos for publishing; 1 already prepared',
+    );
+    expect(toastMock.error).not.toHaveBeenCalled();
+  });
+
+  it('reports when every photo is already prepared for publishing after confirmation', async () => {
+    vi.mocked(photoService.requestPublicationPhotos).mockResolvedValue({
+      requested_count: 0, skipped_count: 2,
+    });
+    const { result } = renderUseGalleryActions();
+    act(() => {
+      result.current.handleRequestPublication();
+    });
+    await act(async () => {
+      await result.current.handleRequestPublicationConfirm();
+    });
+    expect(toastMock.info).toHaveBeenCalledWith('All photos are already prepared for publishing');
+    expect(toastMock.success).not.toHaveBeenCalled();
+  });
+
+  it('keeps server publication failures inline without a success toast after confirmation', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failure = new ApiError(500, 'Storage temporarily unavailable');
+    vi.mocked(photoService.requestPublicationPhotos).mockRejectedValueOnce(failure);
+    const { result } = renderUseGalleryActions();
+    try {
+      act(() => {
+        result.current.handleRequestPublication();
+      });
+      await act(async () => {
+        await expect(result.current.handleRequestPublicationConfirm()).rejects.toBe(failure);
+      });
+      expect(result.current.error).toBe('Server error. Please try again later.');
+      expect(toastMock.error).toHaveBeenCalledWith('Storage temporarily unavailable');
       expect(toastMock.success).not.toHaveBeenCalled();
     } finally {
       errorLog.mockRestore();

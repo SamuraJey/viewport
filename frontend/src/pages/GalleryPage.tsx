@@ -273,6 +273,8 @@ export const GalleryPage = () => {
     handleDownloadGallery,
     handleDownloadSelectedPhotos,
     handleDownloadPhoto,
+    handleRequestPublication,
+    isPreparingPublication,
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,
@@ -1353,6 +1355,10 @@ export const GalleryPage = () => {
               folderPickerSupported ? () => photoUploaderRef.current?.openFolderPicker() : undefined
             }
             onDownloadGallery={gallery.photo_count > 0 ? () => openDownloadModal({ kind: 'all', galleryId }) : undefined}
+            onPreparePublication={
+              gallery.photo_count > 0 ? () => void handleRequestPublication() : undefined
+            }
+            isPreparingPublication={isPreparingPublication}
             onToggleSelectionMode={photoUrls.length > 0 ? handleToggleSelectionMode : undefined}
             isSelectionMode={isSelectionMode}
             isDownloadingZip={isDownloadingZip}
@@ -1403,6 +1409,8 @@ export const GalleryPage = () => {
               width: swapDimensions ? photo.height : photo.width,
               height: swapDimensions ? photo.width : photo.height,
               canRotate: canRotatePhoto(photo),
+              publicationReady:
+                photo.media_type !== 'video' && photo.publication_state === 'ready',
               rotationPending: isRotationPending(photo),
               previewRotation:
                 isRotationPending(photo) && !preview

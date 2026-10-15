@@ -15,3 +15,8 @@ class DownloadEstimateResponse(BaseModel):
     original_size_bytes: int = Field(ge=0)
     publication_size_bytes: int | None = Field(ge=0)
     publication_pending_count: int = Field(ge=0)
+
+
+class PublicationRequestResponse(BaseModel):
+    requested_count: int = Field(ge=0)
+    skipped_count: int = Field(ge=0)

@@ -310,4 +310,24 @@ describe('PhotoCard', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Set as cover' }));
     expect(actions.onSetCover).toHaveBeenCalledWith('photo-1');
   });
+
+  it('shows the publication ready badge for prepared images', () => {
+    render(
+      <PhotoCard
+        photo={createPhoto({ publication_state: 'ready' })}
+        {...callbacks()}
+      />,
+    );
+    expect(screen.getByText('For publishing: ready')).toBeInTheDocument();
+  });
+
+  it('omits the publication badge for videos and unprepared images', () => {
+    render(
+      <>
+        <PhotoCard photo={createPhoto({ media_type: 'video' })} {...callbacks()} />
+        <PhotoCard photo={createPhoto({ publication_state: null })} {...callbacks()} />
+      </>,
+    );
+    expect(screen.queryByText('For publishing: ready')).not.toBeInTheDocument();
+  });
 });

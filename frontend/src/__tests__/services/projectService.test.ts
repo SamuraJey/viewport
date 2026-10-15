@@ -86,6 +86,15 @@ describe('projectService', () => {
     });
   });
 
+  it('requests publication files for a project from the owner endpoint', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { requested_count: 7, skipped_count: 3 },
+    });
+    const result = await projectService.requestProjectPublication('project-1');
+    expect(api.post).toHaveBeenCalledWith('/projects/project-1/publication');
+    expect(result).toEqual({ requested_count: 7, skipped_count: 3 });
+  });
+
   it('persists project order through the production and demo transports', async () => {
     await projectService.reorderProjects(['project-2', 'project-1']);
 

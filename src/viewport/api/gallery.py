@@ -17,12 +17,13 @@ from viewport.models.gallery import MediaType, PhotoUploadStatus
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
 from viewport.models.project import Project
 from viewport.models.user import User
+from viewport.publication_tasks import request_gallery_publication
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client as get_sync_s3_client
 from viewport.s3_utils import get_s3_settings
-from viewport.schemas.download import DownloadEstimateResponse, DownloadQuality
+from viewport.schemas.download import DownloadEstimateResponse, DownloadQuality, PublicationRequestResponse
 from viewport.schemas.gallery import (
     GalleryCreateRequest,
     GalleryDetailResponse,
@@ -469,6 +470,16 @@ async def download_selected_photos_zip(
     entries = prepare_download_entries(photos, quality=quality, include_videos=include_videos, block_pending_rotations=True)
     suffix = "_publication" if quality == DownloadQuality.PUBLICATION else ""
     return _build_gallery_zip_response(gallery_id, entries, archive_name=f"gallery_{gallery_id}_selected{suffix}.zip")
+
+
+@router.post("/{gallery_id}/publication", response_model=PublicationRequestResponse)
+async def request_gallery_publication_photos(
+    gallery_id: uuid.UUID,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+) -> PublicationRequestResponse:
+    photos = await _load_gallery_download_photos(gallery_id, repo=repo, owner_id=current_user.id)
+    return await request_gallery_publication(gallery_id, photos)
 
 
 @router.post("/{gallery_id}/cover/{photo_id}", response_model=GalleryResponse)

@@ -1,6 +1,6 @@
 import { api } from '../lib/api';
 import type { PhotoRotationItem, PhotoRotationResponse } from '../types/photo';
-import type { DownloadEstimate, DownloadOptions } from '../types/download';
+import type { DownloadEstimate, DownloadOptions, PublicationRequestResponse } from '../types/download';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { ApiError } from '../lib/errorHandling';
 import { getDemoService } from './demoService';
@@ -320,6 +320,15 @@ const downloadPhoto = async (
     `/galleries/${galleryId}/photos/${photoId}/download?${downloadQuery(options, false)}`,
     { access_token: getDownloadAccessToken() },
   );
+};
+
+const requestPublicationPhotos = async (
+  galleryId: string,
+): Promise<PublicationRequestResponse> => {
+  if (isDemoModeEnabled()) return getDemoService().requestPublicationPhotos(galleryId);
+  return (
+    await api.post<PublicationRequestResponse>(`/galleries/${galleryId}/publication`)
+  ).data;
 };
 
 // File type detection helpers
@@ -1130,6 +1139,7 @@ export const photoService = {
   estimateGalleryDownload,
   estimateSelectedDownload,
   estimatePhotoDownload,
+  requestPublicationPhotos,
   uploadPhotosPresigned,
   retryFailedUploads,
   completeMultipartUpload,

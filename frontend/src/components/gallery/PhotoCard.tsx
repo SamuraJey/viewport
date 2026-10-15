@@ -206,6 +206,17 @@ const PhotoCardComponent = ({
           </AppBadge>
         )}
 
+        {/* Publication badge — owner-only readiness indicator */}
+        {photo.media_type !== 'video' && photo.status === 'successful' && photo.publication_state === 'ready' && (
+          <AppBadge
+            tone="success"
+            className="absolute bottom-3 left-3 z-10"
+            aria-label="For publishing: ready"
+          >
+            For publishing: ready
+          </AppBadge>
+        )}
+
         {/* Video play badge — shown only for successful videos */}
         {photo.media_type === 'video' && photo.status === 'successful' && (
           <div className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2 pointer-events-none">

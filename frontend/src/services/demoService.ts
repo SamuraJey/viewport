@@ -53,7 +53,7 @@ import { isDemoModeEnabled } from '../lib/demoMode';
 import { isVideoUploadFile } from '../constants/upload';
 import type { PhotoRotationItem, PhotoRotationResponse } from '../types/photo';
 import { canRotatePhoto, rotateThumbnail } from '../lib/photoRotation';
-import type { DownloadEstimate, DownloadOptions } from '../types/download';
+import type { DownloadEstimate, DownloadOptions, PublicationRequestResponse } from '../types/download';
 
 interface DemoSelectionState {
   selectionConfigs?: Record<string, SelectionConfig>;
@@ -3501,6 +3501,39 @@ class DemoServiceStore {
   async downloadGalleryZip(galleryId: string, options: DownloadOptions): Promise<void> {
     const state = this.getGalleryState(galleryId);
     this.downloadManifest(`${state.gallery.name}-all-photos`, state.photos, options, true);
+  }
+
+  private requestPublicationFor(photos: (GalleryPhoto & { publication_state?: 'ready' | null })[]): PublicationRequestResponse {
+    const eligible = photos.filter((photo) =>
+      photo.media_type !== 'video' && photo.status === 'successful' && photo.publication_state !== 'ready',
+    );
+    const skipped = photos.filter((photo) =>
+      photo.media_type !== 'video' && photo.status === 'successful' && photo.publication_state === 'ready',
+    ).length;
+    for (const photo of eligible) {
+      photo.publication_state = 'ready';
+    }
+    this.persistState();
+    return { requested_count: eligible.length, skipped_count: skipped };
+  }
+
+  async requestPublicationPhotos(galleryId: string): Promise<PublicationRequestResponse> {
+    const state = this.getGalleryState(galleryId);
+    return this.requestPublicationFor(state.photos);
+  }
+
+  async requestProjectPublication(projectId: string): Promise<PublicationRequestResponse> {
+    const project = this.projects.find((entry) => entry.project.id === projectId);
+    if (!project) {
+      throw this.createNotFoundError('Project not found');
+    }
+    const photos = this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .flatMap((entry) => entry.photos);
+    if (photos.length === 0) {
+      throw this.createNotFoundError('No photos found');
+    }
+    return this.requestPublicationFor(photos);
   }
 
   async downloadSelectedPhotosZip(galleryId: string, photoIds: string[], options: DownloadOptions): Promise<void> {

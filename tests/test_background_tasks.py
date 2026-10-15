@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.orm import Session, sessionmaker
 
 from tests.helpers import create_test_thumbnail_from_path
-from viewport import background_tasks, publication_tasks
+from viewport import background_tasks
 from viewport.background_tasks import (
     ThumbnailTransientError,
     _delete_photo_data_impl,
@@ -52,8 +52,6 @@ def _stub_native_thumbnail_encoder(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep task orchestration tests independent from host libvips packages."""
 
     monkeypatch.setattr(background_tasks, "create_thumbnail_from_path", create_test_thumbnail_from_path)
-    monkeypatch.setattr(background_tasks, "create_publication_image_from_path", lambda _path: _create_dummy_jpeg_bytes())
-    monkeypatch.setattr(publication_tasks.create_publication_images_batch_task, "delay", lambda _ids: None)
 
 
 class PhotoSetup(NamedTuple):
@@ -155,15 +153,7 @@ def test_create_thumbnails_batch_task_creates_thumbnail(engine: Engine, s3_conta
             assert updated_photo.width is not None and updated_photo.height is not None
 
             assert updated_photo.status == PhotoUploadStatus.SUCCESSFUL
-            assert f"{ctx.photo_id}_rotations/0-" in updated_photo.publication_object_key
-            assert updated_photo.publication_object_key.endswith("/publication.jpg")
-            publication_response = get_s3_client().get_object(Bucket=S3Settings().bucket, Key=updated_photo.publication_object_key)
-            with publication_response["Body"] as body:
-                publication = body.read()
-            assert updated_photo.publication_file_size == len(publication)
-            assert publication_response["ContentType"] == "image/jpeg"
-            with Image.open(io.BytesIO(publication)) as image:
-                assert image.format == "JPEG"
+            assert updated_photo.publication_object_key is None and updated_photo.publication_file_size is None
             s3_client = get_s3_client()
             bucket = S3Settings().bucket
             response = s3_client.head_object(Bucket=bucket, Key=updated_photo.thumbnail_object_key)
@@ -633,8 +623,7 @@ def test_reconcile_successful_uploads_requeue_then_process_keeps_successful_stat
             assert updated_photo is not None
             assert updated_photo.status == PhotoUploadStatus.SUCCESSFUL
             assert updated_photo.thumbnail_object_key.endswith("/thumbnail.avif")
-            assert updated_photo.publication_object_key.endswith("/publication.jpg")
-            assert updated_photo.publication_file_size > 0
+            assert updated_photo.publication_object_key is None and updated_photo.publication_file_size is None
             assert updated_photo.width is not None
             assert updated_photo.height is not None
 
@@ -1859,45 +1848,13 @@ def test_notify_selection_submitted_task_happy_path(monkeypatch) -> None:
     assert fake.set_called is True
 
 
-def test_initial_upload_does_not_publish_when_jpeg_upload_fails(engine, s3_container, monkeypatch):
-    with photo_context(engine, "dual-assets", "source.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
-        with session_scope(engine) as db:
-            photo = db.get(Photo, ctx.photo_id)
-            db.get(User, ctx.user_id).storage_used = photo.file_size
-        client = get_s3_client()
-        original_put = client.put_object
-        uploaded_thumbnails = []
-
-        def put_object(**kwargs):
-            with session_scope(engine) as db:
-                photo = db.get(Photo, ctx.photo_id)
-                assert photo.status == PhotoUploadStatus.PROCESSING
-                assert photo.publication_object_key is None
-            if kwargs["ContentType"] == "image/jpeg":
-                raise RuntimeError("JPEG upload failed")
-            uploaded_thumbnails.append(kwargs["Key"])
-            return original_put(**kwargs)
-
-        monkeypatch.setattr(client, "put_object", put_object)
-        monkeypatch.setattr(background_tasks, "get_s3_client", lambda: client)
-        result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
-        assert_batch_counts(result, failed=1)
-        assert uploaded_thumbnails
-        with session_scope(engine) as db:
-            photo = db.get(Photo, ctx.photo_id)
-            assert photo.status == PhotoUploadStatus.FAILED
-            assert photo.thumbnail_object_key == ctx.object_key
-            assert photo.publication_object_key is None and photo.publication_file_size is None
-            assert db.get(User, ctx.user_id).storage_used == 0
-
-
-def test_publication_upload_transient_failure_keeps_initial_photo_processing(engine, s3_container, monkeypatch):
-    with photo_context(engine, "dual-assets-retry", "source.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
+def test_thumbnail_upload_transient_failure_keeps_initial_photo_processing(engine, s3_container, monkeypatch):
+    with photo_context(engine, "single-asset-retry", "source.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         client = get_s3_client()
         original_put = client.put_object
 
         def put_object(**kwargs):
-            if kwargs["ContentType"] == "image/jpeg":
+            if kwargs["ContentType"] == "image/avif":
                 raise EndpointConnectionError(endpoint_url="https://s3.example")
             return original_put(**kwargs)
 
@@ -1931,14 +1888,13 @@ def test_thumbnail_metadata_repair_reads_current_delivery_and_keeps_quota(engine
             photo = db.get(Photo, ctx.photo_id)
             assert (photo.width, photo.height) == (80, 120)
             assert photo.object_key == ctx.object_key and photo.rotated_object_key == delivery_key
-            assert f"{ctx.photo_id}_rotations/3-" in photo.publication_object_key
-            assert photo.publication_object_key != "prior-publication.jpg"
+            assert (photo.publication_object_key, photo.publication_file_size) == ("prior-publication.jpg", 30)
             assert photo.thumbnail_object_key != "prior.avif"
             assert db.get(User, ctx.user_id).storage_used == photo.file_size
 
 
 @pytest.mark.parametrize("change", ("revision", "delivery", "pending", "status", "gallery_deleted", "deleted"))
-def test_late_metadata_repair_never_replaces_published_assets(engine, s3_container, monkeypatch, change):
+def test_late_metadata_repair_never_overwrites_changed_photo(engine, s3_container, monkeypatch, change):
     with photo_context(engine, "late-repair", "source.jpg", status=PhotoUploadStatus.SUCCESSFUL) as ctx:
         with session_scope(engine) as db:
             photo = db.get(Photo, ctx.photo_id)
@@ -1949,33 +1905,32 @@ def test_late_metadata_repair_never_replaces_published_assets(engine, s3_contain
             db.get(User, ctx.user_id).storage_used = photo.file_size
         client = get_s3_client()
         original_put = client.put_object
-        uploaded_jpegs = []
+        uploaded_thumbnails = []
 
         def put_object(**kwargs):
             response = original_put(**kwargs)
-            if kwargs["ContentType"] == "image/jpeg":
-                uploaded_jpegs.append(kwargs["Key"])
-                with session_scope(engine) as db:
-                    photo = db.get(Photo, ctx.photo_id)
-                    if change == "deleted":
-                        db.delete(photo)
-                    elif change == "gallery_deleted":
-                        db.get(Gallery, ctx.gallery_id).is_deleted = True
-                    elif change == "revision":
-                        photo.rotation_revision += 1
-                    elif change == "delivery":
-                        photo.rotated_object_key = "new-delivery.jpg"
-                    elif change == "pending":
-                        photo.rotation_status = "pending"
-                    else:
-                        photo.status = PhotoUploadStatus.FAILED
+            uploaded_thumbnails.append(kwargs["Key"])
+            with session_scope(engine) as db:
+                photo = db.get(Photo, ctx.photo_id)
+                if change == "deleted":
+                    db.delete(photo)
+                elif change == "gallery_deleted":
+                    db.get(Gallery, ctx.gallery_id).is_deleted = True
+                elif change == "revision":
+                    photo.rotation_revision += 1
+                elif change == "delivery":
+                    photo.rotated_object_key = "new-delivery.jpg"
+                elif change == "pending":
+                    photo.rotation_status = "pending"
+                else:
+                    photo.status = PhotoUploadStatus.FAILED
             return response
 
         monkeypatch.setattr(client, "put_object", put_object)
         monkeypatch.setattr(background_tasks, "get_s3_client", lambda: client)
         result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
         assert_batch_counts(result, skipped=1)
-        assert uploaded_jpegs
+        assert uploaded_thumbnails
         with session_scope(engine) as db:
             photo = db.get(Photo, ctx.photo_id)
             if change == "deleted":
@@ -1997,7 +1952,6 @@ def test_metadata_repair_skips_active_rotation(engine, s3_container, rotation_st
         with session_scope(engine) as db:
             photo = db.get(Photo, ctx.photo_id)
             assert photo.thumbnail_object_key == ctx.object_key
-            assert photo.publication_object_key is None
 
 
 def test_failed_metadata_repair_preserves_successful_photo_and_quota(engine, s3_container, monkeypatch):

@@ -2,7 +2,6 @@ import io
 import os
 import uuid
 from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -220,83 +219,101 @@ def test_backfill_transient_failures_use_existing_retry_class(sync_engine, publi
         assert photo.status == PhotoUploadStatus.SUCCESSFUL and photo.publication_object_key is None
 
 
-def test_reconciler_fair_bounded_publication_sweep_commits_attempts_before_enqueue(sync_engine, publication_photo, monkeypatch):
+def test_split_publication_requests_separates_pending_and_ready(sync_engine, publication_photo):
     ids = publication_photo
-    now = datetime.now(UTC).replace(tzinfo=None)
     with Session(sync_engine) as db:
-        db.delete(db.get(Photo, ids.photo_id))
-        photos = [
-            Photo(id=uuid.UUID(int=index), gallery_id=ids.gallery_id, object_key=f"source-{index}.jpg", thumbnail_object_key=f"thumb-{index}.avif", file_size=100, width=640, height=480, status=PhotoUploadStatus.SUCCESSFUL)
-            for index in range(1, 502)
-        ]
-        older = Photo(id=uuid.UUID(int=1001), gallery_id=ids.gallery_id, object_key="older.jpg", thumbnail_object_key="older.avif", file_size=100, width=640, height=480, status=PhotoUploadStatus.SUCCESSFUL, publication_attempted_at=now - timedelta(minutes=45))
-        old = Photo(id=uuid.UUID(int=1002), gallery_id=ids.gallery_id, object_key="old.jpg", thumbnail_object_key="old.avif", file_size=100, width=640, height=480, status=PhotoUploadStatus.SUCCESSFUL, publication_attempted_at=now - timedelta(minutes=36))
-        fresh = Photo(id=uuid.UUID(int=1003), gallery_id=ids.gallery_id, object_key="fresh.jpg", thumbnail_object_key="fresh.avif", file_size=100, width=640, height=480, status=PhotoUploadStatus.SUCCESSFUL, publication_attempted_at=now - timedelta(minutes=34))
-        db.add_all([*photos, older, old, fresh])
+        db.get(Photo, ids.photo_id)
+        ready = Photo(
+            gallery_id=ids.gallery_id,
+            object_key=f"{ids.gallery_id}/ready.jpg",
+            thumbnail_object_key=f"{ids.gallery_id}/ready.avif",
+            display_name="ready.jpg",
+            file_size=100,
+            width=640,
+            height=480,
+            status=PhotoUploadStatus.SUCCESSFUL,
+            publication_object_key="pub.jpg",
+            publication_file_size=50,
+        )
+        video = Photo(
+            gallery_id=ids.gallery_id,
+            object_key=f"{ids.gallery_id}/clip.mp4",
+            thumbnail_object_key=f"{ids.gallery_id}/clip.avif",
+            display_name="clip.mp4",
+            file_size=1000,
+            media_type="video",
+            status=PhotoUploadStatus.SUCCESSFUL,
+        )
+        unfinished = Photo(
+            gallery_id=ids.gallery_id,
+            object_key=f"{ids.gallery_id}/half.jpg",
+            thumbnail_object_key=f"{ids.gallery_id}/half.avif",
+            display_name="half.jpg",
+            file_size=100,
+            status=PhotoUploadStatus.PROCESSING,
+        )
+        db.add_all([ready, video, unfinished])
         db.commit()
-    batches = []
-    metadata_batches = []
-
-    def enqueue(photo_ids):
-        with Session(sync_engine) as db:
-            rows = db.scalars(select(Photo).where(Photo.id.in_([uuid.UUID(photo_id) for photo_id in photo_ids]))).all()
-            assert len(rows) == len(photo_ids)
-            assert all(photo.publication_attempted_at >= now for photo in rows)
-        batches.append(photo_ids)
-
-    monkeypatch.setattr(publication_tasks.create_publication_images_batch_task, "delay", enqueue)
-    monkeypatch.setattr(background_tasks.create_thumbnails_batch_task, "delay", metadata_batches.append)
-    result = background_tasks.reconcile_successful_uploads_task.run()
-    assert result == {"requeued_count": 0, "publication_requeued_count": 500}
-    assert len(batches) == 50 and all(len(batch) == 10 for batch in batches)
-    assert [photo_id for batch in batches for photo_id in batch] == [str(uuid.UUID(int=index)) for index in range(1, 501)]
-    batches.clear()
-    result = background_tasks.reconcile_successful_uploads_task.run()
-    assert result["publication_requeued_count"] == 3
-    assert batches == [[str(uuid.UUID(int=index)) for index in (501, 1001, 1002)]]
-    assert not metadata_batches
-    assert background_tasks.reconcile_successful_uploads_task.run()["publication_requeued_count"] == 0
+        rows = db.scalars(select(Photo).where(Photo.gallery_id == ids.gallery_id)).all()
+        requested, skipped = publication_tasks._split_publication_requests(rows)
+    assert requested == [str(ids.photo_id)]
+    assert skipped == 1
 
 
-def test_reconciler_broker_failure_retries_only_after_attempt_window(sync_engine, publication_photo, monkeypatch):
+@pytest.mark.parametrize(
+    "mutate",
+    (
+        lambda photo_id: ("video", None),
+        lambda photo_id: ("pending_rotation", None),
+        lambda photo_id: ("unfinished", None),
+    ),
+    ids=("video", "pending_rotation", "unfinished"),
+)
+def test_request_gallery_publication_rejects_when_nothing_eligible(sync_engine, publication_photo, monkeypatch, mutate):
+    import asyncio
+
     ids = publication_photo
-    failed_enqueue = MagicMock(side_effect=RuntimeError("broker unavailable"))
-    monkeypatch.setattr(publication_tasks.create_publication_images_batch_task, "delay", failed_enqueue)
-    monkeypatch.setattr(background_tasks.create_thumbnails_batch_task, "delay", MagicMock())
-    assert background_tasks.reconcile_successful_uploads_task.run()["publication_requeued_count"] == 1
-    assert background_tasks.reconcile_successful_uploads_task.run()["publication_requeued_count"] == 0
-    failed_enqueue.assert_called_once()
-    with Session(sync_engine) as db:
-        photo = db.get(Photo, ids.photo_id)
-        assert photo.status == PhotoUploadStatus.SUCCESSFUL and photo.publication_object_key is None
-        photo.publication_attempted_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=36)
-        db.commit()
-    batches = []
-    monkeypatch.setattr(publication_tasks.create_publication_images_batch_task, "delay", batches.append)
-    assert background_tasks.reconcile_successful_uploads_task.run()["publication_requeued_count"] == 1
-    assert batches == [[str(ids.photo_id)]]
-
-
-@pytest.mark.parametrize("reason", ("video", "pending_rotation", "processing_rotation", "deleted_gallery", "ready", "unfinished"))
-def test_publication_sweep_uses_same_eligibility_as_backfill(sync_engine, publication_photo, monkeypatch, reason):
-    ids = publication_photo
+    reason, _ = mutate(str(ids.photo_id))
     with Session(sync_engine) as db:
         photo = db.get(Photo, ids.photo_id)
         if reason == "video":
             photo.media_type = "video"
-        elif reason in ("pending_rotation", "processing_rotation"):
-            photo.rotation_status = reason.removesuffix("_rotation")
-        elif reason == "deleted_gallery":
-            db.get(Gallery, ids.gallery_id).is_deleted = True
-        elif reason == "ready":
-            photo.publication_object_key, photo.publication_file_size = "ready.jpg", 20
+        elif reason == "pending_rotation":
+            photo.rotation_status = "pending"
         else:
             photo.status = PhotoUploadStatus.PROCESSING
         db.commit()
+        rows = db.scalars(select(Photo).where(Photo.gallery_id == ids.gallery_id)).all()
     enqueue = MagicMock()
     monkeypatch.setattr(publication_tasks.create_publication_images_batch_task, "delay", enqueue)
-    monkeypatch.setattr(background_tasks.create_thumbnails_batch_task, "delay", MagicMock())
-    assert background_tasks.reconcile_successful_uploads_task.run()["publication_requeued_count"] == 0
+    with pytest.raises(Exception) as exc_info:
+        asyncio.run(publication_tasks.request_gallery_publication(ids.gallery_id, list(rows)))
+    assert "No photos found" in str(exc_info.value)
     enqueue.assert_not_called()
+
+
+def test_request_gallery_publication_enqueues_backfill_batches(sync_engine, publication_photo, monkeypatch):
+    import asyncio
+
+    ids = publication_photo
     with Session(sync_engine) as db:
-        assert db.get(Photo, ids.photo_id).publication_attempted_at is None
+        gallery_id = ids.gallery_id
+        photos = db.scalars(select(Photo).where(Photo.gallery_id == gallery_id)).all()
+    batches = []
+    monkeypatch.setattr(publication_tasks.create_publication_images_batch_task, "delay", lambda batch: batches.append(batch))
+    response = asyncio.run(publication_tasks.request_gallery_publication(gallery_id, list(photos)))
+    assert response.requested_count == 1 and response.skipped_count == 0
+    assert batches == [[str(ids.photo_id)]]
+
+
+def test_request_gallery_publication_rejects_more_than_500(sync_engine, publication_photo, monkeypatch):
+    import asyncio
+
+    ids = publication_photo
+    enqueue = MagicMock()
+    monkeypatch.setattr(publication_tasks.create_publication_images_batch_task, "delay", enqueue)
+    photos = [SimpleNamespace(id=uuid.UUID(int=index), status=PhotoUploadStatus.SUCCESSFUL, media_type="image", publication_object_key=None, publication_file_size=None, rotation_status="ready") for index in range(501)]
+    with pytest.raises(Exception) as exc_info:
+        asyncio.run(publication_tasks.request_gallery_publication(ids.gallery_id, photos))
+    assert "Too many photos" in str(exc_info.value)
+    enqueue.assert_not_called()

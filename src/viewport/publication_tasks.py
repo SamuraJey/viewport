@@ -2,9 +2,12 @@
 
 import logging
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from fastapi import HTTPException
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 
 from viewport.background_tasks import ThumbnailScratchError, ThumbnailSourceError, ThumbnailTransientError, _is_retryable_s3_error, _stream_s3_object_to_tempfile
@@ -12,12 +15,16 @@ from viewport.celery_app import celery_app
 from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus
 from viewport.photo_rotation import get_photo_delivery_key, is_rotation_pending
 from viewport.s3_utils import create_publication_image_from_path, get_s3_client, get_s3_settings
+from viewport.schemas.download import PublicationRequestResponse
+from viewport.schemas.photo import PHOTO_ID_BATCH_MAX
 from viewport.task_utils import BatchTaskResult, task_db_session
 
 if TYPE_CHECKING:
     from mypy_boto3_s3.client import S3Client
 
 logger = logging.getLogger(__name__)
+
+PROJECT_PUBLICATION_MAX_PHOTOS = 500
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +43,35 @@ def _needs_publication(photo: Photo) -> bool:
         and photo.publication_file_size is None
         and not is_rotation_pending(photo)
     )
+
+
+def _publication_ready(photo: Photo) -> bool:
+    return photo.publication_object_key is not None and photo.publication_file_size is not None
+
+
+def _split_publication_requests(photos: Iterable[Photo]) -> tuple[list[str], int]:
+    """Split photos into photo IDs to enqueue and the count of already-ready images."""
+    requested_ids: list[str] = []
+    already_published = 0
+    for photo in photos:
+        if _needs_publication(photo):
+            requested_ids.append(str(photo.id))
+        elif photo.status == PhotoUploadStatus.SUCCESSFUL and photo.media_type == MediaType.IMAGE.value and _publication_ready(photo):
+            already_published += 1
+    return requested_ids, already_published
+
+
+def _enqueue_publication_batches(photo_ids: list[str]) -> int:
+    """Enqueue backfill batches of at most 500 IDs, returning the enqueued count."""
+    enqueued = 0
+    for start in range(0, len(photo_ids), PHOTO_ID_BATCH_MAX):
+        batch_ids = photo_ids[start : start + PHOTO_ID_BATCH_MAX]
+        enqueued += len(batch_ids)
+        try:
+            create_publication_images_batch_task.delay(batch_ids)
+        except Exception:
+            logger.warning("Could not enqueue publication backfill for %s", batch_ids, exc_info=True)
+    return enqueued
 
 
 def _load_publication_snapshot(photo_id: uuid.UUID) -> _PublicationSnapshot | None:
@@ -120,3 +156,14 @@ def create_publication_images_batch_task(self, photo_ids: list[str]) -> dict:
     for photo_id in photo_ids:
         _create_publication_image(photo_id, client, bucket, result)
     return result.to_dict()
+
+
+async def request_gallery_publication(gallery_id: uuid.UUID, photos: list[Photo]) -> PublicationRequestResponse:
+    """Split a gallery photo scope and enqueue publication backfill batches."""
+    requested_ids, skipped_count = _split_publication_requests(photos)
+    if not requested_ids:
+        raise HTTPException(status_code=404, detail="No photos found")
+    if len(requested_ids) > PHOTO_ID_BATCH_MAX:
+        raise HTTPException(status_code=409, detail="Too many photos for a single publication request")
+    requested_count = await run_in_threadpool(_enqueue_publication_batches, requested_ids)
+    return PublicationRequestResponse(requested_count=requested_count, skipped_count=skipped_count)

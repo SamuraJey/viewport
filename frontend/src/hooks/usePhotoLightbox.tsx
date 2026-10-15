@@ -16,6 +16,8 @@ export interface PhotoSlide {
   canRotate?: boolean;
   rotationPending?: boolean;
   previewRotation?: number;
+  /** Owner-only publication readiness shown in the lightbox toolbar. */
+  publicationReady?: boolean;
   src: string;
   alt?: string;
   width?: number;
@@ -181,6 +183,17 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
                           className="inline-flex min-h-11 items-center px-2 text-xs text-white/80"
                         >
                           Saving rotation…
+                        </span>,
+                      ]
+                    : []),
+                  ...(slides[lightboxIndex]?.publicationReady
+                    ? [
+                        <span
+                          key="publication-ready"
+                          role="status"
+                          className="inline-flex min-h-11 items-center rounded-lg bg-success/20 px-2 text-xs font-semibold text-white"
+                        >
+                          For publishing: ready
                         </span>,
                       ]
                     : []),

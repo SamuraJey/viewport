@@ -986,11 +986,12 @@ class TestDownloadQuality:
             ("post", f"/galleries/{gallery_id_fixture}/download/all", "viewport.api.gallery.get_sync_s3_client"),
             ("get", f"/s/{share}/download/all", "viewport.api.public.get_s3_client"),
         ]:
-            bodies = []
+            bodies: list[io.BytesIO] = []
+            captured_bodies = bodies
 
-            def get_object(**_kwargs):
+            def get_object(_client_path=client_path, _bodies=captured_bodies, **_kwargs):
                 body = io.BytesIO(b"streamed-object")
-                bodies.append(body)
+                _bodies.append(body)
                 return {"Body": body}
 
             with patch(client_path) as get_client:
@@ -1027,3 +1028,38 @@ class TestDownloadQuality:
             json={"photo_ids": [str(uuid4())], "access_token": auth_token},
         )
         assert response.status_code == 401
+
+    def test_gallery_publication_trigger_enqueues_missing_and_skips_ready(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from sqlalchemy.orm import Session
+
+        from tests.download_helpers import seed_download_scope
+        from viewport.models.gallery import Photo
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        with Session(sync_engine) as db:
+            db.get(Photo, scope["ids"]["second"]).publication_object_key = None
+            db.get(Photo, scope["ids"]["second"]).publication_file_size = None
+            db.commit()
+        enqueued = []
+        with patch("viewport.publication_tasks.create_publication_images_batch_task") as task:
+            task.delay.side_effect = lambda batch: enqueued.append(batch)
+            response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/publication")
+        assert response.status_code == 200
+        assert response.json() == {"requested_count": 1, "skipped_count": 1}
+        assert enqueued == [[str(scope["ids"]["second"])]]
+
+    def test_gallery_publication_trigger_returns_404_when_all_ready(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from tests.download_helpers import seed_download_scope
+
+        seed_download_scope(sync_engine, gallery_id_fixture)
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/publication")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "No photos found"
+
+    def test_gallery_publication_trigger_requires_owner(self, client, gallery_id_fixture):
+        assert client.post(f"/galleries/{gallery_id_fixture}/publication").status_code in (401, 403, 404)
+
+    def test_gallery_publication_trigger_unknown_gallery_404(self, authenticated_client):
+        response = authenticated_client.post(f"/galleries/{uuid4()}/publication")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Gallery not found"

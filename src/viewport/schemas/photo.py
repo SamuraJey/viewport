@@ -99,6 +99,9 @@ def _build_photo_response_payload(
     }
     if include_gallery_id:
         payload["gallery_id"] = photo.gallery_id
+    payload["publication_state"] = "ready" if (
+        media_type == "image" and photo.publication_object_key is not None and photo.publication_file_size is not None
+    ) else None
     return payload
 
 
@@ -252,6 +255,7 @@ class GalleryPhotoResponse(PhotoRotationFields):
     filename: str
     file_size: int
     uploaded_at: datetime
+    publication_state: Literal["ready"] | None = None
 
     @classmethod
     async def from_db_photos_batch(

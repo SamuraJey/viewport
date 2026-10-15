@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { toast } from 'sonner';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -169,6 +170,7 @@ vi.mock('../../services/photoService', () => ({
     downloadGalleryZip: vi.fn(),
     downloadSelectedPhotosZip: vi.fn(),
     downloadPhoto: vi.fn(),
+    requestPublicationPhotos: vi.fn(),
   },
 }));
 
@@ -200,6 +202,15 @@ vi.mock('../../services/projectService', () => ({
 // Mock Layout to avoid router context issues
 vi.mock('../../components/Layout', () => ({
   Layout: ({ children }: any) => <div data-testid="layout">{children}</div>,
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
 }));
 
 vi.mock('../../components/upload/UploadConfirmModal', () => ({
@@ -279,6 +290,9 @@ describe('GalleryPage', () => {
     vi.mocked(photoService.downloadGalleryZip).mockResolvedValue(undefined);
     vi.mocked(photoService.downloadSelectedPhotosZip).mockResolvedValue(undefined);
     vi.mocked(photoService.downloadPhoto).mockResolvedValue(undefined);
+    vi.mocked(photoService.requestPublicationPhotos).mockResolvedValue({
+      requested_count: 3, skipped_count: 0,
+    });
     vi.spyOn(console, 'error').mockImplementation(() => {});
     useAuthStore.setState({
       user: {
@@ -403,6 +417,39 @@ describe('GalleryPage', () => {
     expect(photoService.downloadSelectedPhotosZip).toHaveBeenCalledWith('1', ['photo1'], {
       quality: 'original', includeVideos: true,
     });
+  });
+
+  it('requests publication files from the overflow menu after confirmation and reports counts', async () => {
+    const user = userEvent.setup();
+    render(<GalleryPageWrapper />);
+    await openGalleryActions(user);
+    await user.click(await screen.findByRole('button', { name: 'Prepare publication files' }));
+    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+    expect(photoService.requestPublicationPhotos).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+    await waitFor(() =>
+      expect(photoService.requestPublicationPhotos).toHaveBeenCalledWith('1'),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Preparing 3 photos for publishing; 0 already prepared',
+      ),
+    );
+  });
+
+  it('reports when nothing needed preparing for publication after confirmation', async () => {
+    const user = userEvent.setup();
+    vi.mocked(photoService.requestPublicationPhotos).mockResolvedValue({
+      requested_count: 0, skipped_count: 3,
+    });
+    render(<GalleryPageWrapper />);
+    await openGalleryActions(user);
+    await user.click(await screen.findByRole('button', { name: 'Prepare publication files' }));
+    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith('All photos are already prepared for publishing'),
+    );
   });
 
   it('opens collapsed photo search with slash and focuses it', async () => {
