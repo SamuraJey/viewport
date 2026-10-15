@@ -185,40 +185,48 @@ describe('shareLinkService', () => {
     expect(result).toEqual({ selected: true, selected_count: 1 });
   });
 
-  it('preflights public ZIP access and streams download through browser navigation', async () => {
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-    vi.mocked(publicApi.head).mockResolvedValue({ status: 204 } as any);
-
-    await shareLinkService.downloadSharedGalleryZip('share123');
-
-    expect(publicApi.head).toHaveBeenCalledWith('/s/share123/download/all', { headers: {} });
-    expect(publicApi.get).not.toHaveBeenCalledWith(
-      '/s/share123/download/all',
-      expect.objectContaining({ responseType: 'blob' }),
-    );
-    expect(publicApi.getUri).toHaveBeenCalledWith({ url: '/s/share123/download/all' });
-    expect(document.querySelector('a[href="/api/s/share123/download/all"]')).toBeNull();
-    expect(clickSpy).toHaveBeenCalled();
-
-    clickSpy.mockRestore();
+  it('uses the same quality and video options for HEAD and browser ZIP navigation', async () => {
+    let browserUrl = '';
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      browserUrl = this.href;
+    });
+    vi.mocked(publicApi.head).mockResolvedValue({ status: 204 });
+    await shareLinkService.downloadSharedGalleryZip('share123', {
+      quality: 'publication', includeVideos: false,
+    });
+    const headPath = vi.mocked(publicApi.head).mock.calls[0][0]!;
+    const headUrl = new URL(`/api${headPath}`, document.baseURI);
+    expect(browserUrl).toBe(headUrl.href);
+    expect(headUrl.searchParams.get('quality')).toBe('publication');
+    expect(headUrl.searchParams.get('include_videos')).toBe('false');
+    expect(api.get).not.toHaveBeenCalled();
+    expect(publicApi.get).not.toHaveBeenCalled();
+    click.mockRestore();
   });
 
-  it('preflights public single-photo access and triggers browser navigation', async () => {
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-    vi.mocked(publicApi.head).mockResolvedValue({ status: 204 } as any);
+  it('does not navigate when public access preflight fails', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    vi.mocked(publicApi.head).mockRejectedValueOnce(new Error('ShareLink password required'));
+    await expect(shareLinkService.downloadSharedPhoto('share123', 'photo-1', {
+      quality: 'publication', includeVideos: true,
+    })).rejects.toThrow('password required');
+    expect(click).not.toHaveBeenCalled();
+    click.mockRestore();
+  });
 
-    await shareLinkService.downloadSharedPhoto('share123', 'photo-1');
-
-    expect(publicApi.head).toHaveBeenCalledWith('/s/share123/photos/photo-1/download', {
-      headers: {},
+  it('does not send the ZIP video checkbox to a single-photo request', async () => {
+    let browserUrl = '';
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      browserUrl = this.href;
     });
-    expect(publicApi.getUri).toHaveBeenCalledWith({
-      url: '/s/share123/photos/photo-1/download',
+    vi.mocked(publicApi.head).mockResolvedValue({ status: 204 });
+    await shareLinkService.downloadSharedPhoto('share123', 'photo-1', {
+      quality: 'publication', includeVideos: false,
     });
-    expect(document.querySelector('a[href="/api/s/share123/photos/photo-1/download"]')).toBeNull();
-    expect(clickSpy).toHaveBeenCalled();
-
-    clickSpy.mockRestore();
+    const url = new URL(browserUrl);
+    expect(url.searchParams.get('quality')).toBe('publication');
+    expect(url.searchParams.has('include_videos')).toBe(false);
+    click.mockRestore();
   });
 
   it('fetches owner selection detail', async () => {

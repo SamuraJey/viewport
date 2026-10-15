@@ -144,6 +144,8 @@ async def test_image_urls_use_published_rotation():
         rotation_revision=2,
         rotation_status="pending",
         rotation_error=None,
+        publication_object_key=None,
+        publication_file_size=None,
     )
     client = SimpleNamespace(
         generate_presigned_urls_batch=AsyncMock(return_value={"rotated.avif": "thumb-url"}),
@@ -219,6 +221,7 @@ def test_publication_is_atomic_and_rejects_stale_tasks(sync_engine):
         db.expire_all()
         assert photo.object_key == "source.jpg"
         assert photo.rotated_object_key == "current.jpg" and photo.thumbnail_object_key == "current.avif"
+        assert photo.publication_object_key is None and photo.publication_file_size is None
         assert photo.rotation == 90 and photo.rotation_status == "ready"
         assert (gallery.cover_focal_x, gallery.cover_focal_y) == (30, 20)
         assert (project.cover_focal_x, project.cover_focal_y) == (30, 20)
@@ -238,6 +241,8 @@ def seed_pending_rotation(sync_engine):
             gallery_id=gallery.id,
             object_key="source.jpg",
             thumbnail_object_key="old.avif",
+            publication_object_key="old-publication.jpg",
+            publication_file_size=75,
             display_name="photo.jpg",
             file_size=100,
             status=2,
@@ -284,6 +289,7 @@ def test_worker_publishes_versioned_assets_and_reset_uses_original(sync_engine, 
         assert photo.rotated_object_key.endswith("/image.jpg")
         assert photo.object_key == "source.jpg" and photo.status == PhotoUploadStatus.SUCCESSFUL
         assert (photo.width, photo.height) == (1900, 3100)
+        assert (photo.publication_object_key, photo.publication_file_size) == ("old-publication.jpg", 75)
         assert db.query(User).one().storage_used == 100
         photo.rotation_revision = 2
         photo.requested_rotation = 0
@@ -295,8 +301,10 @@ def test_worker_publishes_versioned_assets_and_reset_uses_original(sync_engine, 
         assert photo.rotation_status == "ready" and photo.rotation == 0
         assert photo.rotated_object_key is None
         assert (photo.width, photo.height) == (3100, 1900)
-        assert client.upload_fileobj.call_count == 1
-        assert client.put_object.call_count == 2
+        assert (photo.publication_object_key, photo.publication_file_size) == ("old-publication.jpg", 75)
+        uploaded_keys = {call.kwargs["Key"] for call in client.put_object.call_args_list}
+        assert not any(key.endswith("/publication.jpg") for key in uploaded_keys)
+        assert all(call.kwargs["CacheControl"].endswith("immutable") for call in client.put_object.call_args_list)
     assert vips.Image.new_from_file.call_args_list[0].args[0].endswith("/image.jpg")
     vips.Image.new_from_file.assert_called_with(str(source), access="sequential", fail_on="error")
 
@@ -319,7 +327,8 @@ def test_worker_uses_full_delivery_dimensions_with_exif(sync_engine, tmp_path, m
     def stream(*_args):
         yield str(source)
 
-    monkeypatch.setattr(rotation_tasks, "get_s3_client", MagicMock)
+    client = MagicMock()
+    monkeypatch.setattr(rotation_tasks, "get_s3_client", lambda: client)
     monkeypatch.setattr(rotation_tasks, "get_s3_settings", lambda: SimpleNamespace(bucket="bucket"))
     monkeypatch.setattr(rotation_tasks, "_stream_s3_object_to_tempfile", stream)
     monkeypatch.setattr(rotation_tasks, "create_thumbnail_from_path", lambda _path: (b"thumb", 19, 31))
@@ -330,6 +339,9 @@ def test_worker_uses_full_delivery_dimensions_with_exif(sync_engine, tmp_path, m
         photo = db.get(Photo, photo_id)
         assert photo.rotation_status == "ready"
         assert (photo.width, photo.height) == expected
+        uploaded = next(call.kwargs for call in client.put_object.call_args_list if call.kwargs["Key"] == photo.thumbnail_object_key)
+        assert uploaded["ContentType"] == "image/avif"
+        assert all(call.kwargs["ContentType"] != "image/jpeg" for call in client.put_object.call_args_list)
 
 
 def test_failed_rotation_keeps_published_photo_and_quota(sync_engine, tmp_path, monkeypatch):
@@ -355,6 +367,7 @@ def test_failed_rotation_keeps_published_photo_and_quota(sync_engine, tmp_path, 
         assert photo.rotation_status == "failed" and photo.rotation_error
         assert photo.rotation == 0 and photo.requested_rotation == 90
         assert photo.thumbnail_object_key == "old.avif" and photo.rotated_object_key is None
+        assert (photo.publication_object_key, photo.publication_file_size) == ("old-publication.jpg", 75)
         assert photo.status == PhotoUploadStatus.SUCCESSFUL
         assert db.query(User).one().storage_used == 100
 
@@ -449,14 +462,21 @@ def test_cleanup_protects_active_assets_and_superseded_url_lifetime(sync_engine,
     photo_id = seed_pending_rotation(sync_engine)
     prefix = f"gallery/{photo_id}_rotations/"
     current, old = prefix + "current/image.jpg", prefix + "old/image.jpg"
+    current_publication, old_publication = prefix + "current/publication.jpg", prefix + "old/publication.jpg"
+    recent_publication = prefix + "unpublished/publication.jpg"
     with Session(sync_engine) as db:
         photo = db.get(Photo, photo_id)
         photo.rotated_object_key = current
+        photo.publication_object_key = current_publication
+        photo.publication_file_size = 75
         # Old objects might have been superseded only moments ago.
         photo.rotation_updated_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=1)
         db.commit()
     client = MagicMock()
-    client.get_paginator.return_value.paginate.return_value = [{"Contents": [{"Key": key, "LastModified": datetime.now(UTC) - timedelta(hours=10)} for key in [current, old]]}]
+    client.get_paginator.return_value.paginate.return_value = [{"Contents": [
+        *[{"Key": key, "LastModified": datetime.now(UTC) - timedelta(hours=10)} for key in [current, old, current_publication, old_publication]],
+        {"Key": recent_publication, "LastModified": datetime.now(UTC) - timedelta(hours=2)},
+    ]}]
     monkeypatch.setattr(rotation_tasks, "get_s3_client", lambda: client)
     monkeypatch.setattr(rotation_tasks, "get_s3_settings", lambda: SimpleNamespace(bucket="bucket"))
     rotation_tasks.cleanup_photo_rotation_versions_task.run()
@@ -465,7 +485,8 @@ def test_cleanup_protects_active_assets_and_superseded_url_lifetime(sync_engine,
         db.get(Photo, photo_id).rotation_updated_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=4)
         db.commit()
     rotation_tasks.cleanup_photo_rotation_versions_task.run()
-    client.delete_object.assert_called_once_with(Bucket="bucket", Key=old)
+    deleted = {call.kwargs["Key"] for call in client.delete_object.call_args_list}
+    assert deleted == {old, old_publication}
 
 
 @pytest.mark.asyncio
@@ -474,15 +495,15 @@ async def test_private_download_blocks_pending_edits_and_uses_published_asset():
 
     from viewport.api.photo import download_photo
 
-    photo = SimpleNamespace(id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="pending")
+    photo = SimpleNamespace(id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="pending", status=PhotoUploadStatus.SUCCESSFUL, media_type="image")
     repo = SimpleNamespace(get_gallery_by_id_and_owner=AsyncMock(return_value=object()), get_photo_by_id_and_gallery=AsyncMock(return_value=photo))
     s3 = SimpleNamespace(generate_presigned_url_async=AsyncMock(return_value="https://example.com/edited.jpg"))
     with pytest.raises(HTTPException) as error:
-        await download_photo(uuid.uuid4(), photo.id, repo, SimpleNamespace(id=uuid.uuid4()), s3)
+        await download_photo(uuid.uuid4(), photo.id, repo=repo, current_user=SimpleNamespace(id=uuid.uuid4()), s3_client=s3)
     assert error.value.status_code == 409
     s3.generate_presigned_url_async.assert_not_called()
     photo.rotation_status = "ready"
-    response = await download_photo(uuid.uuid4(), photo.id, repo, SimpleNamespace(id=uuid.uuid4()), s3)
+    response = await download_photo(uuid.uuid4(), photo.id, repo=repo, current_user=SimpleNamespace(id=uuid.uuid4()), s3_client=s3)
     assert response.status_code == 303
     assert s3.generate_presigned_url_async.call_args.args[0] == "edited.jpg"
 
@@ -491,11 +512,11 @@ async def test_private_download_blocks_pending_edits_and_uses_published_asset():
 async def test_public_download_keeps_last_published_version_during_rotation(monkeypatch):
     from viewport.api import public
 
-    photo = SimpleNamespace(id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="processing")
+    photo = SimpleNamespace(id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="processing", status=PhotoUploadStatus.SUCCESSFUL, media_type="image")
     monkeypatch.setattr(public, "_get_downloadable_public_photo", AsyncMock(return_value=photo))
     repo = SimpleNamespace(record_single_download=AsyncMock())
     s3 = SimpleNamespace(generate_presigned_url_async=AsyncMock(return_value="https://example.com/edited.jpg"))
-    response = await public.download_public_photo(uuid.uuid4(), photo.id, repo, SimpleNamespace(id=uuid.uuid4()), s3)
+    response = await public.download_public_photo(uuid.uuid4(), photo.id, repo=repo, sharelink=SimpleNamespace(id=uuid.uuid4()), s3_client=s3)
     assert response.status_code == 303
     assert s3.generate_presigned_url_async.call_args.args[0] == "edited.jpg"
     repo.record_single_download.assert_awaited_once()
@@ -508,18 +529,60 @@ async def test_private_zip_uses_published_assets_and_blocks_pending(monkeypatch)
     from fastapi import HTTPException
 
     from viewport.api import gallery
+    from viewport.downloads import prepare_download_entries
+    from viewport.schemas.download import DownloadQuality
 
-    photo = SimpleNamespace(id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="ready")
+    photo = SimpleNamespace(id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="ready", status=PhotoUploadStatus.SUCCESSFUL, media_type="image")
     s3 = MagicMock()
     s3.get_object.return_value = {"Body": io.BytesIO(b"edited image")}
     monkeypatch.setattr(gallery, "get_sync_s3_client", lambda: s3)
     monkeypatch.setattr(gallery, "get_s3_settings", lambda: SimpleNamespace(bucket="bucket"))
-    response = gallery._build_gallery_zip_response(uuid.uuid4(), [photo], "gallery.zip")
+    entries = prepare_download_entries([photo], quality=DownloadQuality.ORIGINAL, include_videos=True, block_pending_rotations=True)
+    response = gallery._build_gallery_zip_response(uuid.uuid4(), entries, "gallery.zip")
     data = b"".join([chunk async for chunk in response.body_iterator])
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         assert archive.read("photo.jpg") == b"edited image"
     s3.get_object.assert_called_once_with(Bucket="bucket", Key="edited.jpg")
     photo.rotation_status = "pending"
     with pytest.raises(HTTPException) as error:
-        gallery._build_gallery_zip_response(uuid.uuid4(), [photo], "gallery.zip")
+        prepare_download_entries([photo], quality=DownloadQuality.ORIGINAL, include_videos=True, block_pending_rotations=True)
     assert error.value.status_code == 409
+
+
+def test_thumbnail_upload_failure_keeps_every_previous_rotation_asset(sync_engine, tmp_path, monkeypatch):
+    from sqlalchemy.orm import Session
+
+    photo_id = seed_pending_rotation(sync_engine)
+    with Session(sync_engine) as db:
+        db.get(Photo, photo_id).requested_rotation = 0
+        db.commit()
+    source = tmp_path / "source.jpg"
+    Image.new("RGB", (31, 19), "red").save(source)
+
+    @contextmanager
+    def stream(*_args):
+        yield str(source)
+
+    client = MagicMock()
+
+    def put_object(**kwargs):
+        if kwargs["ContentType"] == "image/avif":
+            raise ValueError("Thumbnail upload failed")
+
+    client.put_object.side_effect = put_object
+    vips = MagicMock()
+    vips.Image.new_from_file.return_value.autorot.return_value = SimpleNamespace(width=31, height=19)
+    monkeypatch.setattr(rotation_tasks, "_get_pyvips", lambda: vips)
+    monkeypatch.setattr(rotation_tasks, "get_s3_client", lambda: client)
+    monkeypatch.setattr(rotation_tasks, "get_s3_settings", lambda: SimpleNamespace(bucket="bucket"))
+    monkeypatch.setattr(rotation_tasks, "_stream_s3_object_to_tempfile", stream)
+    monkeypatch.setattr(rotation_tasks, "create_thumbnail_from_path", lambda _path: (b"new-thumb", 31, 19))
+    rotation_tasks.rotate_photo_task.run(str(photo_id), 1)
+    with Session(sync_engine) as db:
+        photo = db.get(Photo, photo_id)
+        assert photo.rotation_status == "failed"
+        assert photo.thumbnail_object_key == "old.avif"
+        assert photo.rotated_object_key is None
+        assert (photo.publication_object_key, photo.publication_file_size) == ("old-publication.jpg", 75)
+        assert (photo.width, photo.height) == (31, 19)
+        assert db.query(User).one().storage_used == 100

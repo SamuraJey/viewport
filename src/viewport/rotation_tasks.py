@@ -117,6 +117,7 @@ def rotate_photo_task(self, photo_id: str, revision: int) -> None:
                 with open(output, "rb") as image_file:
                     client.upload_fileobj(image_file, bucket, key, ExtraArgs={"ContentType": content_type, "CacheControl": "public, max-age=31536000, immutable"})
             client.put_object(Bucket=bucket, Key=thumb_key, Body=thumbnail, ContentType="image/avif", CacheControl="public, max-age=31536000, immutable")
+            del thumbnail
         _publish_rotation(photo_uuid, revision, key if rotation else None, thumb_key, width, height)
     except Exception as error:
         logger.exception("Photo rotation failed: %s revision %s", photo_id, revision)
@@ -174,7 +175,7 @@ def cleanup_photo_rotation_versions_task() -> None:
                 continue
             # Check references immediately before deleting, so active files survive.
             with task_db_session() as db:
-                referenced = db.scalar(select(Photo.id).where((Photo.rotated_object_key == key) | (Photo.thumbnail_object_key == key)).limit(1))
+                referenced = db.scalar(select(Photo.id).where((Photo.rotated_object_key == key) | (Photo.thumbnail_object_key == key) | (Photo.publication_object_key == key)).limit(1))
                 try:
                     photo_id = uuid.UUID(key.split("/", 2)[1].removesuffix("_rotations"))
                 except ValueError, IndexError:

@@ -113,3 +113,31 @@ def test_path_thumbnail_applies_exif_orientation(tmp_path: Path) -> None:
     assert (width, height) == (500, 1000)
     with Image.open(io.BytesIO(thumbnail)) as output:
         assert output.size == (500, 1000)
+
+
+@pytest.mark.parametrize("size,orientation,expected", [((6000, 4000), 6, (1365, 2048)), ((800, 600), 1, (800, 600))])
+def test_publication_jpeg_orientation_bounds_and_metadata(tmp_path, size, orientation, expected):
+    from viewport.s3_utils import create_publication_image_from_path
+
+    _require_libvips()
+    source = tmp_path / "publication-source.jpg"
+    exif = Image.Exif()
+    exif[274] = orientation
+    exif[315] = "private author"
+    Image.new("RGB", size, "blue").save(source, exif=exif)
+    with Image.open(io.BytesIO(create_publication_image_from_path(source))) as result:
+        assert result.format == "JPEG"
+        assert result.size == expected
+        assert not result.getexif()
+        assert result.info.get("icc_profile")
+
+
+def test_publication_alpha_is_composited_on_white(tmp_path):
+    from viewport.s3_utils import create_publication_image_from_path
+
+    _require_libvips()
+    source = tmp_path / "transparent.png"
+    Image.new("RGBA", (800, 600), (255, 0, 0, 0)).save(source)
+    with Image.open(io.BytesIO(create_publication_image_from_path(source))) as result:
+        assert result.size == (800, 600)
+        assert all(channel >= 250 for channel in result.getpixel((400, 300)))

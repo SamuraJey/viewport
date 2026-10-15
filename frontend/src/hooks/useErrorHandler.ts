@@ -5,7 +5,7 @@ import { handleApiError, shouldShowErrorPage, formatErrorMessage } from '../lib/
 interface UseErrorHandlerResult {
   error: string | null;
   clearError: () => void;
-  handleError: (error: unknown) => void;
+  handleError: (error: unknown, options?: { redirect?: boolean }) => void;
   isLoading: boolean;
   setLoading: (loading: boolean) => void;
 }
@@ -20,13 +20,13 @@ export const useErrorHandler = (): UseErrorHandlerResult => {
   }, []);
 
   const handleError = useCallback(
-    (error: unknown) => {
+    (error: unknown, options: { redirect?: boolean } = {}) => {
       console.error('Error handled:', error);
 
       const apiError = handleApiError(error);
 
       // For certain errors, redirect to error page
-      if (shouldShowErrorPage(error)) {
+      if (options.redirect !== false && shouldShowErrorPage(error)) {
         navigate(`/error/${apiError.statusCode}`, { replace: true });
         return;
       }

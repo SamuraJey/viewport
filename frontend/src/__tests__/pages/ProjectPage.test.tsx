@@ -71,6 +71,16 @@ vi.mock('../../services/projectService', () => ({
     createProjectGallery: vi.fn(),
     reorderProjectGalleries: vi.fn(),
     getProjectPhotos: vi.fn().mockResolvedValue({ photos: [], total: 0 }),
+    requestProjectPublication: vi.fn(),
+  },
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
   },
 }));
 
@@ -374,6 +384,55 @@ describe('ProjectPage', () => {
     expect(selectionTab).toBeInTheDocument();
     await user.click(selectionTab);
     expect(screen.getByText(/client photo selection/i)).toBeInTheDocument();
+  });
+
+  it('requests publication files for the project after confirmation and refreshes the project data', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    const { toast } = await import('sonner');
+
+    vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
+      requested_count: 9, skipped_count: 3,
+    });
+
+    renderProjectPage();
+    await screen.findByRole('heading', { name: 'Wedding Weekend' });
+    await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+    expect(projectService.requestProjectPublication).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+
+    await waitFor(() =>
+      expect(projectService.requestProjectPublication).toHaveBeenCalledWith('project-1'),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Preparing 9 photos for publishing; 3 already prepared',
+      ),
+    );
+    expect(projectService.getProject).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports when a project needs no publication preparation after confirmation', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    const { toast } = await import('sonner');
+
+    vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
+      requested_count: 0, skipped_count: 12,
+    });
+
+    renderProjectPage();
+    await screen.findByRole('heading', { name: 'Wedding Weekend' });
+    await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith('All photos are already prepared for publishing'),
+    );
   });
 
   it('renames the project from the project actions', async () => {

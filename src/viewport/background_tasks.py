@@ -22,6 +22,7 @@ from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus
 from viewport.models.refresh_token_session import RefreshTokenSession
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
+from viewport.photo_rotation import ROTATION_PENDING_STATUSES, get_photo_delivery_key, is_rotation_pending
 from viewport.s3_utils import create_thumbnail, create_thumbnail_from_path, generate_playback_object_key, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.services.redis_service import RedisService
 from viewport.task_utils import BatchTaskResult, task_db_session
@@ -155,6 +156,7 @@ def _get_thumbnail_candidate_ids(photo_ids: list[str]) -> set[str]:
                 Photo.id.in_(photo_ids),
                 Gallery.is_deleted.is_(False),
                 Photo.media_type == MediaType.IMAGE.value,
+                Photo.rotation_status.not_in(ROTATION_PENDING_STATUSES),
                 or_(Photo.status == PhotoUploadStatus.PROCESSING, and_(Photo.status == PhotoUploadStatus.SUCCESSFUL, missing_metadata)),
             )
         )
@@ -177,6 +179,17 @@ def _decrement_used_for_owner_totals(db, owner_totals: list[tuple[uuid.UUID, int
         db.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - total, 0)))
 
 
+def _matches_thumbnail_snapshot(photo: Photo, snapshot: dict[str, Any]) -> bool:
+    return (
+        photo.status == snapshot["expected_status"]
+        and str(photo.gallery_id) == snapshot["gallery_id"]
+        and photo.media_type == MediaType.IMAGE.value
+        and photo.rotation_revision == snapshot["rotation_revision"]
+        and get_photo_delivery_key(photo) == snapshot["delivery_object_key"]
+        and not is_rotation_pending(photo)
+    )
+
+
 def _process_single_photo(
     photo_data: ThumbnailTaskPayload,
     s3_client: "S3Client",
@@ -184,28 +197,40 @@ def _process_single_photo(
     existing_ids: set[str],
     result_tracker: BatchTaskResult,
 ) -> None:
-    """Process a single photo: download, resize, and upload thumbnail."""
+    """Create both image delivery assets from one streamed source."""
 
     photo_id = photo_data["photo_id"]
     object_key = photo_data["object_key"]
+    snapshot: dict[str, Any] | None = None
 
     try:
-        # Check if photo was deleted
         if photo_id not in existing_ids:
-            logger.info("Photo %s no longer exists in database, skipping", photo_id)
-            result_tracker.add_skipped(photo_id, "Photo deleted")
+            logger.info("Photo %s no longer needs thumbnail processing, skipping", photo_id)
+            result_tracker.add_skipped(photo_id, "Photo deleted or already processed")
             return
 
-        # Check media_type — videos are processed by the video task, not here
         try:
             with task_db_session() as db:
-                media_type_val = db.execute(select(Photo.media_type).where(Photo.id == uuid.UUID(photo_id))).scalar_one_or_none()
+                photo = db.scalar(select(Photo).join(Photo.gallery).where(Photo.id == uuid.UUID(photo_id), Gallery.is_deleted.is_(False)))
+                if photo is None:
+                    result_tracker.add_skipped(photo_id, "Photo deleted during processing")
+                    return
+                if photo.media_type != MediaType.IMAGE.value or is_rotation_pending(photo):
+                    result_tracker.add_skipped(photo_id, "Video or pending rotation")
+                    return
+                missing_metadata = photo.width is None or photo.height is None or photo.thumbnail_object_key == photo.object_key
+                if photo.status != PhotoUploadStatus.PROCESSING and not (photo.status == PhotoUploadStatus.SUCCESSFUL and missing_metadata):
+                    result_tracker.add_skipped(photo_id, "Photo already processed")
+                    return
+                object_key = photo.object_key
+                snapshot = {
+                    "gallery_id": str(photo.gallery_id),
+                    "expected_status": photo.status,
+                    "delivery_object_key": get_photo_delivery_key(photo),
+                    "rotation_revision": photo.rotation_revision,
+                }
         except Exception as db_error:
-            raise ThumbnailTransientError(f"Retryable DB error checking media type for {photo_id}") from db_error
-        if media_type_val == MediaType.VIDEO.value:
-            logger.warning("Photo %s is a video, dispatched to thumbnail task in error; skipping", photo_id)
-            result_tracker.add_skipped(photo_id, "Video dispatched to thumbnail task")
-            return
+            raise ThumbnailTransientError(f"Retryable DB error loading photo {photo_id}") from db_error
 
         # Confirm the object tag before processing.
         try:
@@ -219,9 +244,9 @@ def _process_single_photo(
                 raise ThumbnailTransientError(f"Retryable S3 tag error for {photo_id}") from tag_general_error
             logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
 
-        # Download the compressed original to disk, then let libvips stream it.
+        # Repairs read the published delivery version, never a stale upload payload.
         try:
-            with _stream_s3_object_to_tempfile(s3_client, bucket, object_key) as image_path:
+            with _stream_s3_object_to_tempfile(s3_client, bucket, snapshot["delivery_object_key"]) as image_path:
                 # Keep the historical validation/deletion behavior while avoiding
                 # a second full-resolution raster allocation.
                 if not _is_valid_image(image_path):
@@ -231,41 +256,29 @@ def _process_single_photo(
                         photo_id,
                     )
 
-                    try:
-                        s3_client.delete_object(Bucket=bucket, Key=object_key)
-                    except Exception as delete_error:
-                        if isinstance(delete_error, ClientError):
-                            error_code = delete_error.response.get("Error", {}).get("Code", "")
-                            if error_code == "NoSuchKey":
-                                logger.info("Invalid S3 object %s already absent", object_key)
-                            elif _is_retryable_s3_error(delete_error):
-                                raise ThumbnailTransientError(f"Retryable S3 delete error for invalid object {photo_id}") from delete_error
-                            else:
-                                logger.error(
-                                    "Non-retryable S3 delete error for invalid object %s: %s; retaining photo row and quota",
-                                    object_key,
-                                    delete_error,
-                                )
-                                return
-                        elif _is_retryable_s3_error(delete_error):
-                            raise ThumbnailTransientError(f"Retryable S3 delete error for invalid object {photo_id}") from delete_error
-                        else:
-                            logger.error(
-                                "Non-retryable S3 delete error for invalid object %s: %s; retaining photo row and quota",
-                                object_key,
-                                delete_error,
-                            )
-                            return
-
+                    if snapshot["expected_status"] == PhotoUploadStatus.SUCCESSFUL:
+                        result_tracker.add_error(photo_id, "Invalid image file")
+                        return
                     try:
                         with task_db_session() as db_cleanup:
-                            photo_row = db_cleanup.execute(
-                                select(Photo.file_size, Gallery.owner_id).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id == photo_id)
-                            ).one_or_none()
-                            if photo_row:
-                                file_size, owner_id = photo_row
-                                db_cleanup.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
-                            db_cleanup.execute(delete(Photo).where(Photo.id == photo_id))
+                            gallery = db_cleanup.scalar(select(Gallery).where(Gallery.id == uuid.UUID(snapshot["gallery_id"]), Gallery.is_deleted.is_(False)).with_for_update())
+                            photo = db_cleanup.scalar(select(Photo).where(Photo.id == uuid.UUID(photo_id)).with_for_update()) if gallery else None
+                            if photo is None or not _matches_thumbnail_snapshot(photo, snapshot):
+                                result_tracker.add_skipped(photo_id, "Photo changed during processing")
+                                return
+                            try:
+                                s3_client.delete_object(Bucket=bucket, Key=object_key)
+                            except Exception as delete_error:
+                                if _is_retryable_s3_error(delete_error):
+                                    raise ThumbnailTransientError(f"Retryable S3 delete error for invalid object {photo_id}") from delete_error
+                                error_code = getattr(delete_error, "response", {}).get("Error", {}).get("Code")
+                                if error_code != "NoSuchKey":
+                                    logger.error("Could not delete invalid source %s; retaining photo and quota: %s", object_key, delete_error)
+                                    return
+                            db_cleanup.execute(update(User).where(User.id == gallery.owner_id).values(storage_used=func.greatest(User.storage_used - photo.file_size, 0)))
+                            db_cleanup.delete(photo)
+                    except ThumbnailTransientError:
+                        raise
                     except Exception as db_error:
                         raise ThumbnailTransientError(f"Retryable DB cleanup error for invalid image {photo_id}") from db_error
 
@@ -293,7 +306,8 @@ def _process_single_photo(
             result_tracker.add_error(photo_id, "S3 read failed")
             return
 
-        thumbnail_object_key = generate_thumbnail_object_key(object_key)
+        prefix = f"{snapshot['gallery_id']}/{photo_id}_rotations/{snapshot['rotation_revision']}-{uuid.uuid4().hex}"
+        thumbnail_object_key = generate_thumbnail_object_key(object_key) if snapshot["expected_status"] == PhotoUploadStatus.PROCESSING else f"{prefix}/thumbnail.avif"
 
         # CRITICAL: Check again if photo still exists before uploading thumbnail
         try:
@@ -318,20 +332,28 @@ def _process_single_photo(
                 ContentType="image/avif",
                 CacheControl="public, max-age=31536000, immutable",
             )
+            del thumbnail_bytes
         except Exception as upload_error:
             if _is_retryable_s3_error(upload_error):
                 raise ThumbnailTransientError(f"Retryable S3 upload error for {photo_id}") from upload_error
             raise
-        del thumbnail_bytes
 
         logger.info("Successfully created thumbnail for photo %s", photo_id)
-        result_tracker.add_success(photo_id, thumbnail_object_key=thumbnail_object_key, width=width, height=height)
+        result_tracker.add_success(
+            photo_id,
+            thumbnail_object_key=thumbnail_object_key,
+            width=width,
+            height=height,
+        )
 
     except ThumbnailTransientError:
         raise
     except Exception as e:
         logger.exception("Failed to create thumbnail for photo %s: %s", photo_id, e)
         result_tracker.add_error(photo_id, "Processing failed", exception=e)
+    finally:
+        if snapshot is not None and result_tracker.results and result_tracker.results[-1]["photo_id"] == photo_id:
+            result_tracker.results[-1].update(snapshot)
 
 
 def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> dict:
@@ -347,6 +369,7 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
                 Photo.object_key,
                 Photo.thumbnail_object_key,
                 Photo.playback_object_key,
+                Photo.publication_object_key,
                 Photo.file_size,
                 Photo.status,
                 Photo.media_type,
@@ -357,7 +380,7 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
             logger.warning("Photo %s not found in gallery %s", photo_id, gallery_id)
             return {"deleted": False, "reason": "Photo not found"}
 
-        object_key, thumbnail_object_key, playback_object_key, file_size, status, media_type = photo
+        object_key, thumbnail_object_key, playback_object_key, publication_object_key, file_size, status, media_type = photo
 
     s3_client = get_s3_client()
     bucket = get_s3_settings().bucket
@@ -386,6 +409,15 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
             logger.warning("Failed to delete playback %s: %s", playback_object_key, error)
             if error.response.get("Error", {}).get("Code") != "NoSuchKey":
                 report_cleanup_failure("video")
+                raise
+
+    if publication_object_key and publication_object_key != object_key:
+        try:
+            s3_client.delete_object(Bucket=bucket, Key=publication_object_key)
+        except ClientError as error:
+            logger.warning("Failed to delete publication image %s: %s", publication_object_key, error)
+            if error.response.get("Error", {}).get("Code") != "NoSuchKey":
+                report_cleanup_failure("image")
                 raise
 
     # Every orientation revision lives under this exact photo-specific prefix.
@@ -450,66 +482,29 @@ def delete_photos_batch_task(self, photo_ids: list[str], gallery_id: str, owner_
 
 
 def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskResult) -> None:
-    """Update database records and clear cache for processed photos."""
+    """Publish image assets only while their source snapshot is still current."""
 
-    # Exclude skipped items — they stay in their current DB status
-    results = [r for r in results if r.get("status") != "skipped"]
-
-    successful_results = [r for r in results if r["status"] == "success"]
-    failed_results = [r for r in results if r["status"] == "error"]
+    results = sorted((r for r in results if r.get("status") != "skipped"), key=lambda r: (r["gallery_id"], r["photo_id"]))
 
     try:
         with task_db_session() as db:
-            if successful_results:
-                update_mappings = [
-                    {
-                        "id": r["photo_id"],
-                        "thumbnail_object_key": r["thumbnail_object_key"],
-                        "width": r["width"],
-                        "height": r["height"],
-                        "status": PhotoUploadStatus.SUCCESSFUL,
-                    }
-                    for r in successful_results
-                ]
-                logger.info("Batch updating %s photos with metadata in DB", len(update_mappings))
-                db.execute(update(Photo), update_mappings)
-
-            if failed_results:
-                failed_ids = [r["photo_id"] for r in failed_results]
-                logger.info("Batch marking %s photos as FAILED in DB", len(failed_ids))
-
-                missing_metadata = or_(Photo.width.is_(None), Photo.height.is_(None), Photo.thumbnail_object_key == Photo.object_key)
-                failure_eligible = or_(
-                    Photo.status == PhotoUploadStatus.PROCESSING,
-                    and_(Photo.status == PhotoUploadStatus.SUCCESSFUL, missing_metadata),
-                )
-
-                update_stmt = (
-                    update(Photo)
-                    .where(
-                        Photo.id.in_(failed_ids),
-                        failure_eligible,
-                    )
-                    .values(status=PhotoUploadStatus.FAILED)
-                    .returning(Photo.id)
-                )
-                updated_rows = db.execute(update_stmt, execution_options={"synchronize_session": False}).all()
-                updated_ids = [str(row[0]) for row in updated_rows]
-
-                if updated_ids:
-                    owner_totals = [
-                        (owner_id, int(total_size))
-                        for owner_id, total_size in db.execute(
-                            select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
-                            .select_from(Photo)
-                            .join(Gallery, Photo.gallery_id == Gallery.id)
-                            .where(Photo.id.in_(updated_ids))
-                            .group_by(Gallery.owner_id)
-                        ).all()
-                    ]
-                    _decrement_used_for_owner_totals(db, owner_totals)
-
-            db.commit()
+            for result in results:
+                gallery = db.scalar(select(Gallery).where(Gallery.id == uuid.UUID(result["gallery_id"]), Gallery.is_deleted.is_(False)).with_for_update())
+                photo = db.scalar(select(Photo).where(Photo.id == uuid.UUID(result["photo_id"])).with_for_update()) if gallery else None
+                if photo is None or not _matches_thumbnail_snapshot(photo, result):
+                    if result["status"] == "success":
+                        result_tracker.successful -= 1
+                        result_tracker.skipped += 1
+                        result.update(status="skipped", message="Photo changed or deleted during processing")
+                    continue
+                if result["status"] == "success":
+                    photo.thumbnail_object_key = result["thumbnail_object_key"]
+                    photo.width, photo.height = result["width"], result["height"]
+                    photo.status = PhotoUploadStatus.SUCCESSFUL
+                elif photo.status == PhotoUploadStatus.PROCESSING:
+                    # Repairs never withdraw an already published photo or its quota.
+                    photo.status = PhotoUploadStatus.FAILED
+                    _decrement_used_for_owner_totals(db, [(gallery.owner_id, photo.file_size)])
 
     except Exception as exc:
         logger.exception("Failed to batch update photo results: %s", exc)
@@ -1253,6 +1248,8 @@ def cleanup_orphaned_uploads_task(self) -> dict:
                     object_keys.append(p.thumbnail_object_key)
                 if p.playback_object_key and p.playback_object_key != p.object_key:
                     object_keys.append(p.playback_object_key)
+                if p.publication_object_key and p.publication_object_key != p.object_key:
+                    object_keys.append(p.publication_object_key)
 
             pending_ids = [str(p.id) for p in chunk if p.status == PhotoUploadStatus.PENDING]
 
@@ -1464,9 +1461,10 @@ def reconcile_storage_quotas_task() -> dict:
 
 @celery_app.task(name="reconcile_successful_uploads")
 def reconcile_successful_uploads_task() -> dict:
-    """Requeue successful uploads missing thumbnails/metadata."""
+    """Repair metadata for successful uploads missing thumbnails/metadata."""
 
-    threshold = datetime.now(UTC) - timedelta(minutes=5)
+    now = datetime.now(UTC).replace(tzinfo=None)
+    threshold = now - timedelta(minutes=5)
     max_batch = 500
 
     with task_db_session() as db:
@@ -1476,6 +1474,8 @@ def reconcile_successful_uploads_task() -> dict:
             .where(
                 Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING]),
                 Gallery.is_deleted.is_(False),
+                Photo.media_type == MediaType.IMAGE.value,
+                Photo.rotation_status.not_in(ROTATION_PENDING_STATUSES),
                 Photo.uploaded_at < threshold,
                 or_(
                     Photo.width.is_(None),
@@ -1486,9 +1486,6 @@ def reconcile_successful_uploads_task() -> dict:
             .limit(max_batch)
         )
         rows = db.execute(stmt).all()
-
-    if not rows:
-        return {"requeued_count": 0}
 
     photos = to_thumbnail_task_payloads(ThumbnailTaskItem(row[0], row[1]) for row in rows)
     for batch in chunk_thumbnail_task_payloads(photos):

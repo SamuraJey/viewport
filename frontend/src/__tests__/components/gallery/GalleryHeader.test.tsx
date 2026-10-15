@@ -242,6 +242,38 @@ describe('GalleryHeader', () => {
     expect(screen.getByRole('link', { name: 'Second Gallery' })).toBeInTheDocument();
   });
 
+  it('requests publication files from the overflow menu with a busy state', async () => {
+    const user = userEvent.setup();
+    const onPreparePublication = vi.fn();
+
+    const { unmount } = render(
+      <MemoryRouter>
+        <GalleryHeader
+          {...createProps()}
+          onPreparePublication={onPreparePublication}
+          isPreparingPublication
+        />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /more gallery actions/i }));
+    const action = await screen.findByRole('button', { name: 'Prepare publication files' });
+    expect(action).toBeDisabled();
+    await user.click(action);
+    expect(onPreparePublication).not.toHaveBeenCalled();
+    unmount();
+
+    render(
+      <MemoryRouter>
+        <GalleryHeader {...createProps()} onPreparePublication={onPreparePublication} />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole('button', { name: /more gallery actions/i }));
+    const enabled = await screen.findByRole('button', { name: 'Prepare publication files' });
+    await user.click(enabled);
+    expect(onPreparePublication).toHaveBeenCalledTimes(1);
+  });
+
   it('closes the overflow menu with Escape and returns focus to the trigger', async () => {
     const user = userEvent.setup();
 

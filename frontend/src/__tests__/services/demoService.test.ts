@@ -66,6 +66,143 @@ describe('demoService', () => {
     vi.unstubAllGlobals();
   });
 
+
+  it('estimates the listed project scope rather than one gallery and rejects out-of-scope singles', async () => {
+    // Reset modules in beforeEach ensures an independent seeded store.
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+    const project = await service.getProject('demo-project-porto-delivery');
+    const listed = project.galleries.filter((gallery) => (gallery.project_visibility ?? 'listed') === 'listed');
+    const estimates = await Promise.all(listed.map((gallery) =>
+      service.estimateSharedProjectGalleryDownload('sp-demo-project-porto', gallery.id, true)));
+    const projectEstimate = await service.estimateSharedDownload('sp-demo-project-porto', true);
+    expect(projectEstimate.original_size_bytes).toBe(estimates.reduce((sum, estimate) => sum + estimate.original_size_bytes, 0));
+    expect(projectEstimate.image_count).toBe(estimates.reduce((sum, estimate) => sum + estimate.image_count, 0));
+    expect(projectEstimate.video_count).toBe(estimates.reduce((sum, estimate) => sum + estimate.video_count, 0));
+    await expect(service.estimateSharedProjectGalleryDownload('sp-demo-project-porto', 'demo-gallery-fashion', true))
+      .rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.downloadSharedPhoto('sp-demo-project-porto', 'demo-gallery-fashion-photo-1', { quality: 'original', includeVideos: true }))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('estimates only successful included demo files and validates selection membership', async () => {
+    const state = buildDemoState('2099-01-01T00:00:00Z');
+    const photo = (id: string, media_type: 'image' | 'video', file_size: number, status = 'successful') => ({
+      id, media_type, file_size, status, filename: `${id}.jpg`, url: 'https://example.com/sample.jpg',
+      thumbnail_url: '', width: 100, height: 100, uploaded_at: '2026-04-01T00:00:00Z',
+    });
+    const seeded = {
+      ...state,
+      galleries: [{ ...state.galleries[0], photos: [
+        photo('image-1', 'image', 6_000_000),
+        photo('image-2', 'image', 4_000_000),
+        photo('video', 'video', 20_000_000),
+        photo('unfinished', 'image', 1_000_000, 'processing'),
+      ] }],
+    };
+    localStorage.setItem(DEMO_STATE_STORAGE_KEY, JSON.stringify(seeded));
+    // Reload the store after installing this test's persisted demo state.
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+    expect(await service.estimateGalleryDownload('gallery-1', false)).toEqual({
+      image_count: 2, video_count: 0, available_video_count: 1,
+      original_size_bytes: 10_000_000, publication_size_bytes: 2_500_000, publication_pending_count: 0,
+    });
+    expect(await service.estimateSharedDownload('link-1', true)).toMatchObject({
+      image_count: 2, video_count: 1,
+      original_size_bytes: 30_000_000, publication_size_bytes: 22_500_000,
+    });
+    expect(await service.estimateSelectedDownload('gallery-1', ['image-2', 'image-2', 'unfinished'], true))
+      .toMatchObject({ image_count: 1, original_size_bytes: 4_000_000 });
+    await expect(service.estimateSelectedDownload('gallery-1', ['missing'], true))
+      .rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.downloadSharedPhoto('missing', 'image-1', { quality: 'publication', includeVideos: true }))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('simulates publication requests honestly by marking eligible demo photos ready', async () => {
+    const state = buildDemoState('2099-01-01T00:00:00Z');
+    const photo = (id: string, media_type: 'image' | 'video', status = 'successful') => ({
+      id, media_type, file_size: 1000, status, filename: `${id}.jpg`, url: 'https://example.com/sample.jpg',
+      thumbnail_url: '', width: 100, height: 100, uploaded_at: '2026-04-01T00:00:00Z',
+    });
+    localStorage.setItem(DEMO_STATE_STORAGE_KEY, JSON.stringify({
+      ...state,
+      galleries: [{ ...state.galleries[0], photos: [
+        photo('image-1', 'image'),
+        photo('video-1', 'video'),
+        photo('unfinished', 'image', 'processing'),
+      ] }],
+    }));
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const result = await service.requestPublicationPhotos('gallery-1');
+    // Only successful images are counted; videos and unfinished photos are skipped entirely.
+    expect(result).toEqual({ requested_count: 1, skipped_count: 0 });
+    const stored = JSON.parse(localStorage.getItem(DEMO_STATE_STORAGE_KEY)!);
+    const seededGallery = stored.galleries.find(
+      (entry: { gallery: { id: string } }) => entry.gallery.id === 'gallery-1',
+    );
+    const images = seededGallery.photos as Array<{ id: string; publication_state?: string }>;
+    expect(images.find((item) => item.id === 'image-1')?.publication_state).toBe('ready');
+    expect(images.find((item) => item.id === 'video-1')?.publication_state).toBeUndefined();
+
+    // A second request skips the now-prepared image and reports zero work.
+    expect(await service.requestPublicationPhotos('gallery-1')).toEqual({
+      requested_count: 0, skipped_count: 1,
+    });
+    await expect(service.requestPublicationPhotos('missing')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('simulates a project-wide publication request across every gallery', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+    const project = await service.getProject('demo-project-porto-delivery');
+    const expected = project.galleries.reduce((sum, gallery) => sum + gallery.photo_count, 0);
+    // The seeded project galleries include one video and possibly unfinished
+    // photos, which are never counted; only successful images are prepared.
+    const result = await service.requestProjectPublication('demo-project-porto-delivery');
+    expect(result.requested_count + result.skipped_count).toBeLessThanOrEqual(expected);
+    expect(result.requested_count).toBeGreaterThan(0);
+    const detail = await service.getGallery('demo-project-porto-photos');
+    expect(
+      detail.photos
+        .filter((photo) => photo.media_type !== 'video')
+        .every((photo) => photo.publication_state === 'ready'),
+    ).toBe(true);
+    const videos = detail.photos.filter((photo) => photo.media_type === 'video');
+    expect(videos.every((photo) => photo.publication_state === undefined)).toBe(true);
+    await expect(service.requestProjectPublication('missing')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('keeps demo archives simulated and excludes videos from publication manifests', async () => {
+    const state = buildDemoState('2099-01-01T00:00:00Z');
+    localStorage.setItem(DEMO_STATE_STORAGE_KEY, JSON.stringify({
+      ...state,
+      galleries: [{ ...state.galleries[0], photos: [
+        { id: 'image', media_type: 'image', file_size: 1000, status: 'successful', filename: 'portrait.png' },
+        { id: 'video', media_type: 'video', file_size: 9000, status: 'successful', filename: 'clip.mp4' },
+      ] }],
+    }));
+    const blobs: Blob[] = [];
+    vi.stubGlobal('URL', class extends URL {
+      static createObjectURL(blob: Blob) { blobs.push(blob); return 'blob:manifest'; }
+      static revokeObjectURL() {}
+    });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    // Reload the store after installing this test's persisted demo state.
+    const { getDemoService } = await import('../../services/demoService');
+    await getDemoService().downloadGalleryZip('gallery-1', { quality: 'publication', includeVideos: false });
+    const anchor = click.mock.instances[0] as HTMLAnchorElement;
+    expect(anchor.download).toMatch(/_publication\.txt$/);
+    const content = await blobs[0].text();
+    expect(content).toContain('Demo: sizes and archive downloads are simulated.');
+    expect(content).toContain('Quality: publication');
+    expect(content).toContain('Simulated size: 250 bytes');
+    expect(content).toContain('portrait_publication.jpg');
+    expect(content).not.toContain('clip.mp4');
+  });
   it('persists rotated demo images as JPEG data URLs and resets to the original', async () => {
     vi.useRealTimers();
     const { rotateThumbnail } = await import('../../lib/photoRotation');

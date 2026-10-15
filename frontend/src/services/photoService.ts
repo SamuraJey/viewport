@@ -1,5 +1,6 @@
 import { api } from '../lib/api';
 import type { PhotoRotationItem, PhotoRotationResponse } from '../types/photo';
+import type { DownloadEstimate, DownloadOptions, PublicationRequestResponse } from '../types/download';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { ApiError } from '../lib/errorHandling';
 import { getDemoService } from './demoService';
@@ -220,61 +221,115 @@ const renamePhoto = async (
   return response.data;
 };
 
-const downloadGalleryZip = async (galleryId: string): Promise<void> => {
+const estimateGalleryDownload = async (
+  galleryId: string,
+  includeVideos: boolean,
+): Promise<DownloadEstimate> => {
+  if (isDemoModeEnabled()) return getDemoService().estimateGalleryDownload(galleryId, includeVideos);
+  const params = new URLSearchParams({ include_videos: String(includeVideos) });
+  return (
+    await api.get<DownloadEstimate>(`/galleries/${galleryId}/download/all/estimate`, { params })
+  ).data;
+};
+
+const estimateSelectedDownload = async (
+  galleryId: string,
+  photoIds: string[],
+  includeVideos: boolean,
+): Promise<DownloadEstimate> => {
+  if (isDemoModeEnabled())
+    return getDemoService().estimateSelectedDownload(galleryId, photoIds, includeVideos);
+  const params = new URLSearchParams({ include_videos: String(includeVideos) });
+  return (
+    await api.post<DownloadEstimate>(
+      `/galleries/${galleryId}/download/selected/estimate`,
+      { photo_ids: photoIds },
+      { params },
+    )
+  ).data;
+};
+
+const estimatePhotoDownload = async (
+  galleryId: string,
+  photoId: string,
+): Promise<DownloadEstimate> => {
+  if (isDemoModeEnabled()) return getDemoService().estimatePhotoDownload(galleryId, photoId);
+  return (
+    await api.get<DownloadEstimate>(`/galleries/${galleryId}/photos/${photoId}/download/estimate`)
+  ).data;
+};
+
+const assertDownloadAvailable = (estimate: DownloadEstimate, options: DownloadOptions): void => {
+  if (estimate.image_count + estimate.video_count === 0)
+    throw new ApiError(404, 'No photos found');
+  if (options.quality === 'publication' &&
+      (estimate.publication_pending_count > 0 || estimate.publication_size_bytes === null))
+    throw new ApiError(409, 'Publication files are not ready');
+};
+
+const downloadQuery = (options: DownloadOptions, isArchive: boolean): string => {
+  const params = new URLSearchParams({ quality: options.quality });
+  if (isArchive) params.set('include_videos', String(options.includeVideos));
+  return params.toString();
+};
+
+const downloadGalleryZip = async (
+  galleryId: string,
+  options: DownloadOptions,
+): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadGalleryZip(galleryId);
+    await getDemoService().downloadGalleryZip(galleryId, options);
     return;
   }
-
-  const token = getDownloadAccessToken();
-  const status = await getRotationStatus(galleryId, []);
-  if (status.pending_rotation_count)
-    throw new Error('Photo rotations are still saving. Please try downloading again shortly.');
-  submitBrowserDownload(`/galleries/${galleryId}/download/all`, {
-    access_token: token,
+  assertDownloadAvailable(await estimateGalleryDownload(galleryId, options.includeVideos), options);
+  submitBrowserDownload(`/galleries/${galleryId}/download/all?${downloadQuery(options, true)}`, {
+    access_token: getDownloadAccessToken(),
   });
 };
 
-const downloadSelectedPhotosZip = async (galleryId: string, photoIds: string[]): Promise<void> => {
+const downloadSelectedPhotosZip = async (
+  galleryId: string,
+  photoIds: string[],
+  options: DownloadOptions,
+): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadSelectedPhotosZip(galleryId, photoIds);
+    await getDemoService().downloadSelectedPhotosZip(galleryId, photoIds, options);
     return;
   }
-
-  const token = getDownloadAccessToken();
-  for (let offset = 0; offset < photoIds.length; offset += 500) {
-    await assertRotationReady(galleryId, photoIds.slice(offset, offset + 500));
-  }
-  submitBrowserDownload(`/galleries/${galleryId}/download/selected`, {
-    access_token: token,
+  assertDownloadAvailable(
+    await estimateSelectedDownload(galleryId, photoIds, options.includeVideos),
+    options,
+  );
+  submitBrowserDownload(`/galleries/${galleryId}/download/selected?${downloadQuery(options, true)}`, {
+    access_token: getDownloadAccessToken(),
     photo_ids: photoIds,
   });
 };
 
-const downloadPhoto = async (galleryId: string, photoId: string): Promise<void> => {
+const downloadPhoto = async (
+  galleryId: string,
+  photoId: string,
+  options: DownloadOptions,
+): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadPhoto(galleryId, photoId);
+    await getDemoService().downloadPhoto(galleryId, photoId, options);
     return;
   }
-
-  const token = getDownloadAccessToken();
-  await assertRotationReady(galleryId, [photoId]);
-  submitBrowserDownload(`/galleries/${galleryId}/photos/${photoId}/download`, {
-    access_token: token,
-  });
+  assertDownloadAvailable(await estimatePhotoDownload(galleryId, photoId), options);
+  submitBrowserDownload(
+    `/galleries/${galleryId}/photos/${photoId}/download?${downloadQuery(options, false)}`,
+    { access_token: getDownloadAccessToken() },
+  );
 };
 
-async function assertRotationReady(galleryId: string, photoIds: string[]) {
-  const status = await getRotationStatus(galleryId, photoIds);
-  if (
-    status.results.some(
-      ({ photo }) =>
-        photo?.rotation_status === 'pending' || photo?.rotation_status === 'processing',
-    )
-  ) {
-    throw new Error('Photo rotations are still saving. Please try downloading again shortly.');
-  }
-}
+const requestPublicationPhotos = async (
+  galleryId: string,
+): Promise<PublicationRequestResponse> => {
+  if (isDemoModeEnabled()) return getDemoService().requestPublicationPhotos(galleryId);
+  return (
+    await api.post<PublicationRequestResponse>(`/galleries/${galleryId}/publication`)
+  ).data;
+};
 
 // File type detection helpers
 const isVideoFile = (file: File): boolean => {
@@ -1081,6 +1136,10 @@ export const photoService = {
   downloadGalleryZip,
   downloadSelectedPhotosZip,
   downloadPhoto,
+  estimateGalleryDownload,
+  estimateSelectedDownload,
+  estimatePhotoDownload,
+  requestPublicationPhotos,
   uploadPhotosPresigned,
   retryFailedUploads,
   completeMultipartUpload,

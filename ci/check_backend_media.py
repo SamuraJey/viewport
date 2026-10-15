@@ -10,6 +10,8 @@ from typing import cast
 
 import pyvips
 
+from viewport.s3_utils import create_publication_image_from_path
+
 
 def run(*args: str) -> str:
     result = subprocess.run(args, capture_output=True, text=True, timeout=60)
@@ -42,6 +44,23 @@ with tempfile.TemporaryDirectory() as directory:
     assert rotated.pngsave_buffer()
     encoded = bytes(rotated.heifsave_buffer(compression="av1", Q=70))
     assert encoded[4:12] == b"ftypavif"
+
+    # Exercise the application profile, not only generic native operations:
+    # libvips optional argument names differ across Debian and host versions.
+    publication = create_publication_image_from_path(root / "photo.jpg")
+    published = pyvips.Image.new_from_buffer(publication, "")
+    assert publication[:2] == b"\xff\xd8"
+    assert (published.width, published.height) == (98, 1300)
+    assert published.interpretation == "srgb"
+    assert published.get("icc-profile-data")
+    assert not published.get_typeof("exif-data")
+    assert not published.get_typeof("xmp-data")
+
+    transparent = pyvips.Image.black(800, 600, bands=4).copy(interpretation="srgb")
+    transparent.pngsave(str(root / "transparent.png"))
+    flattened = pyvips.Image.new_from_buffer(create_publication_image_from_path(root / "transparent.png"), "")
+    assert (flattened.width, flattened.height) == (800, 600)
+    assert min(flattened.getpoint(400, 300)) >= 250
 
     with wave.open(str(root / "audio.wav"), "wb") as audio:
         audio.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
@@ -108,4 +127,4 @@ with tempfile.TemporaryDirectory() as directory:
     assert pyvips.Image.new_from_file(str(poster)).heifsave_buffer(compression="av1", Q=70)
 
 logging.basicConfig(level=logging.INFO)
-logging.info("Native media smoke check passed: JPEG orientation, PNG, AVIF, FFprobe, H.264/AAC, remux, poster")
+logging.info("Native media smoke check passed: JPEG orientation, publication JPEG/ICC/alpha, PNG, AVIF, FFprobe, H.264/AAC, remux, poster")

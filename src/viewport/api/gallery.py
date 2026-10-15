@@ -12,16 +12,18 @@ from viewport.auth_utils import get_current_user, get_current_user_for_download
 from viewport.background_tasks import delete_gallery_data_task
 from viewport.dependencies import get_gallery_repository, get_project_repository
 from viewport.dependencies import get_s3_client as get_async_s3_client
+from viewport.downloads import DownloadEntry, build_download_estimate, prepare_download_entries
 from viewport.models.gallery import MediaType, PhotoUploadStatus
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
 from viewport.models.project import Project
 from viewport.models.user import User
-from viewport.photo_rotation import get_photo_delivery_key, is_rotation_pending
+from viewport.publication_tasks import request_gallery_publication
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client as get_sync_s3_client
 from viewport.s3_utils import get_s3_settings
+from viewport.schemas.download import DownloadEstimateResponse, DownloadQuality, PublicationRequestResponse
 from viewport.schemas.gallery import (
     GalleryCreateRequest,
     GalleryDetailResponse,
@@ -34,7 +36,6 @@ from viewport.schemas.gallery import (
     SortOrder,
 )
 from viewport.schemas.photo import DownloadSelectedPhotosRequest, GalleryPhotoResponse
-from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
 logger = logging.getLogger(__name__)
@@ -367,31 +368,22 @@ async def get_gallery_detail(
     )
 
 
-def _build_gallery_zip_response(gallery_id: uuid.UUID, photos: list, archive_name: str) -> StreamingResponse:
-    if not photos:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No photos found")
-    if any(is_rotation_pending(photo) for photo in photos):
-        raise HTTPException(status_code=409, detail="Photo rotations are still saving")
-
+def _build_gallery_zip_response(gallery_id: uuid.UUID, entries: list[DownloadEntry], archive_name: str) -> StreamingResponse:
     settings = get_s3_settings()
     z = zipstream.ZipStream()
-    used_names: set[str] = set()
-
-    for photo in photos:
-        object_key = get_photo_delivery_key(photo)
-        fallback = build_zip_fallback_name(photo.display_name, object_key=object_key, fallback_stem=f"photo-{photo.id}")
-        filename = sanitize_zip_entry_name(photo.display_name, fallback=fallback)
-        filename = make_unique_zip_entry_name(filename, used_names)
-
-        def file_generator(key: str = object_key):
+    for entry in entries:
+        def file_generator(key: str = entry.object_key):
             client = get_sync_s3_client()
-            obj = client.get_object(Bucket=settings.bucket, Key=key)
-            yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
+            body = client.get_object(Bucket=settings.bucket, Key=key)["Body"]
+            try:
+                yield from iter(lambda: body.read(1024 * 1024), b"")
+            finally:
+                body.close()
 
-        z.add(arcname=filename, data=file_generator())
+        z.add(arcname=entry.filename, data=file_generator())
 
     headers = {"Content-Disposition": f'attachment; filename="{archive_name}"'}
-    logger.info("Prepared private zip download for gallery %s with %s photos", gallery_id, len(photos))
+    logger.info("Prepared private zip download for gallery %s with %s photos", gallery_id, len(entries))
     return StreamingResponse(z, media_type="application/zip", headers=headers)
 
 
@@ -409,40 +401,85 @@ async def _parse_selected_photos_request(request: Request) -> DownloadSelectedPh
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.errors()) from exc
 
 
+async def _load_gallery_download_photos(gallery_id: uuid.UUID, *, repo: GalleryRepository, owner_id: uuid.UUID) -> list:
+    if not await repo.get_gallery_by_id_and_owner(gallery_id, owner_id):
+        raise HTTPException(status_code=404, detail="Gallery not found")
+    return await repo.get_photos_by_gallery_id(gallery_id)
+
+
+async def _load_selected_download_photos(
+    gallery_id: uuid.UUID, request: DownloadSelectedPhotosRequest, *, repo: GalleryRepository, owner_id: uuid.UUID
+) -> list:
+    if not await repo.get_gallery_by_id_and_owner(gallery_id, owner_id):
+        raise HTTPException(status_code=404, detail="Gallery not found")
+    ordered_ids = list(dict.fromkeys(request.photo_ids))
+    photos = await repo.get_photos_by_ids_and_gallery(gallery_id, ordered_ids)
+    by_id = {photo.id: photo for photo in photos}
+    if len(by_id) != len(ordered_ids):
+        raise HTTPException(status_code=404, detail="One or more selected photos were not found")
+    return [by_id[photo_id] for photo_id in ordered_ids]
+
+
+@router.get("/{gallery_id}/download/all/estimate", response_model=DownloadEstimateResponse)
+async def estimate_gallery_download(
+    gallery_id: uuid.UUID,
+    include_videos: bool = True,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+) -> DownloadEstimateResponse:
+    photos = await _load_gallery_download_photos(gallery_id, repo=repo, owner_id=current_user.id)
+    return build_download_estimate(photos, include_videos=include_videos, block_pending_rotations=True)
+
+
+@router.post("/{gallery_id}/download/selected/estimate", response_model=DownloadEstimateResponse)
+async def estimate_selected_download(
+    gallery_id: uuid.UUID,
+    request: DownloadSelectedPhotosRequest,
+    include_videos: bool = True,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+) -> DownloadEstimateResponse:
+    photos = await _load_selected_download_photos(gallery_id, request, repo=repo, owner_id=current_user.id)
+    return build_download_estimate(photos, include_videos=include_videos, block_pending_rotations=True)
+
+
 @router.post("/{gallery_id}/download/all")
 async def download_gallery_zip(
     gallery_id: uuid.UUID,
+    quality: DownloadQuality = DownloadQuality.ORIGINAL,
+    include_videos: bool = True,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user_for_download),
 ) -> StreamingResponse:
-    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
-    if not gallery:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
-
-    photos = await repo.get_photos_by_gallery_id(gallery_id)
-    return _build_gallery_zip_response(gallery_id, photos, archive_name=f"gallery_{gallery_id}.zip")
+    photos = await _load_gallery_download_photos(gallery_id, repo=repo, owner_id=current_user.id)
+    entries = prepare_download_entries(photos, quality=quality, include_videos=include_videos, block_pending_rotations=True)
+    suffix = "_publication" if quality == DownloadQuality.PUBLICATION else ""
+    return _build_gallery_zip_response(gallery_id, entries, archive_name=f"gallery_{gallery_id}{suffix}.zip")
 
 
 @router.post("/{gallery_id}/download/selected")
 async def download_selected_photos_zip(
     gallery_id: uuid.UUID,
+    quality: DownloadQuality = DownloadQuality.ORIGINAL,
+    include_videos: bool = True,
     parsed_request: DownloadSelectedPhotosRequest = Depends(_parse_selected_photos_request),
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user_for_download),
 ) -> StreamingResponse:
-    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
-    if not gallery:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
+    photos = await _load_selected_download_photos(gallery_id, parsed_request, repo=repo, owner_id=current_user.id)
+    entries = prepare_download_entries(photos, quality=quality, include_videos=include_videos, block_pending_rotations=True)
+    suffix = "_publication" if quality == DownloadQuality.PUBLICATION else ""
+    return _build_gallery_zip_response(gallery_id, entries, archive_name=f"gallery_{gallery_id}_selected{suffix}.zip")
 
-    ordered_photo_ids = list(dict.fromkeys(parsed_request.photo_ids))
-    photos = await repo.get_photos_by_ids_and_gallery(gallery_id, ordered_photo_ids)
-    photo_by_id = {photo.id: photo for photo in photos}
 
-    if len(photo_by_id) != len(ordered_photo_ids):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more selected photos were not found")
-
-    ordered_photos = [photo_by_id[photo_id] for photo_id in ordered_photo_ids]
-    return _build_gallery_zip_response(gallery_id, ordered_photos, archive_name=f"gallery_{gallery_id}_selected.zip")
+@router.post("/{gallery_id}/publication", response_model=PublicationRequestResponse)
+async def request_gallery_publication_photos(
+    gallery_id: uuid.UUID,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+) -> PublicationRequestResponse:
+    photos = await _load_gallery_download_photos(gallery_id, repo=repo, owner_id=current_user.id)
+    return await request_gallery_publication(gallery_id, photos)
 
 
 @router.post("/{gallery_id}/cover/{photo_id}", response_model=GalleryResponse)

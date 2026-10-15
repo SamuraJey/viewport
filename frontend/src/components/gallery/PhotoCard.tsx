@@ -66,10 +66,9 @@ const PhotoCardComponent = ({
   const [area, setArea] = useState({ width: 0, height: 0 });
   const [naturalSize, setNaturalSize] = useState({ src, width: 0, height: 0 });
   const pending = isRotationPending(photo);
-  const delta =
-    pending && !previewUrl
-      ? normalizeRotation((photo.requested_rotation ?? 0) - (photo.rotation ?? 0))
-      : 0;
+  const delta = pending
+    ? normalizeRotation((photo.requested_rotation ?? 0) - (photo.rotation ?? 0))
+    : 0;
   useEffect(() => {
     const element = areaRef.current;
     if (!element || !delta || delta % 180 === 0 || typeof ResizeObserver === 'undefined') return;
@@ -207,6 +206,17 @@ const PhotoCardComponent = ({
           </AppBadge>
         )}
 
+        {/* Publication badge — owner-only readiness indicator */}
+        {photo.media_type !== 'video' && photo.status === 'successful' && photo.publication_state === 'ready' && (
+          <AppBadge
+            tone="success"
+            className="absolute bottom-3 left-3 z-10"
+            aria-label="For publishing: ready"
+          >
+            For publishing: ready
+          </AppBadge>
+        )}
+
         {/* Video play badge — shown only for successful videos */}
         {photo.media_type === 'video' && photo.status === 'successful' && (
           <div className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
@@ -244,13 +254,15 @@ const PhotoCardComponent = ({
           }
         >
           <OwnerPhotoThumbnail
-            key={src}
+            key={JSON.stringify([src, photo.url, photo.status === 'failed', photo.media_type])}
             src={src}
+            fallbackSrc={photo.media_type === 'video' ? undefined : photo.url}
             alt={accessiblePhotoName}
             index={index}
             isVideo={photo.media_type === 'video'}
             failed={photo.status === 'failed'}
-            transform={delta ? `rotate(${delta}deg) scale(${scale})` : undefined}
+            transform={!previewUrl && delta ? `rotate(${delta}deg) scale(${scale})` : undefined}
+            fallbackTransform={delta ? `rotate(${delta}deg) scale(${scale})` : undefined}
             onNaturalSize={
               delta % 180 && (!photo.width || !photo.height) ? captureNaturalSize : undefined
             }

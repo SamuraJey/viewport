@@ -345,7 +345,7 @@ class ProjectRepository(BaseRepository):
         count_stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(*base_filters)
         total = int((await self.db.execute(count_stmt)).scalar() or 0)
 
-        stmt = select(Photo).join(Photo.gallery).where(*base_filters).order_by(Gallery.project_position.asc(), Photo.display_name.asc()).offset(offset).limit(limit)
+        stmt = select(Photo).join(Photo.gallery).where(*base_filters).order_by(Gallery.project_position.asc(), Photo.display_name.asc(), Photo.id.asc()).offset(offset).limit(limit)
         photos = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read((photos, total))
 

@@ -14,6 +14,7 @@ import {
   FolderPlus,
   FolderUp,
   HardDrive,
+  ImageDown,
   ImageIcon,
   Link2,
   ListChecks,
@@ -45,6 +46,7 @@ import type {
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { usePendingAction } from '../hooks/usePendingAction';
 import { enqueuePendingFiles } from '../lib/pendingFilesQueue';
+import { toast } from 'sonner';
 
 import type { GalleryDraft } from '../components/project-page/types';
 import { buildGalleryDraft, toDateInputValue } from '../components/project-page/utils';
@@ -87,6 +89,7 @@ export const ProjectPage = () => {
     return 'webkitdirectory' in input;
   });
   const [isUploadingFolder, setUploadingFolder] = useState(false);
+  const [isPreparingPublication, setIsPreparingPublication] = useState(false);
   const projectNameInputRef = useRef<HTMLInputElement | null>(null);
   const projectTitleRef = useRef<HTMLHeadingElement | null>(null);
   const renameInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -380,6 +383,34 @@ export const ProjectPage = () => {
       if (input) input.value = '';
     }
   };
+
+  const handleRequestProjectPublication = useCallback(() => {
+    if (!project) return;
+    setError('');
+    openConfirm({
+      title: 'Prepare publication files?',
+      message: `This will generate publishing JPEGs for every eligible photo across all galleries of "${project.name || 'this project'}". Generation uses server processing time; photos that already have publication files are skipped.`,
+      confirmText: 'Prepare files',
+      onConfirm: async () => {
+        setIsPreparingPublication(true);
+        try {
+          const result = await projectService.requestProjectPublication(projectId);
+          if (result.requested_count > 0) {
+            toast.success(
+              `Preparing ${result.requested_count} photo${result.requested_count === 1 ? '' : 's'} for publishing; ${result.skipped_count} already prepared`,
+            );
+            await Promise.all([loadProject(), loadProjectPhotos()]);
+          } else {
+            toast.info('All photos are already prepared for publishing');
+          }
+        } catch (err) {
+          setError(handleApiError(err).message || 'Failed to request publication files');
+        } finally {
+          setIsPreparingPublication(false);
+        }
+      },
+    });
+  }, [openConfirm, project, projectId, loadProject, loadProjectPhotos]);
 
   const openGalleryDialog = () => {
     setGalleryDraft(buildGalleryDraft(project));
@@ -930,6 +961,19 @@ export const ProjectPage = () => {
                 {isUploadingFolder ? 'Creating gallery…' : 'Upload folder'}
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => void handleRequestProjectPublication()}
+              disabled={isPreparingPublication || project.total_photo_count === 0}
+              className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+            >
+              {isPreparingPublication ? (
+                <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+              ) : (
+                <ImageDown className="h-4 w-4" />
+              )}
+              {isPreparingPublication ? 'Preparing…' : 'Prepare publication files'}
+            </button>
             <button
               type="button"
               onClick={() => setIsShareLinkCreateOpen(true)}

@@ -1,0 +1,35 @@
+# Download quality
+
+Downloads offer **Full size** (the default) and **For publishing**. Archive downloads include videos by default; the checkbox controls whether videos are included in either quality. Preferences reset each time the dialog opens. Single videos download directly at original quality.
+
+Full size uses the currently published full-resolution image, including saved lossless rotations; it does not necessarily mean byte-identical to the upload. For publishing uses a separate JPEG, at most 2048 pixels on its long side, without enlarging small images: Q85, progressive, optimized coding, sRGB ICC, no EXIF/GPS/XMP/IPTC or embedded thumbnail. Transparency is composited onto white. The 1000-pixel AVIF remains an interface preview, not a download substitute. Videos always retain their original bytes and filename.
+
+## Estimates and availability
+
+Estimates cover the complete authorized scope, not the current page or search results. Only successful files participate. Selected downloads validate all deduplicated IDs in selection order before filtering unfinished files. Project shares include listed galleries only; direct gallery shares remain usable independently of project visibility.
+
+Original estimates sum uploaded file sizes; publication estimates sum saved JPEG sizes and included original video sizes. ZIP overhead is excluded, and rotated full-resolution files can differ from uploaded sizes. Estimates are approximate, not a promised Content-Length. No per-file S3 HEAD requests are needed.
+
+If any included image lacks its publication JPEG, publication downloads return HTTP 409 (`Publication files are not ready`); full-size downloads remain available. The dialog disables publication and explains that files are unavailable, without promising ongoing preparation. Empty estimates succeed with zero counts; actual empty downloads return 404. Invalid quality/boolean query values return 422. Private downloads/estimates block included pending or processing rotations. Public downloads continue using the previous published assets while rotation is pending or failed.
+
+Owner image cards continue showing retained originals when processing failed or an AVIF preview is missing/unreadable. This is a native, lazy-loaded image fallback, not a change to download quality: healthy cards request only the small preview, video originals are never loaded as poster images, and a missing original terminates at the unavailable state rather than retrying indefinitely. Opening a card still uses the full-resolution lightbox source. The failed-processing badge remains visible until actual processing has succeeded.
+
+Public estimates and HEAD requests use the same share authorization as downloads: inactive/missing links return 404, expired links 410, password protection 401 until unlocked. Neither estimates nor HEAD increment analytics. Actual download requests count once. Public ZIP HEAD and browser GET carry identical quality/video options. Private downloads use POST forms with tokens in the body, never in the URL; JavaScript does not buffer S3 or ZIP bytes.
+
+## Publication lifecycle
+
+Publication JPEGs are created **only when the photographer explicitly requests them**: no automatic encoding on upload, rotation, or any background sweep. The gallery header menu has **Prepare publication files**; the project page header has the same action covering all of its galleries (including direct-only). Both are owner-only POST endpoints (`POST /galleries/{gallery_id}/publication`, `POST /projects/{project_id}/publication`) returning `{requested_count, skipped_count}`. An empty eligible set returns 404 `No photos found`; more than 500 eligible photos return 409 `Too many photos for a single publication request`. Eligible means a successful image whose publication pair is missing and which is not pending/processing rotation; already-published photos are counted as skipped. While the request is in flight the button is busy; after it resolves the gallery/project data is refreshed and cards plus the lightbox show a `For publishing: ready` badge for prepared images (`publication_state`). There is no polling and no automatic retry.
+
+The task `create_publication_images_batch` remains idempotent: it encodes from the current published delivery key (including saved rotations), publishes only the missing key/size after gallery-then-photo locks and revision revalidation, skips stale/deleted/rotating records, and never changes photo status, original, thumbnail, dimensions, or quota. Existing publication objects keep their immutable `{gallery_id}/{photo_id}_rotations/{revision}-{uuid}/publication.jpg` keys. Rotation and reset no longer regenerate the publication JPEG — the previously published version stays valid until explicitly re-prepared. Original storage accounting and quotas are unchanged, and photo/gallery deletion still removes publication objects.
+
+Run the database migration before starting workers that use the publication fields: `uv run alembic upgrade head`, then `uv run alembic check` must report no new upgrade operations. The migration changes schema only: it neither reads S3 nor encodes files.
+
+## Demo limitations
+
+Demo estimates explicitly simulate each image's publication size as `Math.round(file_size * 0.25)`; video bytes are not reduced. Gallery, selection, single, shared gallery, listed project, and project-gallery scopes apply the same successful/media/visibility filters. Private pending rotations block only included files. Invalid IDs/scopes reject rather than silently downloading unrelated files.
+
+Demo archive downloads remain `.txt` manifests, not real ZIPs. They contain selected quality, simulated size, and included filenames (publication image names end `_publication.jpg`). Single downloads use sample URLs and do **not** prove the publication JPEG profile. The dialog labels sizes and archives simulated and explains the sample-photo limitation. No client-side encoder or ZIP library is used.
+
+## Operational verification
+
+Run the approved backend pipeline, rotation, backfill, API, cleanup, and migration tests with native libvips/ExifTool and Docker-backed fixtures. Run affected frontend service/page/hook/dialog tests. Real-file smoke must additionally inspect downloaded JPEG dimensions, orientation, ICC/metadata and alpha compositing, unpack ZIP contents, verify unchanged video bytes, exercise rotation/reset and backfill, and inspect private form/public HEAD+GET options. Demo smoke proves controls and simulated manifests only, never production encoding or archives.

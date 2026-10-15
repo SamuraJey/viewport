@@ -83,6 +83,8 @@ class TestCleanupTask:
                 status=PhotoUploadStatus.FAILED,
                 object_key=f"{gallery_id}/failed.jpg",
                 thumbnail_object_key=f"{gallery_id}/failed_thumb.jpg",
+                publication_object_key=f"{gallery_id}/failed_publication.jpg",
+                publication_file_size=5,
                 file_size=100,
             )
             session.add(failed_photo)
@@ -93,6 +95,7 @@ class TestCleanupTask:
             failed_id = failed_photo.id
             failed_key = failed_photo.object_key
             failed_thumb_key = failed_photo.thumbnail_object_key
+            failed_publication_key = failed_photo.publication_object_key
 
         # Upload dummy files to S3
         s3_client = get_s3_client()
@@ -100,6 +103,7 @@ class TestCleanupTask:
         s3_client.put_object(Bucket=bucket, Key=orphaned_key, Body=b"dummy")
         s3_client.put_object(Bucket=bucket, Key=failed_key, Body=b"dummy")
         s3_client.put_object(Bucket=bucket, Key=failed_thumb_key, Body=b"dummy")
+        s3_client.put_object(Bucket=bucket, Key=failed_publication_key, Body=b"dummy")
 
         # 2. Verify it's NOT deleted yet if we run cleanup now (it's new)
         result = cleanup_orphaned_uploads_task()
@@ -143,7 +147,7 @@ class TestCleanupTask:
             assert session.get(Photo, recent_id) is not None
 
         # Verify S3 cleanup
-        for key in [orphaned_key, failed_key, failed_thumb_key]:
+        for key in [orphaned_key, failed_key, failed_thumb_key, failed_publication_key]:
             try:
                 s3_client.head_object(Bucket=bucket, Key=key)
                 pytest.fail(f"S3 object {key} should have been deleted")

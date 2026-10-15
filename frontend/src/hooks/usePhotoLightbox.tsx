@@ -10,12 +10,14 @@ import 'yet-another-react-lightbox/styles.css';
 import 'yet-another-react-lightbox/plugins/thumbnails.css';
 import { ProgressiveSlide } from '../components/ProgressiveSlide';
 import { PhotoRotationButtons } from '../components/gallery/PhotoRotationButtons';
-import type { ZoomRef } from 'yet-another-react-lightbox';
+import type { ControllerRef, ZoomRef } from 'yet-another-react-lightbox';
 
 export interface PhotoSlide {
   canRotate?: boolean;
   rotationPending?: boolean;
   previewRotation?: number;
+  /** Owner-only publication readiness shown in the lightbox toolbar. */
+  publicationReady?: boolean;
   src: string;
   alt?: string;
   width?: number;
@@ -36,6 +38,8 @@ export interface PhotoSlide {
 
 interface UsePhotoLightboxOptions {
   onRotatePhoto?: (index: number, direction: -90 | 90) => void;
+  /** Called after the lightbox has released its modal focus trap. */
+  onExited?: () => void;
   /** Selector for photo card elements to enable scroll-to-photo on close */
   photoCardSelector?: string;
   /** Ref to the grid container for finding photo cards */
@@ -62,11 +66,13 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
     loadMoreThreshold = 10,
     showPositionIndicator = false,
     onRotatePhoto,
+    onExited,
   } = options;
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const zoomRef = useRef<ZoomRef | null>(null);
+  const controllerRef = useRef<ControllerRef | null>(null);
 
   const thumbnailsRef = useRef<{
     visible: boolean;
@@ -80,8 +86,13 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
     setLightboxOpen(true);
   }, []);
 
-  // Close lightbox
+  // Ask YARL to run its exit lifecycle before its close prop unmounts the portal.
   const closeLightbox = useCallback(() => {
+    if (controllerRef.current) controllerRef.current.close();
+    else setLightboxOpen(false);
+  }, []);
+
+  const completeLightboxClose = useCallback(() => {
     setLightboxOpen(false);
   }, []);
 
@@ -122,7 +133,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
       <Lightbox
         className="backdrop-blur-md bg-black/95"
         open={lightboxOpen}
-        close={closeLightbox}
+        close={completeLightboxClose}
         index={lightboxIndex}
         slides={slides.map((slide) => {
           if (slide.media_type === 'video' && slide.playback_url) {
@@ -175,6 +186,17 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
                         </span>,
                       ]
                     : []),
+                  ...(slides[lightboxIndex]?.publicationReady
+                    ? [
+                        <span
+                          key="publication-ready"
+                          role="status"
+                          className="inline-flex min-h-11 items-center rounded-lg bg-success/20 px-2 text-xs font-semibold text-white"
+                        >
+                          For publishing: ready
+                        </span>,
+                      ]
+                    : []),
                   'close',
                 ],
               }
@@ -197,6 +219,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
             : undefined,
         }}
         controller={{
+          ref: controllerRef,
           closeOnPullDown: true,
           closeOnPullUp: true,
           closeOnBackdropClick: true,
@@ -276,6 +299,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
           },
           exited: () => {
             handleLightboxExited();
+            onExited?.();
           },
         }}
       />

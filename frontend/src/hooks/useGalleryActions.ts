@@ -10,6 +10,7 @@ import { handleApiError } from '../lib/errorHandling';
 import { toast } from 'sonner';
 import { OwnerGalleryPageCache } from '../lib/ownerGalleryPageCache';
 import type { PhotoRotationResponse } from '../types/photo';
+import type { DownloadOptions } from '../types/download';
 import type {
   GalleryDetail,
   GalleryPhotoSortBy,
@@ -65,6 +66,7 @@ export const useGalleryActions = ({
   const [actionInfo, setActionInfo] = useState('');
   const [isCreatingLink, setIsCreatingLink] = useState(false);
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
+  const [isPreparingPublication, setIsPreparingPublication] = useState(false);
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
   const [isSavingPublicSortSettings, setIsSavingPublicSortSettings] = useState(false);
@@ -397,23 +399,68 @@ export const useGalleryActions = ({
     }, 400);
   }, []);
 
-  const handleDownloadGallery = async () => {
+  const handleDownloadGallery = useCallback(async (options: DownloadOptions) => {
     setIsDownloadingZip(true);
     clearError();
     setActionInfo('');
 
     try {
-      await photoService.downloadGalleryZip(galleryId);
+      await photoService.downloadGalleryZip(galleryId, options);
       toast.success('Download started');
     } catch (err) {
-      handleError(err);
+      handleError(err, { redirect: false });
       toast.error(handleApiError(err).message);
+      throw err;
     } finally {
       releaseZipDownloadLock();
     }
-  };
+  }, [clearError, galleryId, handleError, releaseZipDownloadLock]);
 
-  const handleDownloadSelectedPhotos = async (selectedIds: Set<string>) => {
+  const requestPublicationConfirmRef = useRef<(() => Promise<void>) | null>(null);
+
+  const handleRequestPublication = useCallback(() => {
+    clearError();
+    setActionInfo('');
+    openConfirm({
+      title: 'Prepare publication files?',
+      message:
+        'This will generate publishing JPEGs for every eligible photo in this gallery. Generation uses server processing time; photos that already have publication files are skipped.',
+      confirmText: 'Prepare files',
+      onConfirm: async () => {
+        await requestPublicationConfirmRef.current?.();
+      },
+    });
+  }, [clearError, openConfirm]);
+
+  const handleRequestPublicationConfirm = useCallback(async () => {
+    clearError();
+    setActionInfo('');
+    setIsPreparingPublication(true);
+    try {
+      const result = await photoService.requestPublicationPhotos(galleryId);
+      if (result.requested_count > 0) {
+        toast.success(
+          `Preparing ${result.requested_count} photo${result.requested_count === 1 ? '' : 's'} for publishing; ${result.skipped_count} already prepared`,
+        );
+        pageCache.clear();
+        await fetchGalleryDetails(page, false, false, { silent: true });
+      } else {
+        toast.info('All photos are already prepared for publishing');
+      }
+    } catch (err) {
+      handleError(err, { redirect: false });
+      toast.error(handleApiError(err).message);
+      throw err;
+    } finally {
+      setIsPreparingPublication(false);
+    }
+  }, [clearError, galleryId, handleError, pageCache, fetchGalleryDetails, page]);
+
+  useEffect(() => {
+    requestPublicationConfirmRef.current = handleRequestPublicationConfirm;
+  }, [handleRequestPublicationConfirm]);
+
+  const handleDownloadSelectedPhotos = useCallback(async (selectedIds: Set<string>, options: DownloadOptions) => {
     if (selectedIds.size === 0) {
       return;
     }
@@ -423,27 +470,29 @@ export const useGalleryActions = ({
     setActionInfo('');
 
     try {
-      await photoService.downloadSelectedPhotosZip(galleryId, Array.from(selectedIds));
+      await photoService.downloadSelectedPhotosZip(galleryId, Array.from(selectedIds), options);
       toast.success('Download started');
     } catch (err) {
-      handleError(err);
+      handleError(err, { redirect: false });
       toast.error(handleApiError(err).message);
+      throw err;
     } finally {
       releaseZipDownloadLock();
     }
-  };
+  }, [clearError, galleryId, handleError, releaseZipDownloadLock]);
 
   const handleDownloadPhoto = useCallback(
-    async (photoId: string) => {
+    async (photoId: string, options: DownloadOptions) => {
       clearError();
       setActionInfo('');
 
       try {
-        await photoService.downloadPhoto(galleryId, photoId);
+        await photoService.downloadPhoto(galleryId, photoId, options);
         toast.success('Download started');
       } catch (err) {
-        handleError(err);
+        handleError(err, { redirect: false });
         toast.error(handleApiError(err).message);
+        throw err;
       }
     },
     [clearError, galleryId, handleError],
@@ -702,6 +751,9 @@ export const useGalleryActions = ({
     handleDownloadGallery,
     handleDownloadSelectedPhotos,
     handleDownloadPhoto,
+    handleRequestPublication,
+    handleRequestPublicationConfirm,
+    isPreparingPublication,
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,

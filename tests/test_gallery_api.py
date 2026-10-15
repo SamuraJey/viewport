@@ -808,3 +808,258 @@ class TestGalleryAPI:
         assert test_gallery2["cover_photo_thumbnail_url"] is not None  # Cover photo URL should be present
         assert test_gallery2["cover_photo_thumbnail_url"].startswith("http")
         assert "recent_photo_thumbnail_urls" not in test_gallery2
+
+
+class TestDownloadQuality:
+    @pytest.mark.parametrize("quality", ["original", "publication"])
+    @pytest.mark.parametrize("include_videos", [False, True])
+    def test_zip_contains_requested_assets(self, authenticated_client, gallery_id_fixture, sync_engine, quality, include_videos):
+        from tests.download_helpers import seed_download_scope, unpack_download
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        prefix, payloads = scope["prefix"], scope["payloads"]
+        response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/download/all",
+            params={"quality": quality, "include_videos": str(include_videos).lower()},
+        )
+        if quality == "publication":
+            expected = {
+                "same_publication.jpg": payloads[f"{prefix}/first_publication.jpg"],
+                "same_publication (1).jpg": payloads[f"{prefix}/second_publication.jpg"],
+            }
+            assert response.headers["content-disposition"].endswith('_publication.zip"')
+        else:
+            expected = {"same.jpg": payloads[f"{prefix}/rotated.jpg"], "same.png": payloads[f"{prefix}/second.png"]}
+            assert response.headers["content-disposition"].endswith(f'{gallery_id_fixture}.zip"')
+        if include_videos:
+            expected["clip.mp4"] = payloads[f"{prefix}/clip.mp4"]
+        assert unpack_download(response) == expected
+
+    @pytest.mark.parametrize("include_videos,original_size,publication_size", [(False, 10_000_000, 700_000), (True, 30_000_000, 20_700_000)])
+    def test_estimates_match_scope_and_video_option(self, authenticated_client, gallery_id_fixture, sync_engine, include_videos, original_size, publication_size):
+        from tests.download_helpers import seed_download_scope
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        params = {"include_videos": str(include_videos).lower()}
+        all_response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/download/all/estimate", params=params)
+        selected_response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/download/selected/estimate",
+            params=params,
+            json={"photo_ids": [str(photo_id) for photo_id in scope["ids"].values()]},
+        )
+        expected = {
+            "image_count": 2, "video_count": int(include_videos), "available_video_count": 1,
+            "original_size_bytes": original_size, "publication_size_bytes": publication_size, "publication_pending_count": 0,
+        }
+        assert all_response.status_code == selected_response.status_code == 200
+        assert all_response.json() == selected_response.json() == expected
+        single = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/{scope['ids']['first']}/download/estimate")
+        assert single.json() == {
+            "image_count": 1, "video_count": 0, "available_video_count": 0,
+            "original_size_bytes": 6_000_000, "publication_size_bytes": 400_000, "publication_pending_count": 0,
+        }
+
+    def test_selected_validates_membership_before_filter_and_preserves_order(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from tests.download_helpers import seed_download_scope, unpack_download
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        ids = scope["ids"]
+        url = f"/galleries/{gallery_id_fixture}/download/selected"
+        request = {"photo_ids": [str(ids[name]) for name in ("second", "first", "second", "unfinished")]}
+        response = authenticated_client.post(url, params={"quality": "publication"}, json=request)
+        contents = unpack_download(response)
+        assert list(contents) == ["same_publication.jpg", "same_publication (1).jpg"]
+        assert list(contents.values()) == [
+            scope["payloads"][f"{scope['prefix']}/second_publication.jpg"],
+            scope["payloads"][f"{scope['prefix']}/first_publication.jpg"],
+        ]
+        for suffix in ("", "/estimate"):
+            missing = authenticated_client.post(url + suffix, json={"photo_ids": [str(ids["unfinished"]), str(uuid4())]})
+            assert missing.status_code == 404
+            assert missing.json()["detail"] == "One or more selected photos were not found"
+        unfinished = str(ids["unfinished"])
+        assert authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/{unfinished}/download").status_code == 404
+        assert authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/{unfinished}/download/estimate").status_code == 404
+        empty = authenticated_client.post(url + "/estimate", json={"photo_ids": [unfinished]})
+        assert empty.status_code == 200
+        assert empty.json() == {
+            "image_count": 0, "video_count": 0, "available_video_count": 0,
+            "original_size_bytes": 0, "publication_size_bytes": 0, "publication_pending_count": 0,
+        }
+        assert authenticated_client.post(url, json={"photo_ids": [unfinished]}).status_code == 404
+
+    def test_missing_publication_never_falls_back_to_original(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from sqlalchemy.orm import Session
+
+        from tests.download_helpers import seed_download_scope, unpack_download
+        from viewport.models.gallery import Photo
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        with Session(sync_engine) as db:
+            photo = db.get(Photo, scope["ids"]["first"])
+            photo.publication_object_key = photo.publication_file_size = None
+            db.commit()
+        estimate = authenticated_client.get(f"/galleries/{gallery_id_fixture}/download/all/estimate").json()
+        assert estimate["publication_size_bytes"] is None
+        assert estimate["publication_pending_count"] == 1
+        url = f"/galleries/{gallery_id_fixture}/download/all"
+        assert len(unpack_download(authenticated_client.post(url))) == 3
+        for path, body in [
+            (url, None),
+            (f"/galleries/{gallery_id_fixture}/download/selected", {"photo_ids": [str(scope["ids"]["first"])]}),
+            (f"/galleries/{gallery_id_fixture}/photos/{scope['ids']['first']}/download", None),
+        ]:
+            response = authenticated_client.post(path, params={"quality": "publication"}, json=body, follow_redirects=False)
+            assert response.status_code == 409
+            assert response.json()["detail"] == "Publication files are not ready"
+
+    def test_single_publication_redirect_and_video_original(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from tests.download_helpers import seed_download_scope
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        with patch("viewport.api.photo.AsyncS3Client.generate_presigned_url_async", new_callable=AsyncMock, return_value="https://example.test/file") as presign:
+            for name, key, filename in [
+                ("first", "first_publication.jpg", "same_publication.jpg"),
+                ("video", "clip.mp4", "clip.mp4"),
+            ]:
+                response = authenticated_client.post(
+                    f"/galleries/{gallery_id_fixture}/photos/{scope['ids'][name]}/download?quality=publication", follow_redirects=False,
+                )
+                assert response.status_code == 303
+                assert presign.await_args.args[0] == f"{scope['prefix']}/{key}"
+                assert presign.await_args.kwargs["response_content_disposition"] == f'attachment; filename="{filename}"'
+
+    def test_pending_rotation_checks_only_included_successful_records(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from sqlalchemy.orm import Session
+
+        from tests.download_helpers import seed_download_scope
+        from viewport.models.gallery import Photo
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        with Session(sync_engine) as db:
+            db.get(Photo, scope["ids"]["video"]).rotation_status = "pending"
+            db.get(Photo, scope["ids"]["unfinished"]).rotation_status = "pending"
+            db.commit()
+        base = f"/galleries/{gallery_id_fixture}/download/all"
+        assert authenticated_client.get(base + "/estimate?include_videos=false").status_code == 200
+        assert authenticated_client.post(base + "?include_videos=false").status_code == 200
+        assert authenticated_client.get(base + "/estimate").status_code == 409
+        assert authenticated_client.post(base).status_code == 409
+        with Session(sync_engine) as db:
+            db.get(Photo, scope["ids"]["first"]).rotation_status = "processing"
+            db.commit()
+        assert authenticated_client.get(base + "/estimate?include_videos=false").status_code == 409
+        assert authenticated_client.post(base + "?include_videos=false").status_code == 409
+
+    def test_estimate_uses_entire_collection_not_first_page(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from uuid import UUID
+
+        from sqlalchemy.orm import Session
+
+        from viewport.models.gallery import Photo, PhotoUploadStatus
+
+        with Session(sync_engine) as db:
+            db.add_all([
+                Photo(gallery_id=UUID(gallery_id_fixture), object_key=f"{gallery_id_fixture}/{index}.jpg", thumbnail_object_key=f"{gallery_id_fixture}/{index}_thumbnail.avif", display_name=f"{index}.jpg", file_size=100, status=PhotoUploadStatus.SUCCESSFUL)
+                for index in range(125)
+            ])
+            db.commit()
+        response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/download/all/estimate")
+        assert response.status_code == 200
+        assert response.json() == {
+            "image_count": 125, "video_count": 0, "available_video_count": 0,
+            "original_size_bytes": 12_500, "publication_size_bytes": None, "publication_pending_count": 125,
+        }
+
+    @pytest.mark.parametrize("query", ["quality=bogus", "include_videos=bogus"])
+    def test_invalid_download_options_are_rejected(self, authenticated_client, gallery_id_fixture, query):
+        assert authenticated_client.post(f"/galleries/{gallery_id_fixture}/download/all?{query}").status_code == 422
+        if query.startswith("include"):
+            assert authenticated_client.get(f"/galleries/{gallery_id_fixture}/download/all/estimate?{query}").status_code == 422
+
+    def test_zip_stream_closes_every_s3_body(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from tests.download_helpers import seed_download_scope, unpack_download
+
+        seed_download_scope(sync_engine, gallery_id_fixture)
+        share = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={}).json()["id"]
+        for method, url, client_path in [
+            ("post", f"/galleries/{gallery_id_fixture}/download/all", "viewport.api.gallery.get_sync_s3_client"),
+            ("get", f"/s/{share}/download/all", "viewport.api.public.get_s3_client"),
+        ]:
+            bodies: list[io.BytesIO] = []
+            captured_bodies = bodies
+
+            def get_object(_client_path=client_path, _bodies=captured_bodies, **_kwargs):
+                body = io.BytesIO(b"streamed-object")
+                _bodies.append(body)
+                return {"Body": body}
+
+            with patch(client_path) as get_client:
+                get_client.return_value.get_object.side_effect = get_object
+                entries = unpack_download(getattr(authenticated_client, method)(url))
+            assert len(entries) == 3
+            assert set(entries.values()) == {b"streamed-object"}
+            assert bodies and all(body.closed for body in bodies)
+
+    def test_zip_stream_closes_s3_body_after_read_failure(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from tests.download_helpers import seed_download_scope
+
+        seed_download_scope(sync_engine, gallery_id_fixture)
+
+        class FailedBody(io.BytesIO):
+            def read(self, _size=-1):
+                raise OSError("stream read failed")
+
+        body = FailedBody(b"unread")
+        with patch("viewport.api.gallery.get_sync_s3_client") as get_client:
+            get_client.return_value.get_object.return_value = {"Body": body}
+            with pytest.raises(OSError, match="stream read failed"):
+                authenticated_client.post(f"/galleries/{gallery_id_fixture}/download/all")
+        assert body.closed
+
+    def test_estimates_require_bearer_auth_not_download_form_token(self, client, auth_token):
+        client.headers["Authorization"] = f"Bearer {auth_token}"
+        gallery_id = client.post("/galleries", json={}).json()["id"]
+        client.headers.pop("Authorization")
+        response = client.get(f"/galleries/{gallery_id}/download/all/estimate?access_token={auth_token}")
+        assert response.status_code == 401
+        response = client.post(
+            f"/galleries/{gallery_id}/download/selected/estimate",
+            json={"photo_ids": [str(uuid4())], "access_token": auth_token},
+        )
+        assert response.status_code == 401
+
+    def test_gallery_publication_trigger_enqueues_missing_and_skips_ready(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from sqlalchemy.orm import Session
+
+        from tests.download_helpers import seed_download_scope
+        from viewport.models.gallery import Photo
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        with Session(sync_engine) as db:
+            db.get(Photo, scope["ids"]["second"]).publication_object_key = None
+            db.get(Photo, scope["ids"]["second"]).publication_file_size = None
+            db.commit()
+        enqueued = []
+        with patch("viewport.publication_tasks.create_publication_images_batch_task") as task:
+            task.delay.side_effect = lambda batch: enqueued.append(batch)
+            response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/publication")
+        assert response.status_code == 200
+        assert response.json() == {"requested_count": 1, "skipped_count": 1}
+        assert enqueued == [[str(scope["ids"]["second"])]]
+
+    def test_gallery_publication_trigger_returns_404_when_all_ready(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from tests.download_helpers import seed_download_scope
+
+        seed_download_scope(sync_engine, gallery_id_fixture)
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/publication")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "No photos found"
+
+    def test_gallery_publication_trigger_requires_owner(self, client, gallery_id_fixture):
+        assert client.post(f"/galleries/{gallery_id_fixture}/publication").status_code in (401, 403, 404)
+
+    def test_gallery_publication_trigger_unknown_gallery_404(self, authenticated_client):
+        response = authenticated_client.post(f"/galleries/{uuid4()}/publication")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Gallery not found"
