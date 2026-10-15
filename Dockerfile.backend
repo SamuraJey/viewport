@@ -118,10 +118,10 @@ ENV PATH="/app/.venv/bin:/opt/ffmpeg/bin:$PATH" \
     PYTHONFAULTHANDLER=1
 
 COPY --from=build --chown=appuser:appgroup /app/.venv /app/.venv
+COPY --from=build --chown=appuser:appgroup /app/src /app/src
 RUN --mount=type=bind,source=ci/check_backend_media.py,target=/tmp/check_backend_media.py \
     python /tmp/check_backend_media.py
 
-COPY --from=build --chown=appuser:appgroup /app/src /app/src
 
 # Extend the already-built production environment with dev dependencies only.
 # Reuse the build toolchain so native Python packages keep their production ABI.

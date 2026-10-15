@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router';
 import {
@@ -31,16 +31,17 @@ import {
   PublicGalleryExpired,
 } from '../components/public-gallery/PublicGalleryStates';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
+import { useModal } from '../hooks/useModal';
+import { DownloadOptionsDialog } from '../components/download/DownloadOptionsDialog';
+import type { DownloadOptions } from '../types/download';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { usePublicGallery } from '../hooks/usePublicGallery';
 import { usePublicGalleryGrid } from '../hooks/usePublicGalleryGrid';
 import { usePublicGalleryShare } from '../hooks/usePublicGalleryShare';
 import { usePublicSelection } from '../hooks/usePublicSelection';
 import { isDemoModeEnabled } from '../lib/demoMode';
-import { formatFileSize } from '../lib/utils';
 import { handleApiError } from '../lib/errorHandling';
 import { getAccessiblePhotoName } from '../lib/accessibility';
-import { getDemoService } from '../services/demoService';
 import { shareLinkService } from '../services/shareLinkService';
 import type { PublicPhoto, SelectionSessionStartRequest, SharedProjectShare } from '../types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -57,6 +58,11 @@ const INTERNAL_PROJECT_NAVIGATION_STATE = {
 } as const;
 
 const HERO_CONTROLS_VISIBLE_RATIO = 0.25;
+
+type PublicDownloadTarget =
+  | { kind: 'all'; shareId: string; routeKey: string }
+  | { kind: 'gallery'; shareId: string; galleryId: string; routeKey: string }
+  | { kind: 'photo'; shareId: string; photoId: string; fromLightbox: boolean; routeKey: string };
 
 export const PublicGalleryPage = () => {
   const { shareId, resumeToken, galleryId } = useParams<{
@@ -272,7 +278,19 @@ export const PublicGalleryPage = () => {
     touchHandlers,
   } = usePublicGalleryGrid({ photos: displayedPhotos, spacing: appearance.photo_spacing });
 
-  const { openLightbox, lightboxOpen, renderLightbox } = usePhotoLightbox({
+  const downloadModal = useModal<PublicDownloadTarget>();
+  const downloadTarget = downloadModal.data;
+  const openDownloadModal = downloadModal.open;
+  const closeDownloadModal = downloadModal.close;
+  const pendingLightboxDownload = useRef<PublicDownloadTarget | null>(null);
+  const downloadRouteKey = `${shareId}|${activeGalleryId}|${resumeToken}`;
+  const currentDownloadRoute = useRef(downloadRouteKey);
+  useLayoutEffect(() => {
+    currentDownloadRoute.current = downloadRouteKey;
+  }, [downloadRouteKey]);
+  const allowLightboxRestore = useRef(true);
+
+  const { openLightbox, closeLightbox, lightboxOpen, renderLightbox } = usePhotoLightbox({
     photoCardSelector: '.pg-card',
     gridRef,
     onLoadMore: () => {
@@ -284,7 +302,29 @@ export const PublicGalleryPage = () => {
     isLoadingMore: isFavoritesView ? false : isLoadingMore,
     loadMoreThreshold: 10,
     showPositionIndicator: true,
+    onExited: () => {
+      const target = pendingLightboxDownload.current;
+      pendingLightboxDownload.current = null;
+      if (target?.routeKey === currentDownloadRoute.current && allowLightboxRestore.current)
+        openDownloadModal(target);
+    },
   });
+
+  useEffect(() => {
+    pendingLightboxDownload.current = null;
+    allowLightboxRestore.current = true;
+    closeDownloadModal();
+    closeLightbox();
+  }, [downloadRouteKey, closeDownloadModal, closeLightbox]);
+
+  const closeDownload = useCallback(() => {
+    closeDownloadModal();
+    if (downloadTarget?.kind !== 'photo' || !downloadTarget.fromLightbox ||
+        downloadTarget.routeKey !== currentDownloadRoute.current || !allowLightboxRestore.current)
+      return;
+    const index = displayedPhotos.findIndex((photo) => photo.photo_id === downloadTarget.photoId);
+    if (index !== -1) openLightbox(index);
+  }, [closeDownloadModal, downloadTarget, displayedPhotos, openLightbox]);
 
   useEffect(() => {
     loadMorePhotosRef.current = loadMorePhotos;
@@ -326,72 +366,94 @@ export const PublicGalleryPage = () => {
 
   const handleDownloadFailure = useCallback((err: unknown) => {
     const apiError = handleApiError(err);
-    if (apiError.statusCode === 401) {
-      setIsDownloadPasswordRequired(true);
-      setSharePasswordError('Password is required or incorrect. Please try again.');
+    if (apiError.statusCode === 401 || apiError.statusCode === 410) {
+      allowLightboxRestore.current = false;
+      pendingLightboxDownload.current = null;
+      closeDownloadModal();
+      closeLightbox();
       setDownloadError('');
-      return;
-    }
-    if (apiError.statusCode === 410) {
-      setIsDownloadExpired(true);
-      setDownloadError('');
+      if (apiError.statusCode === 401) {
+        setIsDownloadPasswordRequired(true);
+        setSharePasswordError('Password is required or incorrect. Please try again.');
+      } else {
+        setIsDownloadExpired(true);
+      }
       return;
     }
     setDownloadError(apiError.message || 'Failed to download photos. Please try again.');
-  }, []);
+  }, [closeDownloadModal, closeLightbox]);
 
-  const handleDownloadAll = useCallback(async () => {
+  const handleDownloadAll = useCallback(() => {
     if (!shareId) return;
     setDownloadError('');
-    try {
-      if (isDemoModeEnabled()) {
-        await getDemoService().downloadSharedGalleryZip(shareId);
-        return;
-      }
+    allowLightboxRestore.current = true;
+    openDownloadModal({ kind: 'all', shareId, routeKey: downloadRouteKey });
+  }, [shareId, downloadRouteKey, openDownloadModal]);
 
-      await shareLinkService.downloadSharedGalleryZip(shareId);
-    } catch (err) {
-      handleDownloadFailure(err);
-    }
-  }, [handleDownloadFailure, shareId]);
-
-  const handleDownloadCurrentGallery = useCallback(async () => {
+  const handleDownloadCurrentGallery = useCallback(() => {
     if (!shareId || !activeGalleryId) return;
     setDownloadError('');
-    try {
-      if (isDemoModeEnabled()) {
-        await getDemoService().downloadGalleryZip(activeGalleryId);
-        return;
-      }
+    allowLightboxRestore.current = true;
+    openDownloadModal({ kind: 'gallery', shareId, galleryId: activeGalleryId, routeKey: downloadRouteKey });
+  }, [shareId, activeGalleryId, downloadRouteKey, openDownloadModal]);
 
-      await shareLinkService.downloadSharedProjectGalleryZip(shareId, activeGalleryId);
-    } catch (err) {
-      handleDownloadFailure(err);
+  const handleDownloadSinglePhoto = useCallback((photo: PublicPhoto, fromLightbox = false) => {
+    if (!shareId) return;
+    setDownloadError('');
+    allowLightboxRestore.current = true;
+    if (photo.media_type === 'video') {
+      void shareLinkService.downloadSharedPhoto(shareId, photo.photo_id, {
+        quality: 'original', includeVideos: true,
+      }).catch((err: unknown) => {
+        if (currentDownloadRoute.current === downloadRouteKey) handleDownloadFailure(err);
+      });
+      return;
     }
-  }, [activeGalleryId, handleDownloadFailure, shareId]);
+    const target: PublicDownloadTarget = {
+      kind: 'photo', shareId, photoId: photo.photo_id, fromLightbox, routeKey: downloadRouteKey,
+    };
+    if (fromLightbox) {
+      pendingLightboxDownload.current = target;
+      closeLightbox();
+    } else {
+      openDownloadModal(target);
+    }
+  }, [shareId, downloadRouteKey, closeLightbox, openDownloadModal, handleDownloadFailure]);
 
-  const handleDownloadSinglePhoto = useCallback(
-    async (photo: PublicPhoto) => {
-      if (!shareId) return;
-      setDownloadError('');
-      try {
-        if (isDemoModeEnabled()) {
-          const anchor = document.createElement('a');
-          anchor.href = photo.full_url;
-          anchor.download = photo.filename || `photo-${photo.photo_id}.jpg`;
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          return;
-        }
+  const loadDownloadEstimate = useCallback(async (includeVideos: boolean) => {
+    if (!downloadTarget || downloadTarget.routeKey !== currentDownloadRoute.current)
+      throw new Error('Download target is no longer available');
+    try {
+      if (downloadTarget.kind === 'photo')
+        return await shareLinkService.estimateSharedPhotoDownload(downloadTarget.shareId, downloadTarget.photoId);
+      if (downloadTarget.kind === 'gallery')
+        return await shareLinkService.estimateSharedProjectGalleryDownload(
+          downloadTarget.shareId, downloadTarget.galleryId, includeVideos,
+        );
+      return await shareLinkService.estimateSharedDownload(downloadTarget.shareId, includeVideos);
+    } catch (err) {
+      if (downloadTarget.routeKey === currentDownloadRoute.current) handleDownloadFailure(err);
+      throw err;
+    }
+  }, [downloadTarget, handleDownloadFailure]);
 
-        await shareLinkService.downloadSharedPhoto(shareId, photo.photo_id);
-      } catch (err) {
-        handleDownloadFailure(err);
-      }
-    },
-    [handleDownloadFailure, shareId],
-  );
+  const executeDownload = useCallback(async (options: DownloadOptions) => {
+    if (!downloadTarget || downloadTarget.routeKey !== currentDownloadRoute.current)
+      throw new Error('Download target is no longer available');
+    setDownloadError('');
+    try {
+      if (downloadTarget.kind === 'photo')
+        await shareLinkService.downloadSharedPhoto(downloadTarget.shareId, downloadTarget.photoId, options);
+      else if (downloadTarget.kind === 'gallery')
+        await shareLinkService.downloadSharedProjectGalleryZip(
+          downloadTarget.shareId, downloadTarget.galleryId, options,
+        );
+      else await shareLinkService.downloadSharedGalleryZip(downloadTarget.shareId, options);
+    } catch (err) {
+      if (downloadTarget.routeKey === currentDownloadRoute.current) handleDownloadFailure(err);
+      throw err;
+    }
+  }, [downloadTarget, handleDownloadFailure]);
 
   const handleSubmitSharePassword = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -445,16 +507,6 @@ export const PublicGalleryPage = () => {
     }
     return folderShare?.project_navigation ?? null;
   }, [folderShare, projectShare]);
-  const projectZipSizeId = useId();
-  const galleryZipSizeId = useId();
-  const projectZipSizeLabel =
-    typeof projectGalleryTabs?.total_size_bytes === 'number'
-      ? `Estimated ZIP size: ${formatFileSize(projectGalleryTabs.total_size_bytes)}`
-      : undefined;
-  const galleryZipSizeLabel =
-    typeof folderShare?.total_size_bytes === 'number'
-      ? `Estimated ZIP size: ${formatFileSize(folderShare.total_size_bytes)}`
-      : undefined;
   const isProjectFolderView = Boolean(folderShare?.parent_share_id && !isFavoritesView);
 
   const heroAppearance = appearance;
@@ -646,12 +698,12 @@ export const PublicGalleryPage = () => {
           displayName: photo.filename,
           filename: photo.filename,
         }),
-        download: photo.full_url,
+        download: true,
         downloadFilename: photo.filename || `photo-${photo.photo_id}.jpg`,
         media_type: photo.media_type,
         playback_url: photo.playback_url ?? undefined,
         duration_ms: photo.duration_ms ?? undefined,
-        onDownload: () => handleDownloadSinglePhoto(photo),
+        onDownload: () => handleDownloadSinglePhoto(photo, true),
       })),
     [displayedPhotos, handleDownloadSinglePhoto],
   );
@@ -857,34 +909,22 @@ export const PublicGalleryPage = () => {
                       <button
                         type="button"
                         onClick={handleDownloadCurrentGallery}
-                        aria-describedby={galleryZipSizeLabel ? galleryZipSizeId : undefined}
                         className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent/15"
                       >
                         <DownloadIcon className="h-4 w-4" />
                         Download gallery
                       </button>
-                      {galleryZipSizeLabel ? (
-                        <span id={galleryZipSizeId} className="text-xs font-medium text-muted">
-                          {galleryZipSizeLabel}
-                        </span>
-                      ) : null}
                     </div>
                   ) : null}
                   <div className="flex flex-col items-start gap-1">
                     <button
                       type="button"
                       onClick={handleDownloadAll}
-                      aria-describedby={projectZipSizeLabel ? projectZipSizeId : undefined}
                       className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
                     >
                       <DownloadIcon className="h-4 w-4" />
                       Download project
                     </button>
-                    {projectZipSizeLabel ? (
-                      <span id={projectZipSizeId} className="text-xs font-medium text-muted">
-                        {projectZipSizeLabel}
-                      </span>
-                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -946,17 +986,11 @@ export const PublicGalleryPage = () => {
                 <button
                   type="button"
                   onClick={handleDownloadAll}
-                  aria-describedby={galleryZipSizeLabel ? galleryZipSizeId : undefined}
                   className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
                 >
                   <DownloadIcon className="h-4 w-4" />
                   Download All Photos
                 </button>
-                {galleryZipSizeLabel ? (
-                  <span id={galleryZipSizeId} className="text-xs font-medium text-muted">
-                    {galleryZipSizeLabel}
-                  </span>
-                ) : null}
               </div>
             ) : null}
 
@@ -1324,6 +1358,16 @@ export const PublicGalleryPage = () => {
         nativeShareError={nativeShareError}
         onShareViaDevice={shareViaDevice}
         themeClassName={publicThemeClassName}
+      />
+
+      <DownloadOptionsDialog
+        open={downloadModal.isOpen}
+        title={downloadTarget?.kind === 'photo' ? 'Download photo' : 'Download files'}
+        isArchive={downloadTarget?.kind !== 'photo'}
+        onClose={closeDownload}
+        loadEstimate={loadDownloadEstimate}
+        onDownload={executeDownload}
+        isDemo={isDemoModeEnabled()}
       />
 
       {renderLightbox(lightboxSlides, displayedPhotoTotal)}

@@ -12,6 +12,12 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ApiError } from '../../lib/errorHandling';
+import { shareLinkService } from '../../services/shareLinkService';
+const { mockOpenLightbox, mockCloseLightbox, mockLightboxOptions } = vi.hoisted(() => ({
+  mockOpenLightbox: vi.fn(),
+  mockCloseLightbox: vi.fn(),
+  mockLightboxOptions: { onExited: undefined as (() => void) | undefined },
+}));
 let PublicGalleryPage: any;
 const mockNavigate = vi.fn();
 let mockRouteParams: {
@@ -124,6 +130,10 @@ vi.mock('../../services/shareLinkService', () => ({
     getPublicPhotosByIds: vi.fn(),
     downloadSharedGalleryZip: vi.fn(),
     downloadSharedProjectGalleryZip: vi.fn(),
+    downloadSharedPhoto: vi.fn(),
+    estimateSharedDownload: vi.fn(),
+    estimateSharedProjectGalleryDownload: vi.fn(),
+    estimateSharedPhotoDownload: vi.fn(),
     unlockSharedGallery: vi.fn(),
   },
 }));
@@ -138,21 +148,25 @@ vi.mock('../../components/ThemeSwitch', () => ({
 }));
 
 vi.mock('../../hooks/usePhotoLightbox', () => ({
-  usePhotoLightbox: () => ({
+  usePhotoLightbox: (options: { onExited?: () => void }) => {
+    mockLightboxOptions.onExited = options.onExited;
+    return {
     lightboxOpen: false,
     lightboxIndex: 0,
-    openLightbox: vi.fn(),
-    closeLightbox: vi.fn(),
-    renderLightbox: (slides: any[]) => (
+    openLightbox: mockOpenLightbox,
+    closeLightbox: mockCloseLightbox,
+    renderLightbox: (slides: { src: string; onDownload?: () => void }[]) => (
       <div data-testid="lightbox">
         {slides.map((slide, i) => (
           <div key={i} data-testid="lightbox-slide">
             {slide.src}
+            <button type="button" onClick={slide.onDownload}>Lightbox download {i + 1}</button>
           </div>
         ))}
       </div>
     ),
-  }),
+    };
+  },
 }));
 
 // Mock useParams to provide shareId
@@ -216,6 +230,15 @@ describe('PublicGalleryPage', () => {
     vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(mockPublicGallery);
     vi.mocked(shareLinkService.downloadSharedGalleryZip).mockResolvedValue(undefined as any);
     vi.mocked(shareLinkService.downloadSharedProjectGalleryZip).mockResolvedValue(undefined as any);
+    const estimate = {
+      image_count: 2, video_count: 1, available_video_count: 1,
+      original_size_bytes: 30_000_000, publication_size_bytes: 20_700_000,
+      publication_pending_count: 0,
+    };
+    vi.mocked(shareLinkService.estimateSharedDownload).mockResolvedValue(estimate);
+    vi.mocked(shareLinkService.estimateSharedProjectGalleryDownload).mockResolvedValue(estimate);
+    vi.mocked(shareLinkService.estimateSharedPhotoDownload).mockResolvedValue({ ...estimate, image_count: 1, video_count: 0 });
+    vi.mocked(shareLinkService.downloadSharedPhoto).mockResolvedValue(undefined);
     vi.mocked(shareLinkService.getPublicSelectionConfig).mockRejectedValue({
       response: { status: 404, data: { detail: 'Selection is not enabled' } },
     } as any);
@@ -251,10 +274,7 @@ describe('PublicGalleryPage', () => {
     expect(screen.getByText('By Jane Doe')).toBeInTheDocument();
     // Download All button present
     const downloadButton = screen.getByRole('button', { name: /download all photos/i });
-    const sizeLabel = screen.getByText('Estimated ZIP size: 1.5 KB');
     expect(downloadButton).toBeInTheDocument();
-    expect(sizeLabel).toBeInTheDocument();
-    expect(downloadButton).toHaveAttribute('aria-describedby', sizeLabel.id);
     // Photos rendered
     const thumbs = screen.getAllByTestId('public-batch');
     expect(thumbs).toHaveLength(2);
@@ -460,24 +480,16 @@ describe('PublicGalleryPage', () => {
     );
   });
 
-  it('does not render a ZIP size estimate when the payload omits the total', async () => {
-    const { shareLinkService } = await import('../../services/shareLinkService');
+  it('loads a fresh download estimate even when gallery totals are absent', async () => {
     vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue({
-      ...mockPublicGallery,
-      total_size_bytes: undefined,
-    } as any);
-
-    render(wrapper());
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /download all photos/i })).toBeInTheDocument();
+      ...mockPublicGallery, total_size_bytes: undefined,
     });
-
-    expect(screen.queryByText('Estimated ZIP size: 0 B')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Estimated ZIP size:/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /download all photos/i })).not.toHaveAttribute(
-      'aria-describedby',
-    );
+    render(wrapper());
+    await userEvent.click(await screen.findByRole('button', { name: /download all photos/i }));
+    const dialog = await screen.findByRole('dialog', { name: 'Download files' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Download' })).toBeEnabled());
+    expect(within(dialog).getByText('2 photos · 1 video')).toBeInTheDocument();
+    expect(shareLinkService.downloadSharedGalleryZip).not.toHaveBeenCalled();
   });
 
   it('starts favorites from the corner heart without the redundant helper panel', async () => {
@@ -622,19 +634,19 @@ describe('PublicGalleryPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('uses header-capable share link service when Download All is clicked', async () => {
+  it('chooses quality and included videos before starting a public ZIP', async () => {
     render(wrapper());
-
-    await waitFor(() => {
-      expect(screen.getByText('Photos')).toBeInTheDocument();
-      expect(screen.getByText('(2)')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: /download all photos/i }));
+    const dialog = await screen.findByRole('dialog', { name: 'Download files' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Download' })).toBeEnabled());
+    await userEvent.click(within(dialog).getByRole('radio', { name: /For publishing/ }));
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /Include videos/ }));
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Download' })).toBeEnabled());
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(shareLinkService.downloadSharedGalleryZip).toHaveBeenCalledWith('abc123', {
+      quality: 'publication', includeVideos: false,
     });
-
-    const btn = screen.getByRole('button', { name: /download all photos/i });
-    await userEvent.click(btn);
-
-    const { shareLinkService } = await import('../../services/shareLinkService');
-    expect(shareLinkService.downloadSharedGalleryZip).toHaveBeenCalledWith('abc123');
   });
 
   it('redirects project shares to the first visible gallery by default', async () => {
@@ -672,14 +684,8 @@ describe('PublicGalleryPage', () => {
     expect(screen.queryByRole('heading', { level: 1, name: '3eds' })).not.toBeInTheDocument();
     const galleryDownloadButton = screen.getByRole('button', { name: /download gallery/i });
     const projectDownloadButton = screen.getByRole('button', { name: /download project/i });
-    const gallerySizeLabel = screen.getByText('Estimated ZIP size: 1 KB');
-    const projectSizeLabel = screen.getByText('Estimated ZIP size: 4 KB');
     expect(galleryDownloadButton).toBeInTheDocument();
     expect(projectDownloadButton).toBeInTheDocument();
-    expect(gallerySizeLabel).toBeInTheDocument();
-    expect(projectSizeLabel).toBeInTheDocument();
-    expect(galleryDownloadButton).toHaveAttribute('aria-describedby', gallerySizeLabel.id);
-    expect(projectDownloadButton).toHaveAttribute('aria-describedby', projectSizeLabel.id);
     expect(screen.queryByText('Download visible folders')).not.toBeInTheDocument();
     expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
   });
@@ -784,10 +790,14 @@ describe('PublicGalleryPage', () => {
 
     const button = await screen.findByRole('button', { name: /download gallery/i });
     await userEvent.click(button);
+    const dialog = await screen.findByRole('dialog', { name: 'Download files' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Download' })).toBeEnabled());
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
 
     expect(shareLinkService.downloadSharedProjectGalleryZip).toHaveBeenCalledWith(
       'abc123',
       'gallery-2',
+      { quality: 'original', includeVideos: true },
     );
   });
 
@@ -801,6 +811,9 @@ describe('PublicGalleryPage', () => {
 
     const button = await screen.findByRole('button', { name: /download all photos/i });
     await userEvent.click(button);
+    const dialog = await screen.findByRole('dialog', { name: 'Download files' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Download' })).toBeEnabled());
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
 
     expect(await screen.findByRole('heading', { name: /password required/i })).toBeInTheDocument();
     expect(
@@ -818,8 +831,76 @@ describe('PublicGalleryPage', () => {
 
     const button = await screen.findByRole('button', { name: /download all photos/i });
     await userEvent.click(button);
+    const dialog = await screen.findByRole('dialog', { name: 'Download files' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Download' })).toBeEnabled());
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
 
     expect(await screen.findByText(/link has expired/i)).toBeInTheDocument();
+  });
+
+  it('releases the lightbox before opening options and restores the same photo', async () => {
+    render(wrapper());
+    await userEvent.click(await screen.findByRole('button', { name: 'Lightbox download 2' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    act(() => mockLightboxOptions.onExited?.());
+    const dialog = await screen.findByRole('dialog', { name: 'Download photo' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(mockOpenLightbox).toHaveBeenLastCalledWith(1);
+  });
+
+  it('exposes the password gate after estimate access loss without restoring the lightbox', async () => {
+    vi.mocked(shareLinkService.estimateSharedPhotoDownload).mockRejectedValueOnce(
+      new ApiError(401, 'ShareLink password required'),
+    );
+    render(wrapper());
+    await userEvent.click(await screen.findByRole('button', { name: 'Lightbox download 1' }));
+    act(() => mockLightboxOptions.onExited?.());
+    expect(await screen.findByRole('heading', { name: /password required/i })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mockOpenLightbox).not.toHaveBeenCalled();
+    expect(shareLinkService.downloadSharedPhoto).not.toHaveBeenCalled();
+  });
+
+  it('downloads a video directly without offering meaningless quality options', async () => {
+    vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue({
+      ...mockPublicGallery,
+      photos: [{ ...mockPublicGallery.photos[0], media_type: 'video' }],
+      total_photos: 1,
+    });
+    render(wrapper());
+    await userEvent.click(await screen.findByRole('button', { name: 'Lightbox download 1' }));
+    await waitFor(() => expect(shareLinkService.downloadSharedPhoto).toHaveBeenCalledWith(
+      'abc123', 'p1', { quality: 'original', includeVideos: true },
+    ));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(shareLinkService.estimateSharedPhotoDownload).not.toHaveBeenCalled();
+  });
+
+  it('offers the complete project download independently of the active gallery', async () => {
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
+    vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(mockProjectGallery);
+    render(wrapper());
+    await userEvent.click(await screen.findByRole('button', { name: /download project/i }));
+    const dialog = await screen.findByRole('dialog', { name: 'Download files' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Download' })).toBeEnabled());
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(shareLinkService.downloadSharedGalleryZip).toHaveBeenCalledWith('abc123', {
+      quality: 'original', includeVideos: true,
+    });
+    expect(shareLinkService.downloadSharedProjectGalleryZip).not.toHaveBeenCalled();
+  });
+
+  it('closes an open chooser when route identity changes without reopening its lightbox', async () => {
+    const { rerender } = render(wrapper());
+    await userEvent.click(await screen.findByRole('button', { name: 'Lightbox download 1' }));
+    act(() => mockLightboxOptions.onExited?.());
+    expect(await screen.findByRole('dialog', { name: 'Download photo' })).toBeInTheDocument();
+    mockRouteParams = { shareId: 'another-share' };
+    rerender(wrapper());
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(mockOpenLightbox).not.toHaveBeenCalled();
+    expect(shareLinkService.downloadSharedPhoto).not.toHaveBeenCalled();
   });
 
   it('reuses nested gallery project navigation without refetching the root project share', async () => {

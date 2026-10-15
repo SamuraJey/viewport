@@ -17,7 +17,7 @@ from viewport.celery_app import celery_app
 from viewport.models.gallery import Gallery, Photo
 from viewport.models.project import Project
 from viewport.photo_rotation import compose_exif_rotation, rotate_focal_point
-from viewport.s3_utils import _get_pyvips, create_thumbnail_from_path, get_s3_client, get_s3_settings
+from viewport.s3_utils import _get_pyvips, create_publication_image_from_path, create_thumbnail_from_path, get_s3_client, get_s3_settings
 from viewport.task_utils import task_db_session
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ def create_rotated_file(source: str, output: str, content_type: str, rotation: i
         raise ValueError("Only JPEG and PNG images can be rotated")
 
 
-def _publish_rotation(photo_id: uuid.UUID, revision: int, key: str | None, thumb_key: str, width: int, height: int) -> bool:
+def _publish_rotation(photo_id: uuid.UUID, revision: int, key: str | None, thumb_key: str, width: int, height: int, publication_key: str, publication_size: int) -> bool:
     with task_db_session() as db:
         gallery_id = db.scalar(select(Photo.gallery_id).where(Photo.id == photo_id))
         gallery = db.scalar(select(Gallery).where(Gallery.id == gallery_id, Gallery.is_deleted.is_(False)).with_for_update())
@@ -65,6 +65,8 @@ def _publish_rotation(photo_id: uuid.UUID, revision: int, key: str | None, thumb
             project.cover_focal_x, project.cover_focal_y = rotate_focal_point(project.cover_focal_x, project.cover_focal_y, angle)
         photo.rotated_object_key = key
         photo.thumbnail_object_key = thumb_key
+        photo.publication_object_key = publication_key
+        photo.publication_file_size = publication_size
         photo.width, photo.height = width, height
         photo.rotation = photo.requested_rotation
         photo.rotation_status = "ready"
@@ -101,6 +103,7 @@ def rotate_photo_task(self, photo_id: str, revision: int) -> None:
     prefix = f"{gallery_id}/{photo_id}_rotations/{revision}-{uuid.uuid4().hex}"
     extension = ".png" if content_type == "image/png" else ".jpg"
     key, thumb_key = f"{prefix}/image{extension}", f"{prefix}/thumbnail.avif"
+    publication_key = f"{prefix}/publication.jpg"
     try:
         with _stream_s3_object_to_tempfile(client, bucket, source_key) as source, tempfile.TemporaryDirectory(prefix="viewport-rotation-") as scratch:
             output = str(Path(scratch) / f"image{extension}")
@@ -113,11 +116,16 @@ def rotate_photo_task(self, photo_id: str, revision: int) -> None:
             width, height = delivery_image.width, delivery_image.height
             del delivery_image
             thumbnail, _, _ = create_thumbnail_from_path(thumbnail_source)
+            publication = create_publication_image_from_path(thumbnail_source)
+            publication_size = len(publication)
             if rotation:
                 with open(output, "rb") as image_file:
                     client.upload_fileobj(image_file, bucket, key, ExtraArgs={"ContentType": content_type, "CacheControl": "public, max-age=31536000, immutable"})
             client.put_object(Bucket=bucket, Key=thumb_key, Body=thumbnail, ContentType="image/avif", CacheControl="public, max-age=31536000, immutable")
-        _publish_rotation(photo_uuid, revision, key if rotation else None, thumb_key, width, height)
+            del thumbnail
+            client.put_object(Bucket=bucket, Key=publication_key, Body=publication, ContentType="image/jpeg", CacheControl="public, max-age=31536000, immutable")
+            del publication
+        _publish_rotation(photo_uuid, revision, key if rotation else None, thumb_key, width, height, publication_key, publication_size)
     except Exception as error:
         logger.exception("Photo rotation failed: %s revision %s", photo_id, revision)
         permanent = isinstance(error, (ValueError, subprocess.CalledProcessError))
@@ -174,7 +182,7 @@ def cleanup_photo_rotation_versions_task() -> None:
                 continue
             # Check references immediately before deleting, so active files survive.
             with task_db_session() as db:
-                referenced = db.scalar(select(Photo.id).where((Photo.rotated_object_key == key) | (Photo.thumbnail_object_key == key)).limit(1))
+                referenced = db.scalar(select(Photo.id).where((Photo.rotated_object_key == key) | (Photo.thumbnail_object_key == key) | (Photo.publication_object_key == key)).limit(1))
                 try:
                     photo_id = uuid.UUID(key.split("/", 2)[1].removesuffix("_rotations"))
                 except ValueError, IndexError:

@@ -65,10 +65,139 @@ describe('PhotoCard', () => {
     onRotatePhoto: vi.fn(),
   });
 
+  it('loads only the thumbnail while a healthy preview is available', () => {
+    const photo = createPhoto();
+    render(<PhotoCard photo={photo} {...callbacks()} />);
+
+    const image = screen.getByRole('img', { name: photo.filename });
+    expect(image).toHaveAttribute('src', photo.thumbnail_url);
+    expect(image).toHaveAttribute('loading', 'lazy');
+    expect(image).toHaveAttribute('decoding', 'async');
+    fireEvent.load(image);
+    expect(image).toHaveAttribute('data-loaded', 'true');
+    expect(image).toHaveAttribute('src', photo.thumbnail_url);
+  });
+
+  it('loads the original after a thumbnail error and keeps photo opening intact', async () => {
+    const photo = createPhoto();
+    const actions = { ...callbacks(), isSelectionMode: false, index: 3 };
+    render(<PhotoCard photo={photo} {...actions} />);
+    const thumbnail = screen.getByRole('img', { name: photo.filename });
+    fireEvent.load(thumbnail);
+    fireEvent.error(thumbnail);
+
+    const original = screen.getByRole('img', { name: photo.filename });
+    expect(original).not.toBe(thumbnail);
+    expect(original).toHaveAttribute('src', photo.url);
+    expect(original).not.toHaveAttribute('data-loaded');
+    expect(document.querySelector('.owner-photo-placeholder')).toBeInTheDocument();
+    expect(screen.queryByText('Preview unavailable')).not.toBeInTheDocument();
+    fireEvent.load(original);
+    expect(original).toHaveAttribute('data-loaded', 'true');
+    await userEvent.click(screen.getByRole('button', { name: photo.filename, exact: true }));
+    expect(actions.onOpenPhoto).toHaveBeenCalledExactlyOnceWith(3);
+    expect(actions.onToggleSelection).not.toHaveBeenCalled();
+  });
+
+  it('shows the retained original when processing failed without hiding the failure status', async () => {
+    const photo = createPhoto({ status: 'failed' });
+    const actions = callbacks();
+    render(<PhotoCard photo={photo} {...actions} />);
+
+    const original = screen.getByRole('img', { name: photo.filename });
+    expect(original).toHaveAttribute('src', photo.url);
+    expect(screen.getByLabelText('Photo processing failed')).toBeInTheDocument();
+    fireEvent.load(original);
+    expect(original).toHaveAttribute('data-loaded', 'true');
+    await userEvent.click(screen.getByRole('button', { name: photo.filename, exact: true }));
+    expect(actions.onToggleSelection).toHaveBeenCalledExactlyOnceWith(photo.id, false);
+    expect(actions.onOpenPhoto).not.toHaveBeenCalled();
+  });
+
+  it('uses the original when an image has no thumbnail URL', () => {
+    const photo = createPhoto({ thumbnail_url: '' });
+    render(<PhotoCard photo={photo} {...callbacks()} />);
+    expect(screen.getByRole('img')).toHaveAttribute('src', photo.url);
+  });
+
+  it('stops after both image URLs fail instead of retrying on a card update', () => {
+    const photo = createPhoto();
+    const actions = callbacks();
+    const { rerender } = render(<PhotoCard photo={photo} {...actions} />);
+    fireEvent.error(screen.getByRole('img'));
+    expect(screen.getByRole('img')).toHaveAttribute('src', photo.url);
+    fireEvent.error(screen.getByRole('img'));
+
+    expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(document.querySelector('.owner-photo-placeholder')).not.toBeInTheDocument();
+    rerender(<PhotoCard photo={photo} {...actions} isSelected={false} />);
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('does not retry the same URL when the thumbnail already is the original', () => {
+    const photo = createPhoto({ thumbnail_url: 'https://example.com/photo.jpg' });
+    render(<PhotoCard photo={photo} {...callbacks()} />);
+    fireEvent.error(screen.getByRole('img'));
+    expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('resets failed fallback state when the original URL changes', () => {
+    const photo = createPhoto({ status: 'failed' });
+    const actions = callbacks();
+    const { rerender } = render(<PhotoCard photo={photo} {...actions} />);
+    fireEvent.error(screen.getByRole('img', { name: photo.filename }));
+    expect(screen.queryByRole('img', { name: photo.filename })).not.toBeInTheDocument();
+
+    rerender(
+      <PhotoCard photo={{ ...photo, url: 'https://example.com/photo.jpg?renewed' }} {...actions} />,
+    );
+    const original = screen.getByRole('img', { name: photo.filename });
+    expect(original).toHaveAttribute('src', 'https://example.com/photo.jpg?renewed');
+    expect(original).not.toHaveAttribute('data-loaded');
+    fireEvent.load(original);
+    expect(original).toHaveAttribute('data-loaded', 'true');
+  });
+
+  it('never tries to show a video original as an image after a poster error', () => {
+    const photo = createPhoto({ media_type: 'video', url: 'https://example.com/video.mp4' });
+    const actions = callbacks();
+    const { rerender } = render(<PhotoCard photo={photo} {...actions} />);
+    expect(screen.getByRole('img')).toHaveAttribute('src', photo.thumbnail_url);
+    fireEvent.error(screen.getByRole('img'));
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
+
+    rerender(<PhotoCard photo={{ ...photo, status: 'failed' }} {...actions} />);
+    expect(screen.queryByRole('img', { name: photo.filename })).not.toBeInTheDocument();
+    expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
+  });
+
+  it('does not double-rotate an optimistic preview but rotates its original fallback', () => {
+    const photo = createPhoto({
+      rotation: 0,
+      rotation_status: 'pending',
+      requested_rotation: 90,
+      width: 1200,
+      height: 800,
+    });
+    render(<PhotoCard photo={photo} previewUrl="blob:rotation-preview" {...callbacks()} />);
+    const preview = screen.getByRole('img');
+    expect(preview).toHaveAttribute('src', 'blob:rotation-preview');
+    expect(preview.style.transform).toBe('');
+    fireEvent.error(preview);
+    const original = screen.getByRole('img');
+    expect(original).toHaveAttribute('src', photo.url);
+    expect(original).toHaveStyle({ transform: 'rotate(90deg) scale(1)' });
+  });
+
   it('reuses a grid slot without retaining a failed image or the previous actions', async () => {
     const actions = { ...callbacks(), isSelectionMode: false };
     const { rerender } = render(<PhotoCard photo={createPhoto()} {...actions} />);
     expect(document.querySelector('.owner-photo-placeholder')).toBeInTheDocument();
+    fireEvent.error(screen.getByRole('img'));
+    expect(screen.getByRole('img')).toHaveAttribute('src', createPhoto().url);
     fireEvent.error(screen.getByRole('img'));
     expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
     expect(document.querySelector('.owner-photo-placeholder')).not.toBeInTheDocument();

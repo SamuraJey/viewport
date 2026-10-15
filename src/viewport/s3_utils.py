@@ -188,6 +188,21 @@ def create_thumbnail_from_path(
         raise
 
 
+def create_publication_image_from_path(image_path: str | os.PathLike[str]) -> bytes:
+    """Create a metadata-safe, autorotated sRGB JPEG without loading the original."""
+    pyvips = _get_pyvips()
+    # Debian's libvips 8.16 calls this export_profile; newer releases retain it.
+    image = pyvips.Image.thumbnail(
+        os.fspath(image_path), 2048, height=2048, size="down",
+        export_profile="srgb", fail_on="error",
+    )
+    if image.interpretation != "srgb":
+        image = image.colourspace("srgb")
+    if image.hasalpha():
+        image = image.flatten(background=[255, 255, 255])
+    return bytes(image.jpegsave_buffer(Q=85, optimize_coding=True, interlace=True, keep=8))
+
+
 def create_thumbnail(
     image_bytes: bytes,
     max_size: tuple[int, int] = (1000, 1000),

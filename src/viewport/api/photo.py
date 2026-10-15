@@ -8,14 +8,15 @@ from starlette.concurrency import run_in_threadpool
 from viewport.auth_utils import get_current_user, get_current_user_for_download
 from viewport.background_tasks import create_thumbnails_batch_task, delete_photos_batch_task, process_videos_batch_task
 from viewport.dependencies import get_gallery_repository, get_s3_client, get_user_repository
-from viewport.filename_utils import build_content_disposition, resolve_photo_filename, sanitize_filename, split_name_and_ext
+from viewport.downloads import build_download_estimate, prepare_download_entries
+from viewport.filename_utils import build_content_disposition, sanitize_filename, split_name_and_ext
 from viewport.models.gallery import MediaType, Photo, PhotoUploadStatus
 from viewport.models.user import User
-from viewport.photo_rotation import get_photo_delivery_key, is_rotation_pending
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.user_repository import UserRepository
 from viewport.rotation_tasks import rotate_photo_task
 from viewport.s3_service import AsyncS3Client
+from viewport.schemas.download import DownloadEstimateResponse, DownloadQuality
 from viewport.schemas.photo import (
     AbortMultipartUploadRequest,
     BatchConfirmUploadRequest,
@@ -198,10 +199,32 @@ def _enqueue_thumbnail_batches(batches: list[list[ThumbnailTaskPayload]]) -> Non
         raise RuntimeError(f"Failed to enqueue {len(failed_batches)}/{len(batches)} thumbnail batches (indices: {failed_batches})")
 
 
+async def _load_single_download_photo(gallery_id: UUID, photo_id: UUID, *, repo: GalleryRepository, owner_id: UUID) -> Photo:
+    if not await repo.get_gallery_by_id_and_owner(gallery_id, owner_id):
+        raise HTTPException(status_code=404, detail="Gallery not found")
+    photo = await repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
+    if not photo or photo.status != PhotoUploadStatus.SUCCESSFUL:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return photo
+
+
+@router.get("/{gallery_id}/photos/{photo_id}/download/estimate", response_model=DownloadEstimateResponse)
+async def estimate_photo_download(
+    gallery_id: UUID,
+    photo_id: UUID,
+    include_videos: bool = True,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+) -> DownloadEstimateResponse:
+    photo = await _load_single_download_photo(gallery_id, photo_id, repo=repo, owner_id=current_user.id)
+    return build_download_estimate([photo], include_videos=include_videos, block_pending_rotations=True)
+
+
 @router.post("/{gallery_id}/photos/{photo_id}/download")
 async def download_photo(
     gallery_id: UUID,
     photo_id: UUID,
+    quality: DownloadQuality = DownloadQuality.ORIGINAL,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user_for_download),
     s3_client: AsyncS3Client = Depends(get_s3_client),
@@ -213,23 +236,13 @@ async def download_photo(
     storage service to expose CORS headers, while a top-level browser download
     can follow a signed redirect without CORS.
     """
-    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
-    if not gallery:
-        raise HTTPException(status_code=404, detail="Gallery not found")
-
-    photo = await repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
-    if not photo:
-        raise HTTPException(status_code=404, detail="Photo not found")
-
-    if is_rotation_pending(photo):
-        raise HTTPException(status_code=409, detail="Photo rotation is still saving")
-
-    filename = resolve_photo_filename(photo)
+    photo = await _load_single_download_photo(gallery_id, photo_id, repo=repo, owner_id=current_user.id)
+    entry = prepare_download_entries([photo], quality=quality, include_videos=True, block_pending_rotations=True)[0]
     download_url = await s3_client.generate_presigned_url_async(
-        get_photo_delivery_key(photo),
+        entry.object_key,
         expires_in=7200,
         response_content_disposition=build_content_disposition(
-            filename,
+            entry.filename,
             disposition_type="attachment",
         ),
     )

@@ -10,6 +10,7 @@ import { handleApiError } from '../lib/errorHandling';
 import { toast } from 'sonner';
 import { OwnerGalleryPageCache } from '../lib/ownerGalleryPageCache';
 import type { PhotoRotationResponse } from '../types/photo';
+import type { DownloadOptions } from '../types/download';
 import type {
   GalleryDetail,
   GalleryPhotoSortBy,
@@ -397,23 +398,24 @@ export const useGalleryActions = ({
     }, 400);
   }, []);
 
-  const handleDownloadGallery = async () => {
+  const handleDownloadGallery = useCallback(async (options: DownloadOptions) => {
     setIsDownloadingZip(true);
     clearError();
     setActionInfo('');
 
     try {
-      await photoService.downloadGalleryZip(galleryId);
+      await photoService.downloadGalleryZip(galleryId, options);
       toast.success('Download started');
     } catch (err) {
-      handleError(err);
+      handleError(err, { redirect: false });
       toast.error(handleApiError(err).message);
+      throw err;
     } finally {
       releaseZipDownloadLock();
     }
-  };
+  }, [clearError, galleryId, handleError, releaseZipDownloadLock]);
 
-  const handleDownloadSelectedPhotos = async (selectedIds: Set<string>) => {
+  const handleDownloadSelectedPhotos = useCallback(async (selectedIds: Set<string>, options: DownloadOptions) => {
     if (selectedIds.size === 0) {
       return;
     }
@@ -423,27 +425,29 @@ export const useGalleryActions = ({
     setActionInfo('');
 
     try {
-      await photoService.downloadSelectedPhotosZip(galleryId, Array.from(selectedIds));
+      await photoService.downloadSelectedPhotosZip(galleryId, Array.from(selectedIds), options);
       toast.success('Download started');
     } catch (err) {
-      handleError(err);
+      handleError(err, { redirect: false });
       toast.error(handleApiError(err).message);
+      throw err;
     } finally {
       releaseZipDownloadLock();
     }
-  };
+  }, [clearError, galleryId, handleError, releaseZipDownloadLock]);
 
   const handleDownloadPhoto = useCallback(
-    async (photoId: string) => {
+    async (photoId: string, options: DownloadOptions) => {
       clearError();
       setActionInfo('');
 
       try {
-        await photoService.downloadPhoto(galleryId, photoId);
+        await photoService.downloadPhoto(galleryId, photoId, options);
         toast.success('Download started');
       } catch (err) {
-        handleError(err);
+        handleError(err, { redirect: false });
         toast.error(handleApiError(err).message);
+        throw err;
       }
     },
     [clearError, galleryId, handleError],

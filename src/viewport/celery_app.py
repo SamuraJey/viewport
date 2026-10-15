@@ -24,7 +24,7 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
     if settings is None:
         settings = CelerySettings()
 
-    app = Celery("viewport", include=["viewport.background_tasks", "viewport.rotation_tasks"])
+    app = Celery("viewport", include=["viewport.background_tasks", "viewport.rotation_tasks", "viewport.publication_tasks"])
 
     app.conf.update(
         broker_url=settings.broker_url,
@@ -46,6 +46,7 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
         task_default_queue="celery",
         task_routes={
             "create_thumbnails_batch": {"queue": "celery"},
+            "create_publication_images_batch": {"queue": "celery"},
             "process_videos_batch": {"queue": "video"},
             "cleanup_video_temp_files": {"queue": "video"},
         },

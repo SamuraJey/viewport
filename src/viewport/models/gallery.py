@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from enum import IntEnum, StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, SmallInteger, String, Text, event, func
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, SmallInteger, String, Text, event, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -141,6 +141,9 @@ class Photo(Base):
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     thumbnail_object_key: Mapped[str] = mapped_column(String, nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    publication_object_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    publication_file_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    publication_attempted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Optional stored dimensions (filled from S3 metadata during upload)
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -173,6 +176,8 @@ class Photo(Base):
 
     __table_args__ = (
         CheckConstraint("media_type IN ('image', 'video')", name="ck_photos_media_type"),
+        CheckConstraint("publication_file_size IS NULL OR publication_file_size > 0", name="ck_photos_publication_size_positive"),
+        CheckConstraint("(publication_object_key IS NULL) = (publication_file_size IS NULL)", name="ck_photos_publication_asset_pair"),
         CheckConstraint("rotation IN (0, 90, 180, 270)", name="ck_photos_rotation"),
         CheckConstraint("requested_rotation IN (0, 90, 180, 270)", name="ck_photos_requested_rotation"),
         CheckConstraint("rotation_revision >= 0", name="ck_photos_rotation_revision"),

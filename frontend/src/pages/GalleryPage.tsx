@@ -1,6 +1,7 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useCallback,
@@ -13,6 +14,11 @@ import { PhotoRenameModal } from '../components/PhotoRenameModal';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
+import { useModal } from '../hooks/useModal';
+import { DownloadOptionsDialog } from '../components/download/DownloadOptionsDialog';
+import { photoService } from '../services/photoService';
+import { isDemoModeEnabled } from '../lib/demoMode';
+import type { DownloadOptions } from '../types/download';
 import { usePhotoRotation } from '../hooks/usePhotoRotation';
 import { useRotationPreviews } from '../hooks/useRotationPreviews';
 import { canRotatePhoto, isRotationPending, normalizeRotation } from '../lib/photoRotation';
@@ -52,6 +58,11 @@ const DEFAULT_PUBLIC_SORT_BY: GalleryPhotoSortBy = 'original_filename';
 const DEFAULT_PUBLIC_SORT_ORDER: SortOrder = 'asc';
 const SEARCH_DEBOUNCE_MS = 400;
 const SEARCH_INPUT_ID = 'gallery-photo-search';
+
+type OwnerDownloadTarget =
+  | { kind: 'all'; galleryId: string }
+  | { kind: 'selected'; galleryId: string; photoIds: readonly string[] }
+  | { kind: 'photo'; galleryId: string; photoId: string; fromLightbox: boolean };
 
 interface FavoritesUserTab {
   key: string;
@@ -501,16 +512,81 @@ export const GalleryPage = () => {
     handleSavePublicSortSettings,
   ]);
 
-  // Lightbox
-  const { lightboxOpen, openLightbox, renderLightbox } = usePhotoLightbox({
+  const downloadModal = useModal<OwnerDownloadTarget>();
+  const downloadTarget = downloadModal.data;
+  const openDownloadModal = downloadModal.open;
+  const closeDownloadModal = downloadModal.close;
+  const pendingLightboxDownload = useRef<OwnerDownloadTarget | null>(null);
+  const currentGalleryId = useRef(galleryId);
+  useLayoutEffect(() => {
+    currentGalleryId.current = galleryId;
+  }, [galleryId]);
+
+  const { lightboxOpen, openLightbox, closeLightbox, renderLightbox } = usePhotoLightbox({
     onRotatePhoto: (index, direction) => rotation.rotate([photoUrls[index].id], direction),
     photoCardSelector: '[data-photo-card]',
     gridRef,
+    onExited: () => {
+      const target = pendingLightboxDownload.current;
+      pendingLightboxDownload.current = null;
+      if (target?.galleryId === currentGalleryId.current) openDownloadModal(target);
+    },
   });
+
+  useEffect(() => {
+    pendingLightboxDownload.current = null;
+    closeDownloadModal();
+    closeLightbox();
+  }, [galleryId, routeProjectId, closeDownloadModal, closeLightbox]);
+
+  const closeDownload = useCallback(() => {
+    closeDownloadModal();
+    if (downloadTarget?.kind !== 'photo' || !downloadTarget.fromLightbox ||
+        downloadTarget.galleryId !== currentGalleryId.current) return;
+    const index = photoUrls.findIndex((photo) => photo.id === downloadTarget.photoId);
+    if (index !== -1) openLightbox(index);
+  }, [closeDownloadModal, downloadTarget, openLightbox, photoUrls]);
+
+  const requestPhotoDownload = useCallback((photoId: string, fromLightbox = false) => {
+    const photo = photoUrls.find((item) => item.id === photoId);
+    if (!photo) return;
+    if (photo.media_type === 'video') {
+      // The action already reports errors; a direct video click must not reject unhandled.
+      void handleDownloadPhoto(photoId, { quality: 'original', includeVideos: true }).catch(() => {});
+      return;
+    }
+    const target: OwnerDownloadTarget = { kind: 'photo', galleryId, photoId, fromLightbox };
+    if (fromLightbox) {
+      pendingLightboxDownload.current = target;
+      closeLightbox();
+    } else {
+      openDownloadModal(target);
+    }
+  }, [photoUrls, galleryId, handleDownloadPhoto, closeLightbox, openDownloadModal]);
+
+  const loadDownloadEstimate = useCallback((includeVideos: boolean) => {
+    if (!downloadTarget || downloadTarget.galleryId !== galleryId)
+      return Promise.reject(new Error('Download target is no longer available'));
+    if (downloadTarget.kind === 'photo')
+      return photoService.estimatePhotoDownload(galleryId, downloadTarget.photoId);
+    if (downloadTarget.kind === 'selected')
+      return photoService.estimateSelectedDownload(galleryId, [...downloadTarget.photoIds], includeVideos);
+    return photoService.estimateGalleryDownload(galleryId, includeVideos);
+  }, [downloadTarget, galleryId]);
+
+  const executeDownload = useCallback(async (options: DownloadOptions) => {
+    if (!downloadTarget || downloadTarget.galleryId !== currentGalleryId.current)
+      throw new Error('Download target is no longer available');
+    if (downloadTarget.kind === 'photo') return handleDownloadPhoto(downloadTarget.photoId, options);
+    if (downloadTarget.kind === 'selected')
+      return handleDownloadSelectedPhotos(new Set(downloadTarget.photoIds), options);
+    return handleDownloadGallery(options);
+  }, [downloadTarget, handleDownloadPhoto, handleDownloadSelectedPhotos, handleDownloadGallery]);
 
   // Derived state
   const isPageModalOpen =
     lightboxOpen ||
+    downloadModal.isOpen ||
     renameModal.isOpen ||
     isShareLinkCreateOpen ||
     Boolean(editingShareLink) ||
@@ -1049,7 +1125,8 @@ export const GalleryPage = () => {
   };
 
   const handleDownloadSelectedPhotosWrapper = () => {
-    void handleDownloadSelectedPhotos(selection.selectedIds);
+    if (selection.selectedIds.size > 0)
+      openDownloadModal({ kind: 'selected', galleryId, photoIds: [...selection.selectedIds] });
   };
 
   const handleToggleSelectionMode = () => {
@@ -1146,7 +1223,7 @@ export const GalleryPage = () => {
               onSetCover: handleSetCover,
               onClearCover: handleClearCover,
               onRenamePhoto: handleRenamePhoto,
-              onDownloadPhoto: handleDownloadPhoto,
+              onDownloadPhoto: (photoId) => requestPhotoDownload(photoId),
               onDeletePhoto: handleDeletePhoto,
               onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
               onClearSearch: () => {
@@ -1275,7 +1352,7 @@ export const GalleryPage = () => {
             onAddFolder={
               folderPickerSupported ? () => photoUploaderRef.current?.openFolderPicker() : undefined
             }
-            onDownloadGallery={photoUrls.length > 0 ? handleDownloadGallery : undefined}
+            onDownloadGallery={gallery.photo_count > 0 ? () => openDownloadModal({ kind: 'all', galleryId }) : undefined}
             onToggleSelectionMode={photoUrls.length > 0 ? handleToggleSelectionMode : undefined}
             isSelectionMode={isSelectionMode}
             isDownloadingZip={isDownloadingZip}
@@ -1332,18 +1409,28 @@ export const GalleryPage = () => {
                   ? normalizeRotation((photo.requested_rotation ?? 0) - (photo.rotation ?? 0))
                   : 0,
               alt: photo.filename,
-              download: isRotationPending(photo) ? false : photo.url,
+              download: !isRotationPending(photo),
               downloadFilename: photo.filename,
               media_type: photo.media_type,
               playback_url: photo.playback_url,
               duration_ms: photo.duration_ms,
               onDownload: () => {
-                void handleDownloadPhoto(photo.id);
+                requestPhotoDownload(photo.id, true);
               },
             };
           }),
           pagination.total,
         )}
+
+        <DownloadOptionsDialog
+          open={downloadModal.isOpen}
+          title={downloadTarget?.kind === 'photo' ? 'Download photo' : 'Download photos'}
+          isArchive={downloadTarget?.kind !== 'photo'}
+          onClose={closeDownload}
+          loadEstimate={loadDownloadEstimate}
+          onDownload={executeDownload}
+          isDemo={isDemoModeEnabled()}
+        />
 
         {/* Photo Rename Modal */}
         <AnimatePresence>

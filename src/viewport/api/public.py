@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse, StreamingResponse
 
 from viewport.dependencies import get_gallery_repository, get_project_repository, get_redis, get_sharelink_repository
 from viewport.dependencies import get_s3_client as get_async_s3_client
+from viewport.downloads import DownloadEntry, build_download_estimate, prepare_download_entries
 from viewport.filename_utils import build_content_disposition
 from viewport.logger import logger
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
@@ -19,6 +20,7 @@ from viewport.repositories.project_repository import ProjectRepository
 from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client, get_s3_settings
+from viewport.schemas.download import DownloadEstimateResponse, DownloadQuality
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.schemas.photo import PHOTO_ID_BATCH_MAX
 from viewport.schemas.public import (
@@ -38,7 +40,7 @@ from viewport.services.auth_rate_limiter import get_auth_rate_limit_settings, re
 from viewport.services.project_presence import record_project_presence
 from viewport.services.redis_service import RedisService
 from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_available_public_sharelink, get_public_request_base_url, get_valid_public_sharelink, unlock_sharelink_password
-from viewport.zip_utils import build_zip_fallback_name, make_content_disposition_header, make_unique_zip_entry_name, sanitize_zip_entry_name
+from viewport.zip_utils import make_content_disposition_header, sanitize_zip_entry_name
 
 router = APIRouter(prefix="/s", tags=["public"])
 INTERNAL_PROJECT_NAVIGATION_HEADER = "x-viewport-internal-navigation"
@@ -740,14 +742,85 @@ async def get_public_photos_by_ids(
     return result
 
 
+async def _load_public_download_scope(
+    sharelink: ShareLink, *, repo: ShareLinkRepository, project_repo: ProjectRepository
+) -> tuple[list[Photo], dict[UUID, str] | None]:
+    if sharelink.scope_type == ShareScopeType.PROJECT.value:
+        if sharelink.project_id is None:
+            raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+        groups = await _load_project_zip_entries(sharelink.project_id, project_repo=project_repo, repo=repo)
+        photos = [photo for _, gallery_photos in groups for photo in gallery_photos]
+        names = {photo.gallery_id: name for name, gallery_photos in groups for photo in gallery_photos}
+        return photos, names
+    gallery_id = _require_gallery_share_id(sharelink)
+    photos = await repo.get_photos_by_gallery_id(gallery_id, status=PhotoUploadStatus.SUCCESSFUL)
+    return sorted(photos, key=lambda photo: (photo.display_name or "").lower()), None
+
+
+async def _load_public_project_gallery_download_scope(
+    gallery_id: UUID, *, sharelink: ShareLink, repo: ShareLinkRepository, project_repo: ProjectRepository
+) -> tuple[Gallery, list[Photo]]:
+    if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
+        raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+    gallery = await project_repo.get_visible_project_gallery_by_id(sharelink.project_id, gallery_id)
+    if gallery is None:
+        raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+    return gallery, await repo.get_photos_by_gallery_id(gallery.id, status=PhotoUploadStatus.SUCCESSFUL)
+
+
+def _prepare_public_download_entries(
+    photos: list[Photo], *, quality: DownloadQuality, include_videos: bool, gallery_names: dict[UUID, str] | None = None
+) -> list[DownloadEntry]:
+    try:
+        return prepare_download_entries(
+            photos, quality=quality, include_videos=include_videos, block_pending_rotations=False, gallery_names=gallery_names
+        )
+    except HTTPException as exc:
+        exc.headers = {**(exc.headers or {}), **PUBLIC_CACHE_CONTROL_HEADERS}
+        raise
+
+
+def _build_public_zip_response(entries: list[DownloadEntry], archive_name: str) -> StreamingResponse:
+    settings = get_s3_settings()
+    z = zipstream.ZipStream()
+    for entry in entries:
+        def file_generator(object_key: str = entry.object_key):
+            body = get_s3_client().get_object(Bucket=settings.bucket, Key=object_key)["Body"]
+            try:
+                yield from iter(lambda: body.read(1024 * 1024), b"")
+            finally:
+                body.close()
+
+        z.add(arcname=entry.filename, data=file_generator())
+    return StreamingResponse(
+        z,
+        media_type="application/zip",
+        headers={"Content-Disposition": make_content_disposition_header(archive_name), **PUBLIC_CACHE_CONTROL_HEADERS},
+    )
+
+
+@router.get("/{share_id}/photos/{photo_id}/download/estimate", response_model=DownloadEstimateResponse)
+async def estimate_public_photo_download(
+    photo_id: UUID,
+    response: Response,
+    include_videos: bool = True,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> DownloadEstimateResponse:
+    response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
+    photo = await _get_downloadable_public_photo(sharelink=sharelink, photo_id=photo_id, repo=repo)
+    return build_download_estimate([photo], include_videos=include_videos, block_pending_rotations=False)
+
+
 @router.head("/{share_id}/photos/{photo_id}/download")
 async def check_public_photo_download(
     photo_id: UUID,
+    quality: DownloadQuality = DownloadQuality.ORIGINAL,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> Response:
-    """Check whether one public/share photo can be downloaded."""
-    await _get_downloadable_public_photo(sharelink=sharelink, photo_id=photo_id, repo=repo)
+    photo = await _get_downloadable_public_photo(sharelink=sharelink, photo_id=photo_id, repo=repo)
+    _prepare_public_download_entries([photo], quality=quality, include_videos=True)
     return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
 
@@ -755,49 +828,48 @@ async def check_public_photo_download(
 async def download_public_photo(
     share_id: UUID,
     photo_id: UUID,
+    quality: DownloadQuality = DownloadQuality.ORIGINAL,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> RedirectResponse:
-    """Redirect a public single-photo download to an attachment presigned URL.
-
-    The browser follows the redirect as a navigation, so S3-compatible storage
-    does not need JavaScript CORS headers for single-photo downloads.
-    """
     photo = await _get_downloadable_public_photo(sharelink=sharelink, photo_id=photo_id, repo=repo)
-    filename = photo.display_name or f"photo-{photo.id}"
+    entry = _prepare_public_download_entries([photo], quality=quality, include_videos=True)[0]
     download_url = await s3_client.generate_presigned_url_async(
-        get_photo_delivery_key(photo),
+        entry.object_key,
         expires_in=7200,
-        response_content_disposition=build_content_disposition(
-            filename,
-            disposition_type="attachment",
-        ),
+        response_content_disposition=build_content_disposition(entry.filename, disposition_type="attachment"),
     )
     await repo.record_single_download(share_id)
     logger.log_event("download_single_photo", share_id=str(sharelink.id), extra={"photo_id": str(photo.id)})
     return RedirectResponse(download_url, status_code=303, headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
 
+@router.get("/{share_id}/galleries/{gallery_id}/download/all/estimate", response_model=DownloadEstimateResponse)
+async def estimate_public_project_gallery_download(
+    gallery_id: UUID,
+    response: Response,
+    include_videos: bool = True,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    project_repo: ProjectRepository = Depends(get_project_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> DownloadEstimateResponse:
+    response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
+    _, photos = await _load_public_project_gallery_download_scope(gallery_id, sharelink=sharelink, repo=repo, project_repo=project_repo)
+    return build_download_estimate(photos, include_videos=include_videos, block_pending_rotations=False)
+
+
 @router.head("/{share_id}/galleries/{gallery_id}/download/all")
 async def check_project_gallery_photos_zip(
     gallery_id: UUID,
+    quality: DownloadQuality = DownloadQuality.ORIGINAL,
+    include_videos: bool = True,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     project_repo: ProjectRepository = Depends(get_project_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> Response:
-    """Check whether one visible project gallery ZIP can be downloaded without building it."""
-    if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
-        raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-
-    gallery = await project_repo.get_visible_project_gallery_by_id(sharelink.project_id, gallery_id)
-    if gallery is None:
-        raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id, status=PhotoUploadStatus.SUCCESSFUL)
-    if not gallery_photos:
-        raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-
+    _, photos = await _load_public_project_gallery_download_scope(gallery_id, sharelink=sharelink, repo=repo, project_repo=project_repo)
+    _prepare_public_download_entries(photos, quality=quality, include_videos=include_videos)
     return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
 
@@ -805,147 +877,61 @@ async def check_project_gallery_photos_zip(
 async def download_project_gallery_photos_zip(
     share_id: UUID,
     gallery_id: UUID,
+    quality: DownloadQuality = DownloadQuality.ORIGINAL,
+    include_videos: bool = True,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     project_repo: ProjectRepository = Depends(get_project_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> StreamingResponse:
-    """Download one visible gallery from a project share as zip."""
-    if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
-        raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-
-    gallery = await project_repo.get_visible_project_gallery_by_id(sharelink.project_id, gallery_id)
-    if gallery is None:
-        raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-
-    settings = get_s3_settings()
-    z = zipstream.ZipStream()
-    used_names: set[str] = set()
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id, status=PhotoUploadStatus.SUCCESSFUL)
-
-    if not gallery_photos:
-        raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-
-    for photo in gallery_photos:
-        key = get_photo_delivery_key(photo)
-        fallback = build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
-        filename = sanitize_zip_entry_name(photo.display_name, fallback=fallback)
-        filename = make_unique_zip_entry_name(filename, used_names)
-
-        def file_generator(object_key: str = key):
-            client = get_s3_client()
-            obj = client.get_object(Bucket=settings.bucket, Key=object_key)
-            yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
-
-        z.add(arcname=filename, data=file_generator())
-
+    gallery, photos = await _load_public_project_gallery_download_scope(gallery_id, sharelink=sharelink, repo=repo, project_repo=project_repo)
+    entries = _prepare_public_download_entries(photos, quality=quality, include_videos=include_videos)
+    safe_name = sanitize_zip_entry_name(gallery.name or f"gallery_{gallery_id}", fallback=f"gallery_{gallery_id}")
+    suffix = "_publication" if quality == DownloadQuality.PUBLICATION else ""
     await repo.record_zip_download(share_id)
-    logger.log_event(
-        "download_project_gallery_zip",
-        share_id=str(sharelink.id),
-        extra={"gallery_id": str(gallery.id), "photo_count": len(gallery_photos)},
-    )
+    logger.log_event("download_project_gallery_zip", share_id=str(sharelink.id), extra={"gallery_id": str(gallery.id), "photo_count": len(entries)})
+    return _build_public_zip_response(entries, f"{safe_name}{suffix}.zip")
 
-    safe_gallery_name = sanitize_zip_entry_name(gallery.name or f"gallery_{gallery_id}", fallback=f"gallery_{gallery_id}")
-    headers = {
-        "Content-Disposition": make_content_disposition_header(f"{safe_gallery_name}.zip"),
-        **PUBLIC_CACHE_CONTROL_HEADERS,
-    }
-    return StreamingResponse(z, media_type="application/zip", headers=headers)
+
+@router.get("/{share_id}/download/all/estimate", response_model=DownloadEstimateResponse)
+async def estimate_public_download(
+    response: Response,
+    include_videos: bool = True,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    project_repo: ProjectRepository = Depends(get_project_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> DownloadEstimateResponse:
+    response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
+    photos, _ = await _load_public_download_scope(sharelink, repo=repo, project_repo=project_repo)
+    return build_download_estimate(photos, include_videos=include_videos, block_pending_rotations=False)
 
 
 @router.head("/{share_id}/download/all")
 async def check_download_all_photos_zip(
+    quality: DownloadQuality = DownloadQuality.ORIGINAL,
+    include_videos: bool = True,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     project_repo: ProjectRepository = Depends(get_project_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> Response:
-    """Check whether a public share ZIP can be downloaded without building it."""
-    if sharelink.scope_type == ShareScopeType.PROJECT.value:
-        project_id = sharelink.project_id
-        if project_id is None:
-            raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-        project_zip_entries = await _load_project_zip_entries(project_id, project_repo=project_repo, repo=repo)
-        if not any(gallery_photos for _, gallery_photos in project_zip_entries):
-            raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-        return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
-
-    gallery_id = _require_gallery_share_id(sharelink)
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id, status=PhotoUploadStatus.SUCCESSFUL)
-    if not gallery_photos:
-        raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-
+    photos, names = await _load_public_download_scope(sharelink, repo=repo, project_repo=project_repo)
+    _prepare_public_download_entries(photos, quality=quality, include_videos=include_videos, gallery_names=names)
     return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
 
 @router.get("/{share_id}/download/all")
 async def download_all_photos_zip(
     share_id: UUID,
+    quality: DownloadQuality = DownloadQuality.ORIGINAL,
+    include_videos: bool = True,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     project_repo: ProjectRepository = Depends(get_project_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> StreamingResponse:
-    """Download all photos as zip."""
-    used_names: set[str] = set()
-    settings = get_s3_settings()
-    z = zipstream.ZipStream()
-
-    if sharelink.scope_type == ShareScopeType.PROJECT.value:
-        project_id = sharelink.project_id
-        if project_id is None:
-            raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-        project_zip_entries = await _load_project_zip_entries(project_id, project_repo=project_repo, repo=repo)
-        if not any(gallery_photos for _, gallery_photos in project_zip_entries):
-            raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-
-        for gallery_name, gallery_photos in project_zip_entries:
-            for photo in gallery_photos:
-                key = get_photo_delivery_key(photo)
-                fallback = build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
-                filename = sanitize_zip_entry_name(f"{gallery_name} - {photo.display_name}", fallback=f"{gallery_name} - {fallback}")
-                filename = make_unique_zip_entry_name(filename, used_names)
-
-                def file_generator(object_key: str = key):
-                    client = get_s3_client()
-                    obj = client.get_object(Bucket=settings.bucket, Key=object_key)
-                    yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
-
-                z.add(arcname=filename, data=file_generator())
-
-        await repo.record_zip_download(share_id)
-        headers = {
-            "Content-Disposition": f'attachment; filename="project_{share_id}.zip"',
-            **PUBLIC_CACHE_CONTROL_HEADERS,
-        }
-        return StreamingResponse(z, media_type="application/zip", headers=headers)
-
-    gallery_id = _require_gallery_share_id(sharelink)
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id, status=PhotoUploadStatus.SUCCESSFUL)
-
-    with contextlib.suppress(Exception):
-        gallery_photos = sorted(gallery_photos, key=lambda p: p.display_name.lower())
-
-    if not gallery_photos:
-        raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-
-    for photo in gallery_photos:
-        key = get_photo_delivery_key(photo)
-        fallback = build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
-        filename = sanitize_zip_entry_name(photo.display_name, fallback=fallback)
-        filename = make_unique_zip_entry_name(filename, used_names)
-
-        def file_generator(object_key: str = key):
-            client = get_s3_client()
-            obj = client.get_object(Bucket=settings.bucket, Key=object_key)
-            yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
-
-        z.add(arcname=filename, data=file_generator())
-
+    photos, names = await _load_public_download_scope(sharelink, repo=repo, project_repo=project_repo)
+    entries = _prepare_public_download_entries(photos, quality=quality, include_videos=include_videos, gallery_names=names)
+    prefix = "project" if sharelink.scope_type == ShareScopeType.PROJECT.value else "gallery"
+    suffix = "_publication" if quality == DownloadQuality.PUBLICATION else ""
     await repo.record_zip_download(share_id)
-    logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(gallery_photos)})
-
-    headers = {
-        "Content-Disposition": f'attachment; filename="gallery_{share_id}.zip"',
-        **PUBLIC_CACHE_CONTROL_HEADERS,
-    }
-
-    return StreamingResponse(z, media_type="application/zip", headers=headers)
+    if prefix == "gallery":
+        logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(entries)})
+    return _build_public_zip_response(entries, f"{prefix}_{share_id}{suffix}.zip")

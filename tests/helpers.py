@@ -77,6 +77,9 @@ def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: byt
     with patch(
         "viewport.background_tasks.create_thumbnail_from_path",
         side_effect=create_test_thumbnail_from_path,
+    ), patch(
+        "viewport.background_tasks.create_publication_image_from_path",
+        return_value=upload_content,
     ):
         confirm_resp = client.post(
             f"/galleries/{gallery_id}/photos/batch-confirm",

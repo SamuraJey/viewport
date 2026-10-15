@@ -101,6 +101,9 @@ const baseGallery: GalleryDetail = {
 describe('useGalleryActions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(photoService.downloadGalleryZip).mockReset();
+    vi.mocked(photoService.downloadSelectedPhotosZip).mockReset();
+    vi.mocked(photoService.downloadPhoto).mockReset();
     vi.mocked(galleryService.getGallery).mockResolvedValue(baseGallery);
   });
 
@@ -533,5 +536,48 @@ describe('useGalleryActions', () => {
 
     expect(photoService.renamePhoto).toHaveBeenCalledWith('gallery-1', 'photo-1', 'renamed.jpg');
     expect(toastMock.success).not.toHaveBeenCalled();
+  });
+  it.each(['all', 'selected', 'photo'] as const)(
+    'reports and rethrows a rejected %s download so the chooser stays open',
+    async (kind) => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const failure = new ApiError(409, 'Publication files are not ready');
+      vi.mocked(photoService.downloadGalleryZip).mockRejectedValueOnce(failure);
+      vi.mocked(photoService.downloadSelectedPhotosZip).mockRejectedValueOnce(failure);
+      vi.mocked(photoService.downloadPhoto).mockRejectedValueOnce(failure);
+      const { result } = renderUseGalleryActions();
+      const options = { quality: 'publication', includeVideos: false } as const;
+      try {
+        await act(async () => {
+          const download = kind === 'all'
+            ? result.current.handleDownloadGallery(options)
+            : kind === 'selected'
+              ? result.current.handleDownloadSelectedPhotos(new Set(['photo-1']), options)
+              : result.current.handleDownloadPhoto('photo-1', options);
+          await expect(download).rejects.toBe(failure);
+        });
+        expect(toastMock.error).toHaveBeenCalledWith('Publication files are not ready');
+        expect(toastMock.success).not.toHaveBeenCalled();
+      } finally {
+        errorLog.mockRestore();
+      }
+    },
+  );
+  it('keeps server download failures inline instead of navigating away from the chooser', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failure = new ApiError(500, 'Storage temporarily unavailable');
+    vi.mocked(photoService.downloadPhoto).mockRejectedValueOnce(failure);
+    const { result } = renderUseGalleryActions();
+    try {
+      await act(async () => {
+        await expect(result.current.handleDownloadPhoto('photo-1', {
+          quality: 'original', includeVideos: true,
+        })).rejects.toBe(failure);
+      });
+      expect(result.current.error).toBe('Server error. Please try again later.');
+      expect(toastMock.success).not.toHaveBeenCalled();
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 });
