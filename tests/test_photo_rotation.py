@@ -201,6 +201,8 @@ def test_publication_is_atomic_and_rejects_stale_tasks(sync_engine):
             gallery_id=gallery.id,
             object_key="source.jpg",
             thumbnail_object_key="old.avif",
+            publication_object_key="old-publication.jpg",
+            publication_file_size=75,
             display_name="photo.jpg",
             file_size=100,
             status=2,
@@ -216,6 +218,8 @@ def test_publication_is_atomic_and_rejects_stale_tasks(sync_engine):
         photo_id = photo.id
         db.commit()
         assert not _publish_rotation(photo_id, 1, "stale.jpg", "stale.avif", 10, 20)
+        db.refresh(photo)
+        assert (photo.publication_object_key, photo.publication_file_size) == ("old-publication.jpg", 75)
         assert _publish_rotation(photo_id, 2, "current.jpg", "current.avif", 10, 20)
         assert not _publish_rotation(photo_id, 2, "duplicate.jpg", "duplicate.avif", 10, 20)
         db.expire_all()
@@ -289,8 +293,9 @@ def test_worker_publishes_versioned_assets_and_reset_uses_original(sync_engine, 
         assert photo.rotated_object_key.endswith("/image.jpg")
         assert photo.object_key == "source.jpg" and photo.status == PhotoUploadStatus.SUCCESSFUL
         assert (photo.width, photo.height) == (1900, 3100)
-        assert (photo.publication_object_key, photo.publication_file_size) == ("old-publication.jpg", 75)
+        assert (photo.publication_object_key, photo.publication_file_size) == (None, None)
         assert db.query(User).one().storage_used == 100
+        photo.publication_object_key, photo.publication_file_size = "rotated-publication.jpg", 60
         photo.rotation_revision = 2
         photo.requested_rotation = 0
         photo.rotation_status = "pending"
@@ -301,11 +306,13 @@ def test_worker_publishes_versioned_assets_and_reset_uses_original(sync_engine, 
         assert photo.rotation_status == "ready" and photo.rotation == 0
         assert photo.rotated_object_key is None
         assert (photo.width, photo.height) == (3100, 1900)
-        assert (photo.publication_object_key, photo.publication_file_size) == ("old-publication.jpg", 75)
+        assert (photo.publication_object_key, photo.publication_file_size) == (None, None)
         uploaded_keys = {call.kwargs["Key"] for call in client.put_object.call_args_list}
         assert not any(key.endswith("/publication.jpg") for key in uploaded_keys)
         assert all(call.kwargs["CacheControl"].endswith("immutable") for call in client.put_object.call_args_list)
     assert vips.Image.new_from_file.call_args_list[0].args[0].endswith("/image.jpg")
+    client.delete_object.assert_not_called()
+    client.delete_objects.assert_not_called()
     vips.Image.new_from_file.assert_called_with(str(source), access="sequential", fail_on="error")
 
 

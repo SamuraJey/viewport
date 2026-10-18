@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ApiError } from '../../lib/errorHandling';
 
 vi.mock('../../components/ui/AppPopover', () => {
   return {
@@ -414,14 +415,18 @@ describe('ProjectPage', () => {
     expect(projectService.getProject).toHaveBeenCalledTimes(2);
   });
 
-  it('reports when a project needs no publication preparation after confirmation', async () => {
+  it.each([false, true])('reports an already prepared project for an empty response or 404 (404: %s)', async (notFound) => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
     const { toast } = await import('sonner');
 
-    vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
-      requested_count: 0, skipped_count: 12,
-    });
+    if (notFound) {
+      vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(new ApiError(404, 'No photos found'));
+    } else {
+      vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
+        requested_count: 0, skipped_count: 12,
+      });
+    }
 
     renderProjectPage();
     await screen.findByRole('heading', { name: 'Wedding Weekend' });
@@ -433,6 +438,8 @@ describe('ProjectPage', () => {
     await waitFor(() =>
       expect(toast.info).toHaveBeenCalledWith('All photos are already prepared for publishing'),
     );
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
   });
 
   it('renames the project from the project actions', async () => {

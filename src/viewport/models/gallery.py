@@ -143,7 +143,6 @@ class Photo(Base):
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     publication_object_key: Mapped[str | None] = mapped_column(String, nullable=True)
     publication_file_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    publication_attempted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Optional stored dimensions (filled from S3 metadata during upload)
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -104,7 +104,11 @@ Uploads use immutable revision/attempt-specific keys:
 ```
 
 The worker atomically publishes only if its revision is still current and
-processing. URLs, dimensions, angle and status change together. Dimensions are
+processing. URLs, dimensions, angle and status change together. If the delivery
+key changes, the publication JPEG key and size are cleared in the same
+transaction. Publication downloads then require explicit preparation again;
+rotation never enqueues JPEG preparation. The old object stays available until
+retention cleanup, and pending or failed rotations keep its reference. Dimensions are
 read from the full delivery image with EXIF orientation applied, not from the
 resized thumbnail; reset reads them from the uploaded source. Explicit
 gallery/project cover focal points rotate in that transaction. A superseded

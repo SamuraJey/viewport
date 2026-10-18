@@ -603,10 +603,14 @@ describe('useGalleryActions', () => {
     expect(toastMock.error).not.toHaveBeenCalled();
   });
 
-  it('reports when every photo is already prepared for publishing after confirmation', async () => {
-    vi.mocked(photoService.requestPublicationPhotos).mockResolvedValue({
-      requested_count: 0, skipped_count: 2,
-    });
+  it.each([false, true])('reports already prepared photos for an empty response or 404 (404: %s)', async (notFound) => {
+    if (notFound) {
+      vi.mocked(photoService.requestPublicationPhotos).mockRejectedValueOnce(new ApiError(404, 'No photos found'));
+    } else {
+      vi.mocked(photoService.requestPublicationPhotos).mockResolvedValueOnce({
+        requested_count: 0, skipped_count: 2,
+      });
+    }
     const { result } = renderUseGalleryActions();
     act(() => {
       result.current.handleRequestPublication();
@@ -616,6 +620,9 @@ describe('useGalleryActions', () => {
     });
     expect(toastMock.info).toHaveBeenCalledWith('All photos are already prepared for publishing');
     expect(toastMock.success).not.toHaveBeenCalled();
+    expect(toastMock.error).not.toHaveBeenCalled();
+    expect(result.current.error).toBeFalsy();
+    expect(result.current.isPreparingPublication).toBe(false);
   });
 
   it('keeps server publication failures inline without a success toast after confirmation', async () => {

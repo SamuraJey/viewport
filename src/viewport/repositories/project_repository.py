@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy import asc, delete, desc, func, or_, select
 
 from viewport.gallery_constants import PUBLIC_GALLERY_SORT_BY_DEFAULT, PUBLIC_GALLERY_SORT_ORDER_DEFAULT
-from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
+from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.user import User
@@ -348,6 +348,32 @@ class ProjectRepository(BaseRepository):
         stmt = select(Photo).join(Photo.gallery).where(*base_filters).order_by(Gallery.project_position.asc(), Photo.display_name.asc(), Photo.id.asc()).offset(offset).limit(limit)
         photos = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read((photos, total))
+
+    async def get_project_publication_photos(self, project_id: uuid.UUID, owner_id: uuid.UUID, *, limit: int) -> tuple[list[Photo], int]:
+        """Find eligible images across all live galleries and count prepared images."""
+        filters = [
+            Gallery.project_id == project_id,
+            Gallery.owner_id == owner_id,
+            Gallery.is_deleted.is_(False),
+            Photo.status == PhotoUploadStatus.SUCCESSFUL,
+            Photo.media_type == MediaType.IMAGE.value,
+        ]
+        prepared_stmt = (
+            select(func.count())
+            .select_from(Photo)
+            .join(Photo.gallery)
+            .where(*filters, Photo.publication_object_key.is_not(None), Photo.publication_file_size.is_not(None))
+        )
+        prepared_count = int((await self.db.execute(prepared_stmt)).scalar() or 0)
+        stmt = (
+            select(Photo)
+            .join(Photo.gallery)
+            .where(*filters, Photo.publication_object_key.is_(None), Photo.publication_file_size.is_(None), Photo.rotation_status.not_in(("pending", "processing")))
+            .order_by(Gallery.project_position.asc(), Photo.display_name.asc(), Photo.id.asc())
+            .limit(limit)
+        )
+        photos = list((await self.db.execute(stmt)).scalars().all())
+        return await self._finish_read((photos, prepared_count))
 
     async def get_photo_by_id_for_project(
         self,

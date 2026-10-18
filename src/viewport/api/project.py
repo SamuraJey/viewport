@@ -512,8 +512,8 @@ async def request_project_publication_photos(
     project = await repo.get_project_by_id_and_owner(project_id, current_user.id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    photos, _ = await repo.get_project_photos(project_id, current_user.id, limit=PROJECT_PUBLICATION_MAX_PHOTOS, offset=0)
-    return await request_gallery_publication(project_id, photos)
+    photos, prepared_count = await repo.get_project_publication_photos(project_id, current_user.id, limit=PROJECT_PUBLICATION_MAX_PHOTOS + 1)
+    return await request_gallery_publication(project_id, photos, already_prepared_count=prepared_count)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

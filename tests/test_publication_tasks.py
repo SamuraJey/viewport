@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from botocore.exceptions import ClientError, EndpointConnectionError
+from fastapi import HTTPException
 from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -317,3 +318,28 @@ def test_request_gallery_publication_rejects_more_than_500(sync_engine, publicat
         asyncio.run(publication_tasks.request_gallery_publication(ids.gallery_id, photos))
     assert "Too many photos" in str(exc_info.value)
     enqueue.assert_not_called()
+
+
+@pytest.mark.parametrize("failed_batches, expected_count", [((), 25), ((1,), 15), ((0, 1, 2), 0)])
+def test_publication_requests_count_only_successfully_queued_microbatches(monkeypatch, failed_batches, expected_count):
+    import asyncio
+
+    photos = [SimpleNamespace(id=uuid.uuid4(), status=PhotoUploadStatus.SUCCESSFUL, media_type="image", publication_object_key=None, publication_file_size=None, rotation_status="ready") for _ in range(25)]
+    batches = []
+
+    def enqueue(batch):
+        batches.append(batch)
+        if len(batches) - 1 in failed_batches:
+            raise RuntimeError("Broker unavailable")
+
+    monkeypatch.setattr(publication_tasks.create_publication_images_batch_task, "delay", enqueue)
+    if expected_count:
+        result = asyncio.run(publication_tasks.request_gallery_publication(uuid.uuid4(), photos))
+        assert result.requested_count == expected_count
+        assert result.skipped_count == 0
+    else:
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(publication_tasks.request_gallery_publication(uuid.uuid4(), photos))
+        assert exc_info.value.status_code == 503
+    assert [len(batch) for batch in batches] == [10, 10, 5]
+    assert [photo_id for batch in batches for photo_id in batch] == [str(photo.id) for photo in photos]

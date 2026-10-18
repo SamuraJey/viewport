@@ -448,6 +448,10 @@ export const useGalleryActions = ({
         toast.info('All photos are already prepared for publishing');
       }
     } catch (err) {
+      if (handleApiError(err).statusCode === 404) {
+        toast.info('All photos are already prepared for publishing');
+        return;
+      }
       handleError(err, { redirect: false });
       toast.error(handleApiError(err).message);
       throw err;

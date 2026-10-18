@@ -404,7 +404,12 @@ export const ProjectPage = () => {
             toast.info('All photos are already prepared for publishing');
           }
         } catch (err) {
-          setError(handleApiError(err).message || 'Failed to request publication files');
+          const apiError = handleApiError(err);
+          if (apiError.statusCode === 404) {
+            toast.info('All photos are already prepared for publishing');
+            return;
+          }
+          setError(apiError.message || 'Failed to request publication files');
         } finally {
           setIsPreparingPublication(false);
         }

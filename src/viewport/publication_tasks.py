@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 PROJECT_PUBLICATION_MAX_PHOTOS = 500
+PUBLICATION_BATCH_SIZE = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,13 +63,13 @@ def _split_publication_requests(photos: Iterable[Photo]) -> tuple[list[str], int
 
 
 def _enqueue_publication_batches(photo_ids: list[str]) -> int:
-    """Enqueue backfill batches of at most 500 IDs, returning the enqueued count."""
+    """Enqueue small worker batches, returning only successfully queued IDs."""
     enqueued = 0
-    for start in range(0, len(photo_ids), PHOTO_ID_BATCH_MAX):
-        batch_ids = photo_ids[start : start + PHOTO_ID_BATCH_MAX]
-        enqueued += len(batch_ids)
+    for start in range(0, len(photo_ids), PUBLICATION_BATCH_SIZE):
+        batch_ids = photo_ids[start : start + PUBLICATION_BATCH_SIZE]
         try:
             create_publication_images_batch_task.delay(batch_ids)
+            enqueued += len(batch_ids)
         except Exception:
             logger.warning("Could not enqueue publication backfill for %s", batch_ids, exc_info=True)
     return enqueued
@@ -158,7 +159,7 @@ def create_publication_images_batch_task(self, photo_ids: list[str]) -> dict:
     return result.to_dict()
 
 
-async def request_gallery_publication(gallery_id: uuid.UUID, photos: list[Photo]) -> PublicationRequestResponse:
+async def request_gallery_publication(gallery_id: uuid.UUID, photos: list[Photo], *, already_prepared_count: int = 0) -> PublicationRequestResponse:
     """Split a gallery photo scope and enqueue publication backfill batches."""
     requested_ids, skipped_count = _split_publication_requests(photos)
     if not requested_ids:
@@ -166,4 +167,6 @@ async def request_gallery_publication(gallery_id: uuid.UUID, photos: list[Photo]
     if len(requested_ids) > PHOTO_ID_BATCH_MAX:
         raise HTTPException(status_code=409, detail="Too many photos for a single publication request")
     requested_count = await run_in_threadpool(_enqueue_publication_batches, requested_ids)
-    return PublicationRequestResponse(requested_count=requested_count, skipped_count=skipped_count)
+    if not requested_count:
+        raise HTTPException(status_code=503, detail="Could not queue publication files; please try again")
+    return PublicationRequestResponse(requested_count=requested_count, skipped_count=skipped_count + already_prepared_count)

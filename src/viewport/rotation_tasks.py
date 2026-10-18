@@ -63,6 +63,9 @@ def _publish_rotation(photo_id: uuid.UUID, revision: int, key: str | None, thumb
         projects = db.scalars(select(Project).where(Project.cover_photo_id == photo.id).with_for_update()).all()
         for project in projects:
             project.cover_focal_x, project.cover_focal_y = rotate_focal_point(project.cover_focal_x, project.cover_focal_y, angle)
+        if photo.rotated_object_key != key:
+            photo.publication_object_key = None
+            photo.publication_file_size = None
         photo.rotated_object_key = key
         photo.thumbnail_object_key = thumb_key
         photo.width, photo.height = width, height
