@@ -8,6 +8,7 @@ import type {
   ProjectDetail,
   ProjectListQueryOptions,
   ProjectListResponse,
+  PublicationRequestResponse,
   UpdateProjectRequest,
 } from '../types';
 const normalizeProjectListOptions = (
@@ -139,6 +140,15 @@ const getProjectPhotos = async (
   return response.data;
 };
 
+const requestProjectPublication = async (
+  projectId: string,
+): Promise<PublicationRequestResponse> => {
+  if (isDemoModeEnabled()) return getDemoService().requestProjectPublication(projectId);
+  return (
+    await api.post<PublicationRequestResponse>(`/projects/${projectId}/publication`)
+  ).data;
+};
+
 export const projectService = {
   getProjects,
   getProject,
@@ -149,4 +159,5 @@ export const projectService = {
   createProjectGallery,
   reorderProjectGalleries,
   getProjectPhotos,
+  requestProjectPublication,
 };

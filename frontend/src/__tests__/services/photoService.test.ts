@@ -6,6 +6,14 @@ import { isDemoModeEnabled } from '../../lib/demoMode';
 import { useAuthStore } from '../../stores/authStore';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import type { UploadPreparedFile } from '../../types';
+import type { DownloadEstimate, DownloadOptions } from '../../types/download';
+
+const originalOptions: DownloadOptions = { quality: 'original', includeVideos: true };
+const readyEstimate: DownloadEstimate = {
+  image_count: 2, video_count: 1, available_video_count: 1,
+  original_size_bytes: 30_000_000, publication_size_bytes: 20_700_000,
+  publication_pending_count: 0,
+};
 
 vi.mock('../../lib/demoMode', () => ({
   isDemoModeEnabled: vi.fn(() => false),
@@ -166,7 +174,8 @@ describe('photoService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(isDemoModeEnabled).mockReturnValue(false);
-    vi.mocked(api.get).mockResolvedValue({ data: { results: [], pending_rotation_count: 0 } });
+    vi.mocked(api.get).mockResolvedValue({ data: readyEstimate });
+    vi.mocked(api.post).mockResolvedValue({ data: readyEstimate });
     useAuthStore.setState({
       user: null,
       tokens: {
@@ -255,113 +264,91 @@ describe('photoService', () => {
     expect(result).toEqual(response.data);
   });
 
-  it('submits whole gallery zip download through browser form', async () => {
-    const submitSpy = vi
-      .spyOn(HTMLFormElement.prototype, 'submit')
-      .mockImplementation(() => undefined);
-
-    await photoService.downloadGalleryZip('gallery-1');
-
-    expect(api.get).toHaveBeenCalledWith('/galleries/gallery-1/photos/rotation', {
-      params: new URLSearchParams(),
+  it('hands a quality-aware POST to the browser without exposing the refreshed token in its URL', async () => {
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
+    vi.mocked(api.get).mockImplementationOnce(async () => {
+      useAuthStore.setState({ tokens: { access_token: 'refreshed', refresh_token: 'refresh' } });
+      return { data: readyEstimate };
     });
-    expect(submitSpy).toHaveBeenCalledTimes(1);
-
-    const form = document.querySelector('form');
-    expect(form?.getAttribute('method')).toBe('POST');
-    expect(form?.getAttribute('action')).toContain('/galleries/gallery-1/download/all');
-
-    const accessTokenField = form?.querySelector(
-      'input[name="access_token"]',
-    ) as HTMLInputElement | null;
-    expect(accessTokenField?.value).toBe('test-access-token');
-
-    const iframe = document.getElementById('viewport-browser-download-frame');
-    expect(iframe).not.toBeNull();
-  });
-
-  it('submits selected photos zip download through browser form body', async () => {
-    const submitSpy = vi
-      .spyOn(HTMLFormElement.prototype, 'submit')
-      .mockImplementation(() => undefined);
-
-    await photoService.downloadSelectedPhotosZip('gallery-1', ['photo-1', 'photo-2']);
-
-    expect(api.post).not.toHaveBeenCalled();
-    expect(submitSpy).toHaveBeenCalledTimes(1);
-
-    const form = document.querySelector('form');
-    expect(form?.getAttribute('action')).toContain('/galleries/gallery-1/download/selected');
-
-    const photoIdFields = Array.from(
-      form?.querySelectorAll('input[name="photo_ids"]') ?? [],
-    ) as HTMLInputElement[];
-    expect(photoIdFields.map((field) => field.value)).toEqual(['photo-1', 'photo-2']);
-
-    const accessTokenField = form?.querySelector(
-      'input[name="access_token"]',
-    ) as HTMLInputElement | null;
-    expect(accessTokenField?.value).toBe('test-access-token');
-  });
-
-  it('submits single-photo download through browser form with access token', async () => {
-    const submitSpy = vi
-      .spyOn(HTMLFormElement.prototype, 'submit')
-      .mockImplementation(() => undefined);
-
-    await photoService.downloadPhoto('gallery-1', 'photo-1');
-
-    expect(api.post).not.toHaveBeenCalled();
-    expect(submitSpy).toHaveBeenCalledTimes(1);
-
-    const form = document.querySelector('form');
-    expect(form?.getAttribute('method')).toBe('POST');
-    expect(form?.getAttribute('action')).toContain('/galleries/gallery-1/photos/photo-1/download');
-
-    const accessTokenField = form?.querySelector(
-      'input[name="access_token"]',
-    ) as HTMLInputElement | null;
-    expect(accessTokenField?.value).toBe('test-access-token');
-
-    const iframe = document.getElementById('viewport-browser-download-frame');
-    expect(iframe).not.toBeNull();
-  });
-
-  it('throws when zip download starts without auth token', async () => {
-    useAuthStore.setState({
-      user: null,
-      tokens: null,
-      isAuthenticated: false,
+    await photoService.downloadGalleryZip('gallery-1', {
+      quality: 'publication', includeVideos: false,
     });
-
-    await expect(photoService.downloadGalleryZip('gallery-1')).rejects.toThrow('Not authenticated');
+    expect(submit).toHaveBeenCalledTimes(1);
+    const form = document.querySelector('form')!;
+    const url = new URL(form.action, document.baseURI);
+    expect(url.searchParams.get('quality')).toBe('publication');
+    expect(url.searchParams.get('include_videos')).toBe('false');
+    expect(url.searchParams.has('access_token')).toBe(false);
+    expect((form.querySelector('[name="access_token"]') as HTMLInputElement).value).toBe('refreshed');
+    expect(document.getElementById('viewport-browser-download-frame')).not.toBeNull();
   });
 
-  it('does not submit a browser download while the gallery is rotating', async () => {
-    const submit = vi
-      .spyOn(HTMLFormElement.prototype, 'submit')
-      .mockImplementation(() => undefined);
-    vi.mocked(api.get).mockResolvedValue({ data: { results: [], pending_rotation_count: 1 } });
-    await expect(photoService.downloadGalleryZip('gallery-1')).rejects.toThrow('still saving');
-    expect(submit).not.toHaveBeenCalled();
-  });
-
-  it('checks only selected photos before downloading their ZIP', async () => {
-    const submit = vi
-      .spyOn(HTMLFormElement.prototype, 'submit')
-      .mockImplementation(() => undefined);
-    vi.mocked(api.get).mockResolvedValue({
-      data: {
-        results: [{ photo_id: 'photo-1', photo: { rotation_status: 'processing' } }],
-        pending_rotation_count: 3,
-      },
-    });
-    await expect(photoService.downloadSelectedPhotosZip('gallery-1', ['photo-1'])).rejects.toThrow(
-      'still saving',
+  it('preserves selected IDs in repeated form fields after JSON estimate preflight', async () => {
+    vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
+    await photoService.downloadSelectedPhotosZip('gallery-1', ['photo-2', 'photo-1'], originalOptions);
+    const fields = document.querySelectorAll<HTMLInputElement>('form [name="photo_ids"]');
+    expect(Array.from(fields, (field) => field.value)).toEqual(['photo-2', 'photo-1']);
+    expect(api.post).toHaveBeenCalledWith(
+      '/galleries/gallery-1/download/selected/estimate',
+      { photo_ids: ['photo-2', 'photo-1'] },
+      { params: new URLSearchParams({ include_videos: 'true' }) },
     );
+  });
+
+  it('submits a single photo with quality but without an archive-only video flag', async () => {
+    vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
+    await photoService.downloadPhoto('gallery-1', 'photo-1', {
+      quality: 'publication', includeVideos: false,
+    });
+    const url = new URL(document.querySelector('form')!.action, document.baseURI);
+    expect(url.pathname).toBe('/galleries/gallery-1/photos/photo-1/download');
+    expect(url.searchParams.get('quality')).toBe('publication');
+    expect(url.searchParams.has('include_videos')).toBe(false);
+  });
+
+  it('requests publication files for a gallery from the owner endpoint', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { requested_count: 4, skipped_count: 2 },
+    });
+    const result = await photoService.requestPublicationPhotos('gallery-1');
+    expect(api.post).toHaveBeenCalledWith('/galleries/gallery-1/publication');
+    expect(result).toEqual({ requested_count: 4, skipped_count: 2 });
+  });
+
+  it('requires authentication after a successful estimate', async () => {
+    useAuthStore.setState({ user: null, tokens: null, isAuthenticated: false });
+    await expect(photoService.downloadGalleryZip('gallery-1', originalOptions)).rejects.toThrow('Not authenticated');
+  });
+
+  it('never submits a browser form when estimate preflight rejects pending rotations', async () => {
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
+    vi.mocked(api.get).mockRejectedValueOnce(new Error('Photo rotations are still saving'));
+    await expect(photoService.downloadGalleryZip('gallery-1', originalOptions)).rejects.toThrow('still saving');
     expect(submit).not.toHaveBeenCalled();
-    const params = vi.mocked(api.get).mock.calls[0][1]?.params as URLSearchParams;
-    expect(params.getAll('photo_ids')).toEqual(['photo-1']);
+  });
+
+  it('blocks missing publishing assets but keeps full-size downloads available', async () => {
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
+    vi.mocked(api.post).mockResolvedValue({ data: {
+      ...readyEstimate, publication_size_bytes: null, publication_pending_count: 1,
+    } });
+    await expect(photoService.downloadSelectedPhotosZip('gallery-1', ['photo-1'], {
+      quality: 'publication', includeVideos: false,
+    })).rejects.toThrow('Publication files are not ready');
+    expect(submit).not.toHaveBeenCalled();
+    await photoService.downloadSelectedPhotosZip('gallery-1', ['photo-1'], originalOptions);
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not send a video-excluded empty scope to the browser', async () => {
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
+    vi.mocked(api.get).mockResolvedValue({ data: {
+      ...readyEstimate, image_count: 0, video_count: 0, original_size_bytes: 0,
+    } });
+    await expect(photoService.downloadGalleryZip('gallery-1', {
+      quality: 'original', includeVideos: false,
+    })).rejects.toThrow('No photos found');
+    expect(submit).not.toHaveBeenCalled();
   });
 
   it('returns empty response when no files provided', async () => {
@@ -1153,7 +1140,7 @@ describe('photoService', () => {
       .mockReturnValue('blob:demo-download-url');
     const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 
-    await photoService.downloadGalleryZip('demo-gallery-fashion');
+    await photoService.downloadGalleryZip('demo-gallery-fashion', originalOptions);
 
     expect(submitSpy).not.toHaveBeenCalled();
     expect(createObjectURLSpy).toHaveBeenCalled();
@@ -1181,7 +1168,7 @@ describe('photoService', () => {
 
     expect(targetPhoto).toBeTruthy();
 
-    await photoService.downloadPhoto('demo-gallery-fashion', targetPhoto.id);
+    await photoService.downloadPhoto('demo-gallery-fashion', targetPhoto.id, originalOptions);
 
     expect(submitSpy).not.toHaveBeenCalled();
     expect(clickSpy).toHaveBeenCalledTimes(1);

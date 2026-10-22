@@ -53,6 +53,7 @@ import { isDemoModeEnabled } from '../lib/demoMode';
 import { isVideoUploadFile } from '../constants/upload';
 import type { PhotoRotationItem, PhotoRotationResponse } from '../types/photo';
 import { canRotatePhoto, rotateThumbnail } from '../lib/photoRotation';
+import type { DownloadEstimate, DownloadOptions, PublicationRequestResponse } from '../types/download';
 
 interface DemoSelectionState {
   selectionConfigs?: Record<string, SelectionConfig>;
@@ -3373,43 +3374,206 @@ class DemoServiceStore {
     return this.uploadPhotosPresigned(galleryId, failedFiles, onProgress, signal);
   }
 
-  async downloadGalleryZip(galleryId: string): Promise<void> {
-    const state = this.getGalleryState(galleryId);
-    const lines = state.photos.map((photo) => photo.filename).join('\n');
-    triggerDownload(`${parsePhotoIndex(state.gallery.name)}-all-photos.txt`, lines);
-  }
-
-  async downloadSelectedPhotosZip(galleryId: string, photoIds: string[]): Promise<void> {
-    const state = this.getGalleryState(galleryId);
-    const lines = state.photos
-      .filter((photo) => photoIds.includes(photo.id))
-      .map((photo) => photo.filename)
-      .join('\n');
-    triggerDownload(`${parsePhotoIndex(state.gallery.name)}-selected-photos.txt`, lines);
-  }
-
-  async downloadPhoto(galleryId: string, photoId: string): Promise<void> {
-    const state = this.getGalleryState(galleryId);
-    const photo = state.photos.find((item) => item.id === photoId);
-    if (!photo) {
-      throw this.createNotFoundError('Photo not found');
+  private downloadScope(photos: GalleryPhoto[], includeVideos: boolean, privateScope: boolean) {
+    const successful = photos.filter((photo) => photo.status === 'successful');
+    const included = successful.filter((photo) => includeVideos || photo.media_type !== 'video');
+    if (
+      privateScope &&
+      included.some((photo) => photo.rotation_status === 'pending' || photo.rotation_status === 'processing')
+    ) {
+      throw this.createConflictError('Photo rotation is still processing');
     }
+    return { successful, included };
+  }
 
+  private estimateDownload(photos: GalleryPhoto[], includeVideos: boolean, privateScope: boolean): DownloadEstimate {
+    const { successful, included } = this.downloadScope(photos, includeVideos, privateScope);
+    return {
+      image_count: included.filter((photo) => photo.media_type !== 'video').length,
+      video_count: included.filter((photo) => photo.media_type === 'video').length,
+      available_video_count: successful.filter((photo) => photo.media_type === 'video').length,
+      original_size_bytes: included.reduce((sum, photo) => sum + photo.file_size, 0),
+      publication_size_bytes: included.reduce(
+        (sum, photo) => sum + (photo.media_type === 'video' ? photo.file_size : Math.round(photo.file_size * 0.25)), 0,
+      ),
+      publication_pending_count: 0,
+    };
+  }
+
+  private sharedDownloadEntries(shareId: string) {
+    const owner = this.findSelectionOwnerByShareId(shareId);
+    const link = owner?.state.shareLinks.find((item) => item.id === shareId);
+    if (!link || link.is_active === false) throw this.createNotFoundError('ShareLink not found');
+    if (link.expires_at && Date.parse(link.expires_at) <= Date.now()) {
+      throw new ApiError(410, 'ShareLink expired', { detail: 'ShareLink expired' });
+    }
+    return this.getSelectablePhotosForShareLink(shareId);
+  }
+
+  private selectedDownloadPhotos(galleryId: string, photoIds: string[]): GalleryPhoto[] {
+    const state = this.getGalleryState(galleryId);
+    return [...new Set(photoIds)].map((id) => {
+      const photo = state.photos.find((item) => item.id === id);
+      if (!photo) throw this.createNotFoundError('Photo not found');
+      return photo;
+    });
+  }
+
+  private sharedGalleryDownloadPhotos(shareId: string, galleryId: string): GalleryPhoto[] {
+    const state = this.findByShareId(shareId);
+    const project = this.findProjectByShareId(shareId);
+    if (
+      (!state || state.gallery.id !== galleryId) &&
+      (!project || !this.getListedProjectGalleryStates(project.project.id).some((entry) => entry.gallery.id === galleryId))
+    ) {
+      throw this.createNotFoundError('Gallery not found for this share link');
+    }
+    return this.sharedDownloadEntries(shareId)
+      .filter(({ gallery }) => gallery.id === galleryId).map(({ photo }) => photo);
+  }
+
+  private sharedDownloadPhoto(shareId: string, photoId: string): GalleryPhoto {
+    const photo = this.sharedDownloadEntries(shareId).find((entry) => entry.photo.id === photoId)?.photo;
+    if (!photo || photo.status !== 'successful') throw this.createNotFoundError('Photo not found');
+    return photo;
+  }
+
+  private downloadManifest(
+    name: string,
+    photos: GalleryPhoto[],
+    options: DownloadOptions,
+    privateScope: boolean,
+    galleryNames?: Map<string, string>,
+  ): void {
+    const { included } = this.downloadScope(photos, options.includeVideos, privateScope);
+    if (!included.length) throw this.createNotFoundError('No photos found');
+    const estimate = this.estimateDownload(photos, options.includeVideos, privateScope);
+    const used = new Set<string>();
+    const filenames = included.map((photo) => {
+      const filename = options.quality === 'publication' && photo.media_type !== 'video'
+        ? `${photo.filename.replace(/\.[^.]*$/, '')}_publication.jpg` : photo.filename;
+      const base = `${galleryNames?.get(photo.id) ? `${galleryNames.get(photo.id)} - ` : ''}${filename}`
+        .replace(/[\\/\p{Cc}]/gu, '_') || 'photo';
+      let unique = base;
+      let index = 2;
+      while (used.has(unique)) {
+        const dot = base.lastIndexOf('.');
+        unique = dot > 0 ? `${base.slice(0, dot)} (${index++})${base.slice(dot)}` : `${base} (${index++})`;
+      }
+      used.add(unique);
+      return unique;
+    });
+    triggerDownload(`${parsePhotoIndex(name)}${options.quality === 'publication' ? '_publication' : ''}.txt`, [
+      'Demo: sizes and archive downloads are simulated.',
+      'Sample photo downloads do not demonstrate the publication JPEG profile.',
+      `Quality: ${options.quality}`,
+      `Simulated size: ${options.quality === 'publication' ? estimate.publication_size_bytes : estimate.original_size_bytes} bytes`,
+      ...filenames,
+    ].join('\n'));
+  }
+
+  async estimateGalleryDownload(galleryId: string, includeVideos: boolean): Promise<DownloadEstimate> {
+    return this.estimateDownload(this.getGalleryState(galleryId).photos, includeVideos, true);
+  }
+
+  async estimateSelectedDownload(galleryId: string, photoIds: string[], includeVideos: boolean): Promise<DownloadEstimate> {
+    return this.estimateDownload(this.selectedDownloadPhotos(galleryId, photoIds), includeVideos, true);
+  }
+
+  async estimatePhotoDownload(galleryId: string, photoId: string): Promise<DownloadEstimate> {
+    const photos = this.selectedDownloadPhotos(galleryId, [photoId]);
+    if (photos[0].status !== 'successful') throw this.createNotFoundError('Photo not found');
+    return this.estimateDownload(photos, true, true);
+  }
+
+  async estimateSharedDownload(shareId: string, includeVideos: boolean): Promise<DownloadEstimate> {
+    return this.estimateDownload(this.sharedDownloadEntries(shareId).map(({ photo }) => photo), includeVideos, false);
+  }
+
+  async estimateSharedProjectGalleryDownload(shareId: string, galleryId: string, includeVideos: boolean): Promise<DownloadEstimate> {
+    return this.estimateDownload(this.sharedGalleryDownloadPhotos(shareId, galleryId), includeVideos, false);
+  }
+
+  async estimateSharedPhotoDownload(shareId: string, photoId: string): Promise<DownloadEstimate> {
+    return this.estimateDownload([this.sharedDownloadPhoto(shareId, photoId)], true, false);
+  }
+
+  async downloadGalleryZip(galleryId: string, options: DownloadOptions): Promise<void> {
+    const state = this.getGalleryState(galleryId);
+    this.downloadManifest(`${state.gallery.name}-all-photos`, state.photos, options, true);
+  }
+
+  private requestPublicationFor(photos: (GalleryPhoto & { publication_state?: 'ready' | null })[]): PublicationRequestResponse {
+    const eligible = photos.filter((photo) =>
+      photo.media_type !== 'video' && photo.status === 'successful' && photo.publication_state !== 'ready',
+    );
+    const skipped = photos.filter((photo) =>
+      photo.media_type !== 'video' && photo.status === 'successful' && photo.publication_state === 'ready',
+    ).length;
+    for (const photo of eligible) {
+      photo.publication_state = 'ready';
+    }
+    this.persistState();
+    return { requested_count: eligible.length, skipped_count: skipped };
+  }
+
+  async requestPublicationPhotos(galleryId: string): Promise<PublicationRequestResponse> {
+    const state = this.getGalleryState(galleryId);
+    return this.requestPublicationFor(state.photos);
+  }
+
+  async requestProjectPublication(projectId: string): Promise<PublicationRequestResponse> {
+    const project = this.projects.find((entry) => entry.project.id === projectId);
+    if (!project) {
+      throw this.createNotFoundError('Project not found');
+    }
+    const photos = this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .flatMap((entry) => entry.photos);
+    if (photos.length === 0) {
+      throw this.createNotFoundError('No photos found');
+    }
+    return this.requestPublicationFor(photos);
+  }
+
+  async downloadSelectedPhotosZip(galleryId: string, photoIds: string[], options: DownloadOptions): Promise<void> {
+    this.downloadManifest(`${this.getGalleryState(galleryId).gallery.name}-selected-photos`, this.selectedDownloadPhotos(galleryId, photoIds), options, true);
+  }
+
+  async downloadPhoto(galleryId: string, photoId: string, options: DownloadOptions): Promise<void> {
+    await this.estimatePhotoDownload(galleryId, photoId);
+    const photo = this.selectedDownloadPhotos(galleryId, [photoId])[0];
+    // Demo singles use sample URLs, not a client-generated publication JPEG.
+    void options;
     triggerUrlDownload(photo.url, photo.filename);
   }
 
-  downloadSharedGalleryZip(shareId: string): void {
-    const state = this.findByShareId(shareId);
-    if (!state) return;
+  async downloadSharedPhoto(shareId: string, photoId: string, options: DownloadOptions): Promise<void> {
+    const photo = this.sharedDownloadPhoto(shareId, photoId);
+    void options;
+    triggerUrlDownload(photo.url, photo.filename);
+    const owner = this.findSelectionOwnerByShareId(shareId);
+    const link = owner?.state.shareLinks.find((item) => item.id === shareId);
+    if (link) { link.single_downloads += 1; this.persistState(); }
+  }
 
-    const link = state.shareLinks.find((item) => item.id === shareId);
-    if (link) {
-      link.zip_downloads += 1;
-      this.persistState();
-    }
+  async downloadSharedGalleryZip(shareId: string, options: DownloadOptions): Promise<void> {
+    const entries = this.sharedDownloadEntries(shareId);
+    const owner = this.findSelectionOwnerByShareId(shareId);
+    if (!owner) throw this.createNotFoundError('ShareLink not found');
+    const name = owner.kind === 'gallery' ? owner.state.gallery.name : owner.state.project.name;
+    this.downloadManifest(`${name}-public-gallery`, entries.map(({ photo }) => photo), options, false,
+      owner.kind === 'project' ? new Map(entries.map(({ photo, gallery }) => [photo.id, gallery.name])) : undefined);
+    const link = owner.state.shareLinks.find((item) => item.id === shareId);
+    if (link) { link.zip_downloads += 1; this.persistState(); }
+  }
 
-    const lines = state.photos.map((photo) => photo.filename).join('\n');
-    triggerDownload(`${parsePhotoIndex(state.gallery.name)}-public-gallery.txt`, lines);
+  async downloadSharedProjectGalleryZip(shareId: string, galleryId: string, options: DownloadOptions): Promise<void> {
+    const photos = this.sharedGalleryDownloadPhotos(shareId, galleryId);
+    this.downloadManifest(`${this.getGalleryState(galleryId).gallery.name}-public-gallery`, photos, options, false);
+    const owner = this.findSelectionOwnerByShareId(shareId);
+    const link = owner?.state.shareLinks.find((item) => item.id === shareId);
+    if (link) { link.zip_downloads += 1; this.persistState(); }
   }
 }
 

@@ -152,6 +152,8 @@ def test_create_thumbnails_batch_task_creates_thumbnail(engine: Engine, s3_conta
             assert updated_photo.thumbnail_object_key.endswith("celery-original_thumbnail.avif")
             assert updated_photo.width is not None and updated_photo.height is not None
 
+            assert updated_photo.status == PhotoUploadStatus.SUCCESSFUL
+            assert updated_photo.publication_object_key is None and updated_photo.publication_file_size is None
             s3_client = get_s3_client()
             bucket = S3Settings().bucket
             response = s3_client.head_object(Bucket=bucket, Key=updated_photo.thumbnail_object_key)
@@ -230,12 +232,12 @@ def test_create_thumbnails_batch_task_invalid_image_deletes_record_when_mocked(e
 
 def test_batch_update_photo_metadata_failure(monkeypatch):
     tracker = BatchTaskResult(1)
-    successful = [{"photo_id": str(uuid4()), "thumbnail_object_key": "foo", "width": 10, "height": 20, "status": "success"}]
+    successful = [{"photo_id": str(uuid4()), "gallery_id": str(uuid4()), "thumbnail_object_key": "foo", "width": 10, "height": 20, "status": "success"}]
 
     @contextmanager
     def _failing_session():
         class DummySession:
-            def execute(self, *args, **kwargs):
+            def scalar(self, *args, **kwargs):
                 raise RuntimeError("db down")
 
         yield DummySession()
@@ -620,7 +622,8 @@ def test_reconcile_successful_uploads_requeue_then_process_keeps_successful_stat
             updated_photo = session.get(Photo, ctx.photo_id)
             assert updated_photo is not None
             assert updated_photo.status == PhotoUploadStatus.SUCCESSFUL
-            assert updated_photo.thumbnail_object_key.endswith("eventual_thumbnail.avif")
+            assert updated_photo.thumbnail_object_key.endswith("/thumbnail.avif")
+            assert updated_photo.publication_object_key is None and updated_photo.publication_file_size is None
             assert updated_photo.width is not None
             assert updated_photo.height is not None
 
@@ -1010,7 +1013,7 @@ def test_process_single_photo_skips_when_photo_not_in_existing_ids(engine: Engin
         )
         assert tracker.skipped == 1
         assert tracker.results[0]["status"] == "skipped"
-        assert tracker.results[0]["message"] == "Photo deleted"
+        assert "deleted" in tracker.results[0]["message"].lower()
 
 
 # ── _process_single_photo: S3 tag non-retryable errors ───────────────────
@@ -1025,7 +1028,7 @@ def test_process_single_photo_tagging_client_error_non_retryable(engine: Engine,
         "PutObjectTagging",
     )
 
-    with photo_context(engine, "tag-err-test", "tag.jpg") as ctx:
+    with photo_context(engine, "tag-err-test", "tag.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock(side_effect=tag_error))
 
@@ -1045,7 +1048,7 @@ def test_process_single_photo_tagging_generic_exception_non_retryable(engine: En
     """Generic non-ClientError from put_object_tagging logs warning and continues."""
     from unittest.mock import MagicMock
 
-    with photo_context(engine, "tag-gen-test", "tag2.jpg") as ctx:
+    with photo_context(engine, "tag-gen-test", "tag2.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock(side_effect=RuntimeError("unexpected")))
 
@@ -1072,7 +1075,7 @@ def test_process_single_photo_get_object_non_retryable_error(engine: Engine, s3_
         "GetObject",
     )
 
-    with photo_context(engine, "get-err-test", "get.jpg") as ctx:
+    with photo_context(engine, "get-err-test", "get.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
         monkeypatch.setattr(s3_client, "get_object", MagicMock(side_effect=get_error))
@@ -1096,7 +1099,7 @@ def test_process_single_photo_upload_non_retryable_raises(engine: Engine, s3_con
     """Non-retryable put_object error is caught by outer handler and tracked as failure."""
     from unittest.mock import MagicMock
 
-    with photo_context(engine, "up-err-test", "up.jpg") as ctx:
+    with photo_context(engine, "up-err-test", "up.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
         monkeypatch.setattr(background_tasks, "create_thumbnail_from_path", MagicMock(return_value=(b"avif", 100, 100)))
@@ -1121,7 +1124,7 @@ def test_process_single_photo_thumbnail_transient_error_propagates(engine: Engin
     """ThumbnailTransientError is re-raised (bare raise on line 211)."""
     from unittest.mock import MagicMock
 
-    with photo_context(engine, "transient-test", "trans.jpg") as ctx:
+    with photo_context(engine, "transient-test", "trans.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
         get_error = ClientError(
@@ -1148,7 +1151,7 @@ def test_process_single_photo_invalid_image_delete_non_retryable_retains_row(eng
     """Non-retryable ClientError from delete_object retains the photo row and quota."""
     from unittest.mock import MagicMock
 
-    with photo_context(engine, "inv-cleanup", "bad.jpg", content=b"not-an-image") as ctx:
+    with photo_context(engine, "inv-cleanup", "bad.jpg", content=b"not-an-image", status=PhotoUploadStatus.PROCESSING) as ctx:
         # Seed storage_used to the photo's file_size so we can verify it's retained
         with session_scope(engine) as session:
             photo = session.get(Photo, ctx.photo_id)
@@ -1627,7 +1630,7 @@ def test_process_single_photo_tagging_retryable_client_error(engine: Engine, s3_
         "PutObjectTagging",
     )
 
-    with photo_context(engine, "tag-retry", "tr.jpg") as ctx:
+    with photo_context(engine, "tag-retry", "tr.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock(side_effect=tag_error))
 
@@ -1648,7 +1651,7 @@ def test_process_single_photo_tagging_retryable_generic_exception(engine: Engine
 
     from botocore.exceptions import EndpointConnectionError
 
-    with photo_context(engine, "tag-gen-retry", "tgr.jpg") as ctx:
+    with photo_context(engine, "tag-gen-retry", "tgr.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock(side_effect=EndpointConnectionError(endpoint_url="x")))
 
@@ -1667,7 +1670,7 @@ def test_process_single_photo_upload_retryable_error(engine: Engine, s3_containe
     """Retryable put_object error raises ThumbnailTransientError."""
     from unittest.mock import MagicMock
 
-    with photo_context(engine, "up-retry", "ur.jpg") as ctx:
+    with photo_context(engine, "up-retry", "ur.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
         monkeypatch.setattr(background_tasks, "create_thumbnail_from_path", MagicMock(return_value=(b"avif", 100, 100)))
@@ -1692,7 +1695,7 @@ def test_process_single_photo_scratch_space_failure_is_retryable(engine: Engine,
     """Local scratch exhaustion must retry instead of permanently failing a valid photo."""
     from unittest.mock import MagicMock
 
-    with photo_context(engine, "scratch-retry", "scratch.jpg") as ctx:
+    with photo_context(engine, "scratch-retry", "scratch.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
         monkeypatch.setattr(background_tasks.tempfile, "TemporaryFile", MagicMock(side_effect=OSError(28, "no space left on device")))
@@ -1714,7 +1717,7 @@ def test_process_single_photo_validation_io_failure_does_not_delete_original(eng
     """A local validation read error retries without deleting valid S3/DB data."""
     from unittest.mock import MagicMock
 
-    with photo_context(engine, "validation-io-retry", "validation.jpg") as ctx:
+    with photo_context(engine, "validation-io-retry", "validation.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         delete_object = MagicMock()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
@@ -1753,6 +1756,7 @@ def test_late_duplicate_failure_does_not_overwrite_completed_photo_or_quota(engi
 
         tracker = BatchTaskResult(1)
         tracker.add_error(str(ctx.photo_id), "late duplicate failed")
+        tracker.results[-1].update(gallery_id=str(ctx.gallery_id), expected_status=PhotoUploadStatus.PROCESSING, rotation_revision=0, delivery_object_key=ctx.object_key)
         background_tasks._batch_update_photo_results(tracker.results, tracker)
 
         with session_scope(engine) as session:
@@ -1842,3 +1846,140 @@ def test_notify_selection_submitted_task_happy_path(monkeypatch) -> None:
     assert result == {"sent": True, "deduped": False}
     assert fake.get_called is True
     assert fake.set_called is True
+
+
+def test_thumbnail_upload_transient_failure_keeps_initial_photo_processing(engine, s3_container, monkeypatch):
+    with photo_context(engine, "single-asset-retry", "source.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
+        client = get_s3_client()
+        original_put = client.put_object
+
+        def put_object(**kwargs):
+            if kwargs["ContentType"] == "image/avif":
+                raise EndpointConnectionError(endpoint_url="https://s3.example")
+            return original_put(**kwargs)
+
+        monkeypatch.setattr(client, "put_object", put_object)
+        tracker = BatchTaskResult(1)
+        with pytest.raises(ThumbnailTransientError, match="Retryable S3 upload error"):
+            _process_single_photo({"photo_id": str(ctx.photo_id), "object_key": ctx.object_key}, client, get_s3_settings().bucket, {str(ctx.photo_id)}, tracker)
+        assert not tracker.results
+        with session_scope(engine) as db:
+            photo = db.get(Photo, ctx.photo_id)
+            assert photo.status == PhotoUploadStatus.PROCESSING
+            assert photo.publication_object_key is None
+
+
+def test_thumbnail_metadata_repair_reads_current_delivery_and_keeps_quota(engine, s3_container, monkeypatch):
+    with photo_context(engine, "delivery-repair", "source.jpg", status=PhotoUploadStatus.SUCCESSFUL) as ctx:
+        delivery_key = f"{ctx.gallery_id}/{ctx.photo_id}_rotations/3-prior/image.jpg"
+        upload_fileobj(_create_dummy_jpeg_bytes(80, 120), delivery_key, content_type="image/jpeg")
+        with session_scope(engine) as db:
+            photo = db.get(Photo, ctx.photo_id)
+            photo.rotation_revision = 3
+            photo.rotated_object_key = delivery_key
+            photo.thumbnail_object_key = "prior.avif"
+            photo.publication_object_key = "prior-publication.jpg"
+            photo.publication_file_size = 30
+            photo.width = None
+            db.get(User, ctx.user_id).storage_used = photo.file_size
+        result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
+        assert_batch_counts(result, successful=1)
+        with session_scope(engine) as db:
+            photo = db.get(Photo, ctx.photo_id)
+            assert (photo.width, photo.height) == (80, 120)
+            assert photo.object_key == ctx.object_key and photo.rotated_object_key == delivery_key
+            assert (photo.publication_object_key, photo.publication_file_size) == ("prior-publication.jpg", 30)
+            assert photo.thumbnail_object_key != "prior.avif"
+            assert db.get(User, ctx.user_id).storage_used == photo.file_size
+
+
+@pytest.mark.parametrize("change", ("revision", "delivery", "pending", "status", "gallery_deleted", "deleted"))
+def test_late_metadata_repair_never_overwrites_changed_photo(engine, s3_container, monkeypatch, change):
+    with photo_context(engine, "late-repair", "source.jpg", status=PhotoUploadStatus.SUCCESSFUL) as ctx:
+        with session_scope(engine) as db:
+            photo = db.get(Photo, ctx.photo_id)
+            photo.thumbnail_object_key = "current.avif"
+            photo.publication_object_key = "current-publication.jpg"
+            photo.publication_file_size = 55
+            photo.width = None
+            db.get(User, ctx.user_id).storage_used = photo.file_size
+        client = get_s3_client()
+        original_put = client.put_object
+        uploaded_thumbnails = []
+
+        def put_object(**kwargs):
+            response = original_put(**kwargs)
+            uploaded_thumbnails.append(kwargs["Key"])
+            with session_scope(engine) as db:
+                photo = db.get(Photo, ctx.photo_id)
+                if change == "deleted":
+                    db.delete(photo)
+                elif change == "gallery_deleted":
+                    db.get(Gallery, ctx.gallery_id).is_deleted = True
+                elif change == "revision":
+                    photo.rotation_revision += 1
+                elif change == "delivery":
+                    photo.rotated_object_key = "new-delivery.jpg"
+                elif change == "pending":
+                    photo.rotation_status = "pending"
+                else:
+                    photo.status = PhotoUploadStatus.FAILED
+            return response
+
+        monkeypatch.setattr(client, "put_object", put_object)
+        monkeypatch.setattr(background_tasks, "get_s3_client", lambda: client)
+        result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
+        assert_batch_counts(result, skipped=1)
+        assert uploaded_thumbnails
+        with session_scope(engine) as db:
+            photo = db.get(Photo, ctx.photo_id)
+            if change == "deleted":
+                assert photo is None
+            else:
+                assert photo.thumbnail_object_key == "current.avif"
+                assert (photo.publication_object_key, photo.publication_file_size) == ("current-publication.jpg", 55)
+                assert photo.width is None
+                assert db.get(User, ctx.user_id).storage_used == photo.file_size
+
+
+@pytest.mark.parametrize("rotation_status", ("pending", "processing"))
+def test_metadata_repair_skips_active_rotation(engine, s3_container, rotation_status):
+    with photo_context(engine, "rotating-repair", "source.jpg", status=PhotoUploadStatus.SUCCESSFUL) as ctx:
+        with session_scope(engine) as db:
+            db.get(Photo, ctx.photo_id).rotation_status = rotation_status
+        result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
+        assert_batch_counts(result, skipped=1)
+        with session_scope(engine) as db:
+            photo = db.get(Photo, ctx.photo_id)
+            assert photo.thumbnail_object_key == ctx.object_key
+
+
+def test_failed_metadata_repair_preserves_successful_photo_and_quota(engine, s3_container, monkeypatch):
+    with photo_context(engine, "repair-failure", "source.jpg", status=PhotoUploadStatus.SUCCESSFUL) as ctx:
+        with session_scope(engine) as db:
+            photo = db.get(Photo, ctx.photo_id)
+            photo.publication_object_key = "published.jpg"
+            photo.publication_file_size = 50
+            db.get(User, ctx.user_id).storage_used = photo.file_size
+        monkeypatch.setattr(background_tasks, "_is_valid_image", lambda _path: False)
+        result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
+        assert_batch_counts(result, failed=1)
+        with session_scope(engine) as db:
+            photo = db.get(Photo, ctx.photo_id)
+            assert photo.status == PhotoUploadStatus.SUCCESSFUL
+            assert (photo.publication_object_key, photo.publication_file_size) == ("published.jpg", 50)
+            assert db.get(User, ctx.user_id).storage_used == photo.file_size
+        get_s3_client().head_object(Bucket=get_s3_settings().bucket, Key=ctx.object_key)
+
+
+def test_delete_photo_removes_current_publication_object(engine, s3_container):
+    with photo_context(engine, "delete-publication", "source.jpg", status=PhotoUploadStatus.SUCCESSFUL) as ctx:
+        publication_key = f"{ctx.gallery_id}/published.jpg"
+        upload_fileobj(b"jpeg", publication_key, content_type="image/jpeg")
+        with session_scope(engine) as db:
+            photo = db.get(Photo, ctx.photo_id)
+            photo.publication_object_key, photo.publication_file_size = publication_key, 4
+        assert _delete_photo_data_impl(str(ctx.photo_id), str(ctx.gallery_id), str(ctx.user_id))["deleted"]
+        with pytest.raises(ClientError) as error:
+            get_s3_client().head_object(Bucket=get_s3_settings().bucket, Key=publication_key)
+        assert error.value.response["ResponseMetadata"]["HTTPStatusCode"] == 404

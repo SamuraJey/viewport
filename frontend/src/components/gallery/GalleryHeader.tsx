@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Download,
   FolderUp,
+  ImageDown,
   LoaderCircle,
   Ellipsis,
   Search,
@@ -94,6 +95,8 @@ interface GalleryHeaderProps {
   onAddPhotos?: () => void;
   onAddFolder?: () => void;
   onDownloadGallery?: () => void;
+  onPreparePublication?: () => void;
+  isPreparingPublication?: boolean;
   onToggleSelectionMode?: () => void;
   isSelectionMode?: boolean;
   isDownloadingZip?: boolean;
@@ -142,6 +145,8 @@ export const GalleryHeader = ({
   onAddPhotos,
   onAddFolder,
   onDownloadGallery,
+  onPreparePublication,
+  isPreparingPublication = false,
   onToggleSelectionMode,
   isSelectionMode = false,
   isDownloadingZip = false,
@@ -464,6 +469,23 @@ export const GalleryHeader = ({
                         <Download className="h-4 w-4" />
                       )}
                       Download ZIP
+                    </button>
+                  ) : null}
+                  {onPreparePublication ? (
+                    <button
+                      type="button"
+                      onMouseDown={handleMoreActionsMouseDown(close, onPreparePublication)}
+                      onClick={handleMoreActionsClick(close, onPreparePublication)}
+                      onKeyDown={handleMoreActionsEscape(close)}
+                      disabled={isPreparingPublication}
+                      className={overflowActionClass()}
+                    >
+                      {isPreparingPublication ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                      ) : (
+                        <ImageDown className="h-4 w-4" />
+                      )}
+                      Prepare publication files
                     </button>
                   ) : null}
                   {onToggleSelectionMode ? (

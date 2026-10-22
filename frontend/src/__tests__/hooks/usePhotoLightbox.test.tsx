@@ -371,6 +371,20 @@ describe('usePhotoLightbox', () => {
     expect(lightbox.props.render.controls).toBeUndefined();
   });
 
+  it('calls onExited only after the existing grid restoration has completed', () => {
+    const grid = document.createElement('div');
+    const card = document.createElement('div');
+    card.setAttribute('data-photo-card', '');
+    card.scrollIntoView = vi.fn();
+    grid.appendChild(card);
+    const onExited = vi.fn(() => expect(card.scrollIntoView).toHaveBeenCalledTimes(1));
+    const { result } = renderHook(() => usePhotoLightbox({ gridRef: { current: grid }, onExited }));
+    act(() => result.current.closeLightbox());
+    expect(onExited).not.toHaveBeenCalled();
+    act(() => result.current.renderLightbox([{ src: '/photo.jpg' }]).props.on.exited());
+    expect(onExited).toHaveBeenCalledTimes(1);
+  });
+
   it('scrolls to photo in grid on lightbox exit', () => {
     const mockScrollIntoView = vi.fn();
 

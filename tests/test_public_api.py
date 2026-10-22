@@ -1190,9 +1190,12 @@ class TestPublicAPI:
         assert len(names) == 1
         assert names[0] == f"photo-{photo_id}.png"
 
-    def test_download_all_zip_avoids_case_insensitive_filename_collisions(self, authenticated_client: TestClient, gallery_id_fixture: str):
+    def test_download_all_zip_avoids_case_insensitive_filename_collisions(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session):
         _upload_photo(authenticated_client, gallery_id_fixture, b"one", "A.jpg")
         _upload_photo(authenticated_client, gallery_id_fixture, b"two", "a.jpg")
+        # Eager workers publish via a separate sync session; production requests
+        # use fresh sessions, unlike this test's shared request-session fixture.
+        db_session.expire_all()
 
         share_resp = authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/share-links",
@@ -1371,6 +1374,9 @@ def test_public_share_route_inventory_is_explicitly_covered(app_client: TestClie
         ("GET", "/s/{share_id}/galleries/{gallery_id}/download/all"),
         ("GET", "/s/{share_id}/download/all"),
         ("GET", "/s/{share_id}/photos/{photo_id}/download"),
+        ("GET", "/s/{share_id}/photos/{photo_id}/download/estimate"),
+        ("GET", "/s/{share_id}/galleries/{gallery_id}/download/all/estimate"),
+        ("GET", "/s/{share_id}/download/all/estimate"),
         ("GET", "/s/{share_id}/selection/config"),
         ("POST", "/s/{share_id}/selection/session"),
         ("GET", "/s/{share_id}/selection/session/me"),
@@ -1384,3 +1390,203 @@ def test_public_share_route_inventory_is_explicitly_covered(app_client: TestClie
     public_routes = {(method.upper(), path) for path, methods in app.openapi()["paths"].items() if path.startswith("/s/{share_id}") for method in methods if method.upper() != "HEAD"}
 
     assert public_routes == expected_routes
+
+
+class TestPublicDownloadQuality:
+    @pytest.mark.parametrize("quality", ["original", "publication"])
+    @pytest.mark.parametrize("include_videos", [False, True])
+    def test_public_gallery_zip_contents_and_estimates(self, authenticated_client, gallery_id_fixture, sync_engine, quality, include_videos):
+        from tests.download_helpers import seed_download_scope, unpack_download
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        share = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={}).json()["id"]
+        url = f"/s/{share}/download/all"
+        params = {"quality": quality, "include_videos": str(include_videos).lower()}
+        estimate = authenticated_client.get(url + "/estimate", params={"include_videos": params["include_videos"]})
+        assert estimate.status_code == 200
+        assert estimate.json() == {
+            "image_count": 2,
+            "video_count": int(include_videos),
+            "available_video_count": 1,
+            "original_size_bytes": 30_000_000 if include_videos else 10_000_000,
+            "publication_size_bytes": 20_700_000 if include_videos else 700_000,
+            "publication_pending_count": 0,
+        }
+        assert "no-store" in estimate.headers["cache-control"]
+        assert authenticated_client.head(url, params=params).status_code == 204
+        single_url = f"/s/{share}/photos/{scope['ids']['first']}/download"
+        assert authenticated_client.get(single_url + "/estimate").json()["publication_size_bytes"] == 400_000
+        assert authenticated_client.head(single_url, params={"quality": quality}).status_code == 204
+        link = authenticated_client.get(f"/galleries/{gallery_id_fixture}/share-links").json()[0]
+        assert link["zip_downloads"] == link["single_downloads"] == link["views"] == 0
+        response = authenticated_client.get(url, params=params)
+        prefix, payloads = scope["prefix"], scope["payloads"]
+        if quality == "publication":
+            expected = {
+                "same_publication.jpg": payloads[f"{prefix}/first_publication.jpg"],
+                "same_publication (1).jpg": payloads[f"{prefix}/second_publication.jpg"],
+            }
+            assert response.headers["content-disposition"].endswith('_publication.zip"')
+        else:
+            expected = {"same.jpg": payloads[f"{prefix}/rotated.jpg"], "same.png": payloads[f"{prefix}/second.png"]}
+        if include_videos:
+            expected["clip.mp4"] = payloads[f"{prefix}/clip.mp4"]
+        assert unpack_download(response) == expected
+        with patch("viewport.api.public.AsyncS3Client.generate_presigned_url_async", new_callable=AsyncMock, return_value="https://example.test/file") as presign:
+            single = authenticated_client.get(single_url, params={"quality": quality}, follow_redirects=False)
+            assert single.status_code == 303
+            key = "first_publication.jpg" if quality == "publication" else "rotated.jpg"
+            filename = "same_publication.jpg" if quality == "publication" else "same.jpg"
+            assert presign.await_args.args[0] == f"{prefix}/{key}"
+            assert presign.await_args.kwargs["response_content_disposition"] == f'attachment; filename="{filename}"'
+        link = authenticated_client.get(f"/galleries/{gallery_id_fixture}/share-links").json()[0]
+        assert link["zip_downloads"] == link["single_downloads"] == 1
+        assert link["views"] == 0
+
+    def test_missing_publication_and_pending_rotation_keep_old_full_available(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from sqlalchemy.orm import Session
+
+        from tests.download_helpers import seed_download_scope, unpack_download
+        from viewport.models.gallery import Photo
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        share = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={}).json()["id"]
+        with Session(sync_engine) as db:
+            db.get(Photo, scope["ids"]["first"]).rotation_status = "processing"
+            db.commit()
+        base = f"/s/{share}/download/all"
+        old_jpeg = authenticated_client.get(base + "?quality=publication&include_videos=false")
+        assert unpack_download(old_jpeg)["same_publication.jpg"] == scope["payloads"][f"{scope['prefix']}/first_publication.jpg"]
+        with Session(sync_engine) as db:
+            photo = db.get(Photo, scope["ids"]["first"])
+            photo.publication_object_key = photo.publication_file_size = None
+            db.commit()
+        estimate = authenticated_client.get(base + "/estimate")
+        assert estimate.status_code == 200
+        assert estimate.json()["publication_pending_count"] == 1
+        assert estimate.json()["publication_size_bytes"] is None
+        assert len(unpack_download(authenticated_client.get(base))) == 3
+        for url in (base, f"/s/{share}/photos/{scope['ids']['first']}/download"):
+            for method in ("head", "get"):
+                response = getattr(authenticated_client, method)(url + "?quality=publication", follow_redirects=False)
+                assert response.status_code == 409
+                assert "no-store" in response.headers["cache-control"]
+                if method == "get":
+                    assert response.json()["detail"] == "Publication files are not ready"
+
+    def test_project_estimate_archive_and_current_gallery_share_visible_scope(self, authenticated_client, sync_engine):
+        from sqlalchemy.orm import Session
+
+        from tests.download_helpers import seed_download_scope, unpack_download
+        from viewport.models.gallery import Gallery
+
+        project = authenticated_client.post("/projects", json={"name": "Quality Project"}).json()["id"]
+        galleries = {}
+        scopes = {}
+        for name, visibility in (("Delivery", "listed"), ("Hidden", "direct_only"), ("Removed", "listed")):
+            gallery = authenticated_client.post(f"/projects/{project}/galleries", json={"name": name, "project_visibility": visibility}).json()["id"]
+            galleries[name] = gallery
+            scopes[name] = seed_download_scope(sync_engine, gallery)
+        with Session(sync_engine) as db:
+            from uuid import UUID
+
+            db.get(Gallery, UUID(galleries["Removed"])).is_deleted = True
+            db.commit()
+        share = authenticated_client.post(f"/projects/{project}/share-links", json={}).json()["id"]
+        root = f"/s/{share}/download/all"
+        estimate = authenticated_client.get(root + "/estimate?include_videos=false")
+        assert estimate.status_code == 200
+        assert estimate.json()["image_count"] == 2
+        assert estimate.json()["original_size_bytes"] == 10_000_000
+        assert estimate.json()["publication_size_bytes"] == 700_000
+        assert authenticated_client.head(root + "?quality=publication&include_videos=false").status_code == 204
+        entries = unpack_download(authenticated_client.get(root + "?quality=publication&include_videos=false"))
+        prefix = scopes["Delivery"]["prefix"]
+        assert entries == {
+            "Delivery - same_publication.jpg": scopes["Delivery"]["payloads"][f"{prefix}/first_publication.jpg"],
+            "Delivery - same_publication (1).jpg": scopes["Delivery"]["payloads"][f"{prefix}/second_publication.jpg"],
+        }
+        current = f"/s/{share}/galleries/{galleries['Delivery']}/download/all"
+        current_estimate = authenticated_client.get(current + "/estimate?include_videos=false")
+        assert current_estimate.json() == estimate.json()
+        assert authenticated_client.head(current + "?quality=publication&include_videos=false").status_code == 204
+        current_response = authenticated_client.get(current + "?quality=publication&include_videos=false")
+        assert current_response.headers["content-disposition"] == 'attachment; filename="Delivery_publication.zip"'
+        assert set(unpack_download(current_response)) == {"same_publication.jpg", "same_publication (1).jpg"}
+        for name in ("Hidden", "Removed"):
+            inaccessible = f"/s/{share}/galleries/{galleries[name]}/download/all"
+            assert authenticated_client.get(inaccessible + "/estimate").status_code == 404
+            assert authenticated_client.head(inaccessible).status_code == 404
+            assert authenticated_client.get(inaccessible).status_code == 404
+            assert authenticated_client.get(f"/s/{share}/photos/{scopes[name]['ids']['first']}/download/estimate").status_code == 404
+        direct_share = authenticated_client.post(f"/galleries/{galleries['Hidden']}/share-links", json={}).json()["id"]
+        assert authenticated_client.get(f"/s/{direct_share}/download/all/estimate").json()["image_count"] == 2
+        assert len(unpack_download(authenticated_client.get(f"/s/{direct_share}/download/all?quality=publication"))) == 3
+
+    def test_video_only_exclusion_empty_and_single_quality_is_original(self, authenticated_client, gallery_id_fixture, sync_engine):
+        from sqlalchemy.orm import Session
+
+        from tests.download_helpers import seed_download_scope
+        from viewport.models.gallery import Photo, PhotoUploadStatus
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        with Session(sync_engine) as db:
+            for name in ("first", "second"):
+                db.get(Photo, scope["ids"][name]).status = PhotoUploadStatus.FAILED
+            db.commit()
+        share = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={}).json()["id"]
+        base = f"/s/{share}/download/all"
+        response = authenticated_client.get(base + "/estimate?include_videos=false")
+        assert response.json() == {
+            "image_count": 0,
+            "video_count": 0,
+            "available_video_count": 1,
+            "original_size_bytes": 0,
+            "publication_size_bytes": 0,
+            "publication_pending_count": 0,
+        }
+        assert authenticated_client.head(base + "?include_videos=false").status_code == 404
+        assert authenticated_client.get(base + "?include_videos=false").json()["detail"] == "No photos found"
+        single = f"/s/{share}/photos/{scope['ids']['video']}/download"
+        assert authenticated_client.head(single + "?quality=publication").status_code == 204
+        with patch("viewport.api.public.AsyncS3Client.generate_presigned_url_async", new_callable=AsyncMock, return_value="https://example.test/video") as presign:
+            assert authenticated_client.get(single + "?quality=publication", follow_redirects=False).status_code == 303
+            assert presign.await_args.args[0] == f"{scope['prefix']}/clip.mp4"
+            assert presign.await_args.kwargs["response_content_disposition"] == 'attachment; filename="clip.mp4"'
+
+    @pytest.mark.parametrize("state,expected_status", [("password", 401), ("expired", 410), ("inactive", 404)])
+    def test_estimate_and_download_share_access_checks(self, authenticated_client, gallery_id_fixture, sync_engine, state, expected_status):
+        from uuid import UUID
+
+        from sqlalchemy.orm import Session
+
+        from tests.download_helpers import seed_download_scope
+        from viewport.models.sharelink import ShareLink
+
+        scope = seed_download_scope(sync_engine, gallery_id_fixture)
+        payload = {"password": "client-pass"} if state == "password" else {}
+        share = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload).json()["id"]
+        with Session(sync_engine) as db:
+            link = db.get(ShareLink, UUID(share))
+            if state == "expired":
+                link.expires_at = (datetime.now(UTC) - timedelta(days=1)).replace(tzinfo=None)
+            elif state == "inactive":
+                link.is_active = False
+            db.commit()
+        for url in (f"/s/{share}/download/all", f"/s/{share}/photos/{scope['ids']['first']}/download"):
+            assert authenticated_client.get(url + "/estimate").status_code == expected_status
+            assert authenticated_client.head(url).status_code == expected_status
+            assert authenticated_client.get(url, follow_redirects=False).status_code == expected_status
+        if state == "password":
+            assert authenticated_client.post(f"/s/{share}/unlock", json={"password": "client-pass"}).status_code == 204
+            assert authenticated_client.get(f"/s/{share}/download/all/estimate").status_code == 200
+            assert authenticated_client.head(f"/s/{share}/download/all?quality=publication").status_code == 204
+
+    @pytest.mark.parametrize("query", ["quality=unknown", "include_videos=unknown"])
+    def test_invalid_public_download_options_rejected(self, authenticated_client, gallery_id_fixture, query):
+        share = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={}).json()["id"]
+        url = f"/s/{share}/download/all"
+        assert authenticated_client.head(url + "?" + query).status_code == 422
+        assert authenticated_client.get(url + "?" + query).status_code == 422
+        if query.startswith("include"):
+            assert authenticated_client.get(url + "/estimate?" + query).status_code == 422

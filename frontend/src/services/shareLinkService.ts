@@ -1,6 +1,7 @@
 import { api, publicApi } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { getDemoService } from './demoService';
+import type { DownloadEstimate, DownloadOptions } from '../types/download';
 import type {
   ShareLink,
   ShareLinkAnalyticsResponse,
@@ -441,35 +442,88 @@ const submitPublicSelectionSession = async (
   return response.data;
 };
 
-const downloadSharedGalleryZip = async (shareId: string): Promise<void> => {
+const downloadQuery = (options: DownloadOptions, isArchive: boolean): string => {
+  const params = new URLSearchParams({ quality: options.quality });
+  if (isArchive) params.set('include_videos', String(options.includeVideos));
+  return params.toString();
+};
+
+const estimateSharedDownload = async (
+  shareId: string,
+  includeVideos: boolean,
+): Promise<DownloadEstimate> => {
+  if (isDemoModeEnabled()) return getDemoService().estimateSharedDownload(shareId, includeVideos);
+  const params = new URLSearchParams({ include_videos: String(includeVideos) });
+  return (
+    await publicApi.get<DownloadEstimate>(`/s/${shareId}/download/all/estimate`, { params, headers: {} })
+  ).data;
+};
+
+const estimateSharedProjectGalleryDownload = async (
+  shareId: string,
+  galleryId: string,
+  includeVideos: boolean,
+): Promise<DownloadEstimate> => {
+  if (isDemoModeEnabled())
+    return getDemoService().estimateSharedProjectGalleryDownload(shareId, galleryId, includeVideos);
+  const params = new URLSearchParams({ include_videos: String(includeVideos) });
+  return (
+    await publicApi.get<DownloadEstimate>(
+      `/s/${shareId}/galleries/${galleryId}/download/all/estimate`,
+      { params, headers: {} },
+    )
+  ).data;
+};
+
+const estimateSharedPhotoDownload = async (
+  shareId: string,
+  photoId: string,
+): Promise<DownloadEstimate> => {
+  if (isDemoModeEnabled()) return getDemoService().estimateSharedPhotoDownload(shareId, photoId);
+  return (
+    await publicApi.get<DownloadEstimate>(`/s/${shareId}/photos/${photoId}/download/estimate`, {
+      headers: {},
+    })
+  ).data;
+};
+
+const downloadSharedGalleryZip = async (
+  shareId: string,
+  options: DownloadOptions,
+): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadSharedGalleryZip(shareId);
+    await getDemoService().downloadSharedGalleryZip(shareId, options);
     return;
   }
-
-  await downloadPublicShare(`/s/${shareId}/download/all`);
+  await downloadPublicShare(`/s/${shareId}/download/all?${downloadQuery(options, true)}`);
 };
 
 const downloadSharedProjectGalleryZip = async (
   shareId: string,
   galleryId: string,
+  options: DownloadOptions,
 ): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadGalleryZip(galleryId);
+    await getDemoService().downloadSharedProjectGalleryZip(shareId, galleryId, options);
     return;
   }
-
-  await downloadPublicShare(`/s/${shareId}/galleries/${galleryId}/download/all`);
+  await downloadPublicShare(
+    `/s/${shareId}/galleries/${galleryId}/download/all?${downloadQuery(options, true)}`,
+  );
 };
 
-const downloadSharedPhoto = async (shareId: string, photoId: string): Promise<void> => {
+const downloadSharedPhoto = async (
+  shareId: string,
+  photoId: string,
+  options: DownloadOptions,
+): Promise<void> => {
   if (isDemoModeEnabled()) {
+    await getDemoService().downloadSharedPhoto(shareId, photoId, options);
     return;
   }
-
-  const path = `/s/${shareId}/photos/${photoId}/download`;
-  await publicApi.head(path, { headers: {} });
-  triggerBrowserDownload(path);
+  await downloadPublicShare(
+    `/s/${shareId}/photos/${photoId}/download?${downloadQuery(options, false)}`,
+  );
 };
 
 const getOwnerSelectionConfig = async (
@@ -725,6 +779,9 @@ export const shareLinkService = {
   downloadSharedGalleryZip,
   downloadSharedProjectGalleryZip,
   downloadSharedPhoto,
+  estimateSharedDownload,
+  estimateSharedProjectGalleryDownload,
+  estimateSharedPhotoDownload,
   getOwnerSelectionConfig,
   updateOwnerSelectionConfig,
   getShareLinkSelectionConfig,

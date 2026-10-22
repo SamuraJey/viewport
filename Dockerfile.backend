@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.14
-ARG UV_VERSION=0.13.0
+ARG UV_VERSION=0.13.5
 ARG APP_UID=1001
 ARG APP_GID=1001
 
@@ -118,10 +118,10 @@ ENV PATH="/app/.venv/bin:/opt/ffmpeg/bin:$PATH" \
     PYTHONFAULTHANDLER=1
 
 COPY --from=build --chown=appuser:appgroup /app/.venv /app/.venv
+COPY --from=build --chown=appuser:appgroup /app/src /app/src
 RUN --mount=type=bind,source=ci/check_backend_media.py,target=/tmp/check_backend_media.py \
     python /tmp/check_backend_media.py
 
-COPY --from=build --chown=appuser:appgroup /app/src /app/src
 
 # Extend the already-built production environment with dev dependencies only.
 # Reuse the build toolchain so native Python packages keep their production ABI.

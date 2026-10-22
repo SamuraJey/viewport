@@ -1,9 +1,10 @@
 import uuid
 from datetime import UTC, date, datetime, timedelta
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 import pytest_asyncio
+from fastapi import HTTPException
 from sqlalchemy import func, select
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
@@ -15,6 +16,58 @@ from viewport.models.user import User
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.schemas.gallery import CoverDisplayOption, GalleryPhotoSortBy, PhotoSpacing, PublicColorScheme, SortOrder
 from viewport.schemas.project import ProjectListSortBy
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("eligible_count", [1, 500, 501])
+async def test_project_publication_finds_eligible_photos_after_prepared_gallery(repo, db_session, monkeypatch, eligible_count):
+    from viewport.api.project import request_project_publication_photos
+    from viewport.publication_tasks import create_publication_images_batch_task
+
+    owner = await _create_user(db_session)
+    project = Project(owner_id=owner.id, name="Publication scope")
+    db_session.add(project)
+    await db_session.commit()
+    first = await _create_project_gallery(db_session, owner.id, project.id, name="Prepared", position=0)
+    last = await _create_project_gallery(db_session, owner.id, project.id, name="Eligible", position=1, visibility=ProjectVisibility.DIRECT_ONLY)
+    deleted = await _create_project_gallery(db_session, owner.id, project.id, name="Deleted", position=2)
+    deleted.is_deleted = True
+
+    def photo(gallery_id, **kwargs):
+        filename = f"{uuid.uuid4()}.jpg"
+        return Photo(gallery_id=gallery_id, object_key=filename, thumbnail_object_key="thumbnail.avif", display_name=filename, file_size=100, status=PhotoUploadStatus.SUCCESSFUL, **kwargs)
+
+    prepared = [photo(first.id, publication_object_key="prepared.jpg", publication_file_size=50) for _ in range(500)]
+    eligible = [photo(last.id) for _ in range(eligible_count)]
+    db_session.add_all(
+        [
+            *prepared,
+            *eligible,
+            photo(first.id, media_type="video"),
+            photo(first.id, rotation_status="pending"),
+            photo(first.id, rotation_status="processing"),
+            photo(deleted.id),
+        ]
+    )
+    unfinished = photo(first.id)
+    unfinished.status = PhotoUploadStatus.PROCESSING
+    db_session.add(unfinished)
+    await db_session.commit()
+    eligible_ids = {str(item.id) for item in eligible}
+    enqueue = MagicMock()
+    monkeypatch.setattr(create_publication_images_batch_task, "delay", enqueue)
+
+    if eligible_count > 500:
+        with pytest.raises(HTTPException) as exc_info:
+            await request_project_publication_photos(project.id, repo=repo, current_user=owner)
+        assert exc_info.value.status_code == 409
+        enqueue.assert_not_called()
+    else:
+        result = await request_project_publication_photos(project.id, repo=repo, current_user=owner)
+        assert result.requested_count == eligible_count
+        assert result.skipped_count == 500
+        assert {photo_id for call in enqueue.call_args_list for photo_id in call.args[0]} == eligible_ids
+        assert all(len(call.args[0]) <= 10 for call in enqueue.call_args_list)
 
 
 @pytest_asyncio.fixture

@@ -12,9 +12,11 @@ from viewport.models.gallery import PhotoUploadStatus
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
 from viewport.models.project import Project
 from viewport.models.user import User
+from viewport.publication_tasks import PROJECT_PUBLICATION_MAX_PHOTOS, request_gallery_publication
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import _UNSET, ProjectRepository
 from viewport.s3_service import AsyncS3Client
+from viewport.schemas.download import PublicationRequestResponse
 from viewport.schemas.gallery import GalleryCreateRequest, GalleryPhotoResponse
 from viewport.schemas.project import (
     ProjectCreateRequest,
@@ -499,6 +501,19 @@ async def get_project_photos(
 
     items = await GalleryPhotoResponse.from_db_photos_batch(photos, s3_client)
     return ProjectPhotosResponse(photos=items, total=total)
+
+
+@router.post("/{project_id}/publication", response_model=PublicationRequestResponse)
+async def request_project_publication_photos(
+    project_id: uuid.UUID,
+    repo: ProjectRepository = Depends(get_project_repository),
+    current_user: User = Depends(get_current_user),
+) -> PublicationRequestResponse:
+    project = await repo.get_project_by_id_and_owner(project_id, current_user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    photos, prepared_count = await repo.get_project_publication_photos(project_id, current_user.id, limit=PROJECT_PUBLICATION_MAX_PHOTOS + 1)
+    return await request_gallery_publication(project_id, photos, already_prepared_count=prepared_count)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

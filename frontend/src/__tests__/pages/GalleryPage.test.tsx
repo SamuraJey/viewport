@@ -1,33 +1,41 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { toast } from 'sonner';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { GalleryPage } from '../../pages/GalleryPage';
 import { useAuthStore } from '../../stores/authStore';
+import { photoService } from '../../services/photoService';
 
 const mockNavigate = vi.fn();
 let mockRouteParams: { id?: string; projectId?: string; galleryId?: string } = { id: '1' };
-const { mockOpenLightbox } = vi.hoisted(() => ({
+const { mockOpenLightbox, mockCloseLightbox, mockLightboxOptions } = vi.hoisted(() => ({
   mockOpenLightbox: vi.fn(),
+  mockCloseLightbox: vi.fn(),
+  mockLightboxOptions: { onExited: undefined as (() => void) | undefined },
 }));
 
 // Mock usePhotoLightbox hook
 vi.mock('../../hooks/usePhotoLightbox', () => ({
-  usePhotoLightbox: () => ({
+  usePhotoLightbox: (options: { onExited?: () => void }) => {
+    mockLightboxOptions.onExited = options.onExited;
+    return {
     lightboxOpen: false,
     lightboxIndex: 0,
     openLightbox: mockOpenLightbox,
-    closeLightbox: vi.fn(),
-    renderLightbox: (slides: any[]) => (
+    closeLightbox: mockCloseLightbox,
+    renderLightbox: (slides: { src: string; onDownload?: () => void }[]) => (
       <div data-testid="lightbox">
         {slides.map((slide, i) => (
           <div key={i} data-testid="lightbox-slide">
             {slide.src}
+            <button type="button" onClick={slide.onDownload}>Lightbox download {i + 1}</button>
           </div>
         ))}
       </div>
     ),
-  }),
+    };
+  },
 }));
 
 // Mock data
@@ -156,6 +164,13 @@ vi.mock('../../services/photoService', () => ({
     renamePhoto: vi.fn(),
     uploadPhotosPresigned: vi.fn(),
     retryFailedUploads: vi.fn(),
+    estimateGalleryDownload: vi.fn(),
+    estimateSelectedDownload: vi.fn(),
+    estimatePhotoDownload: vi.fn(),
+    downloadGalleryZip: vi.fn(),
+    downloadSelectedPhotosZip: vi.fn(),
+    downloadPhoto: vi.fn(),
+    requestPublicationPhotos: vi.fn(),
   },
 }));
 
@@ -187,6 +202,15 @@ vi.mock('../../services/projectService', () => ({
 // Mock Layout to avoid router context issues
 vi.mock('../../components/Layout', () => ({
   Layout: ({ children }: any) => <div data-testid="layout">{children}</div>,
+}));
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
 }));
 
 vi.mock('../../components/upload/UploadConfirmModal', () => ({
@@ -244,10 +268,31 @@ const fillInput = (input: HTMLElement, value: string) => {
   fireEvent.change(input, { target: { value } });
 };
 
+const openGalleryActions = async (user = userEvent.setup()) => {
+  const trigger = await screen.findByRole('button', { name: /more gallery actions/i });
+  // The real popover closes when its trigger disappears. jsdom has no layout.
+  vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(new DOMRect(16, 16, 44, 44));
+  await user.click(trigger);
+};
+
 describe('GalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockNavigate.mockReset();
+    mockRouteParams = { id: '1' };
+    const estimate = {
+      image_count: 3, video_count: 0, available_video_count: 0,
+      original_size_bytes: 37035, publication_size_bytes: 9000, publication_pending_count: 0,
+    };
+    vi.mocked(photoService.estimateGalleryDownload).mockResolvedValue(estimate);
+    vi.mocked(photoService.estimateSelectedDownload).mockResolvedValue(estimate);
+    vi.mocked(photoService.estimatePhotoDownload).mockResolvedValue({ ...estimate, image_count: 1 });
+    vi.mocked(photoService.downloadGalleryZip).mockResolvedValue(undefined);
+    vi.mocked(photoService.downloadSelectedPhotosZip).mockResolvedValue(undefined);
+    vi.mocked(photoService.downloadPhoto).mockResolvedValue(undefined);
+    vi.mocked(photoService.requestPublicationPhotos).mockResolvedValue({
+      requested_count: 3, skipped_count: 0,
+    });
     vi.spyOn(console, 'error').mockImplementation(() => {});
     useAuthStore.setState({
       user: {
@@ -324,6 +369,87 @@ describe('GalleryPage', () => {
     expect(screen.getByText('Share Links')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
+  });
+
+  it('chooses photo quality without downloading or altering selection on open', async () => {
+    const user = userEvent.setup();
+    render(<GalleryPageWrapper />);
+    await user.click((await screen.findAllByRole('button', { name: 'Download photo' }))[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Download photo' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Download' })).toBeEnabled());
+    expect(photoService.downloadPhoto).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('radio', { name: /For publishing/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(photoService.downloadPhoto).toHaveBeenCalledWith('1', 'photo1', {
+      quality: 'publication', includeVideos: true,
+    });
+  });
+
+  it('waits for lightbox exit before choosing and returns to the same photo on cancel', async () => {
+    const user = userEvent.setup();
+    render(<GalleryPageWrapper />);
+    await user.click(await screen.findByRole('button', { name: 'Lightbox download 2' }));
+    expect(mockCloseLightbox).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Download photo' })).not.toBeInTheDocument();
+    act(() => mockLightboxOptions.onExited?.());
+    const dialog = await screen.findByRole('dialog', { name: 'Download photo' });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(mockOpenLightbox).toHaveBeenLastCalledWith(1);
+  });
+
+  it('keeps the selected photos selected after canceling and completing a selected download', async () => {
+    const user = userEvent.setup();
+    render(<GalleryPageWrapper />);
+    await openGalleryActions(user);
+    await user.click(await screen.findByRole('button', { name: 'Select photos' }));
+    await user.click(screen.getByRole('button', { name: 'photo1.jpg' }));
+    await user.click(screen.getByRole('button', { name: /Download \(1\)/ }));
+    let dialog = await screen.findByRole('dialog', { name: 'Download photos' });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('button', { name: /Download \(1\)/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Download \(1\)/ }));
+    dialog = await screen.findByRole('dialog', { name: 'Download photos' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Download' })).toBeEnabled());
+    await user.click(within(dialog).getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /Download \(1\)/ })).toBeInTheDocument();
+    expect(photoService.downloadSelectedPhotosZip).toHaveBeenCalledWith('1', ['photo1'], {
+      quality: 'original', includeVideos: true,
+    });
+  });
+
+  it('requests publication files from the overflow menu after confirmation and reports counts', async () => {
+    const user = userEvent.setup();
+    render(<GalleryPageWrapper />);
+    await openGalleryActions(user);
+    await user.click(await screen.findByRole('button', { name: 'Prepare publication files' }));
+    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+    expect(photoService.requestPublicationPhotos).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+    await waitFor(() =>
+      expect(photoService.requestPublicationPhotos).toHaveBeenCalledWith('1'),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        'Preparing 3 photos for publishing; 0 already prepared',
+      ),
+    );
+  });
+
+  it('reports when nothing needed preparing for publication after confirmation', async () => {
+    const user = userEvent.setup();
+    vi.mocked(photoService.requestPublicationPhotos).mockResolvedValue({
+      requested_count: 0, skipped_count: 3,
+    });
+    render(<GalleryPageWrapper />);
+    await openGalleryActions(user);
+    await user.click(await screen.findByRole('button', { name: 'Prepare publication files' }));
+    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith('All photos are already prepared for publishing'),
+    );
   });
 
   it('opens collapsed photo search with slash and focuses it', async () => {
@@ -417,7 +543,7 @@ describe('GalleryPage', () => {
       expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByRole('button', { name: /more gallery actions/i }));
+    await openGalleryActions();
     await userEvent.click(await screen.findByRole('button', { name: /delete gallery/i }));
     const deleteDialog = await screen.findByRole('dialog', { name: /delete gallery/i });
     await userEvent.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
