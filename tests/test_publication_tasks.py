@@ -321,7 +321,7 @@ def test_request_gallery_publication_rejects_more_than_500(sync_engine, publicat
 
 
 @pytest.mark.parametrize("failed_batches, expected_count", [((), 25), ((1,), 15), ((0, 1, 2), 0)])
-def test_publication_requests_count_only_successfully_queued_microbatches(monkeypatch, failed_batches, expected_count):
+def test_publication_requests_reject_incomplete_queueing(monkeypatch, failed_batches, expected_count):
     import asyncio
 
     photos = [SimpleNamespace(id=uuid.uuid4(), status=PhotoUploadStatus.SUCCESSFUL, media_type="image", publication_object_key=None, publication_file_size=None, rotation_status="ready") for _ in range(25)]
@@ -333,7 +333,7 @@ def test_publication_requests_count_only_successfully_queued_microbatches(monkey
             raise RuntimeError("Broker unavailable")
 
     monkeypatch.setattr(publication_tasks.create_publication_images_batch_task, "delay", enqueue)
-    if expected_count:
+    if expected_count == len(photos):
         result = asyncio.run(publication_tasks.request_gallery_publication(uuid.uuid4(), photos))
         assert result.requested_count == expected_count
         assert result.skipped_count == 0
@@ -341,5 +341,6 @@ def test_publication_requests_count_only_successfully_queued_microbatches(monkey
         with pytest.raises(HTTPException) as exc_info:
             asyncio.run(publication_tasks.request_gallery_publication(uuid.uuid4(), photos))
         assert exc_info.value.status_code == 503
+        assert exc_info.value.detail == f"Queued {expected_count} of {len(photos)} publication files; please try again"
     assert [len(batch) for batch in batches] == [10, 10, 5]
     assert [photo_id for batch in batches for photo_id in batch] == [str(photo.id) for photo in photos]

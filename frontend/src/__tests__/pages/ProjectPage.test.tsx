@@ -415,18 +415,14 @@ describe('ProjectPage', () => {
     expect(projectService.getProject).toHaveBeenCalledTimes(2);
   });
 
-  it.each([false, true])('reports an already prepared project for an empty response or 404 (404: %s)', async (notFound) => {
+  it.each([0, 12])('uses the confirmed prepared count for an empty project response (%s)', async (skippedCount) => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
     const { toast } = await import('sonner');
 
-    if (notFound) {
-      vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(new ApiError(404, 'No photos found'));
-    } else {
-      vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
-        requested_count: 0, skipped_count: 12,
-      });
-    }
+    vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
+      requested_count: 0, skipped_count: skippedCount,
+    });
 
     renderProjectPage();
     await screen.findByRole('heading', { name: 'Wedding Weekend' });
@@ -436,8 +432,43 @@ describe('ProjectPage', () => {
     await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
 
     await waitFor(() =>
-      expect(toast.info).toHaveBeenCalledWith('All photos are already prepared for publishing'),
+      expect(toast.info).toHaveBeenCalledWith(skippedCount > 0
+        ? 'All photos are already prepared for publishing'
+        : 'No eligible photos are available for publishing'),
     );
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['empty', null],
+    ['video-only', { media_type: 'video' as const }],
+    ['pending rotations', { rotation_status: 'pending' as const }],
+    ['processing rotations', { rotation_status: 'processing' as const }],
+    ['prepared photos on the loaded page', { publication_state: 'ready' as const }],
+  ])('does not infer project publication readiness from a 404 with %s', async (_scope, photoFields) => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    const { toast } = await import('sonner');
+    const photos = photoFields ? [{
+      id: 'photo-1', url: '/photo.jpg', thumbnail_url: '/thumb.jpg', filename: 'photo.jpg',
+      file_size: 100, uploaded_at: '2026-01-01T00:00:00Z',
+      media_type: 'image' as const, status: 'successful' as const, ...photoFields,
+    }] : [];
+    vi.mocked(projectService.getProjectPhotos).mockResolvedValueOnce({ photos, total: photos.length });
+    vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(new ApiError(404, 'No photos found'));
+
+    renderProjectPage();
+    await screen.findByRole('heading', { name: 'Wedding Weekend' });
+    await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
+    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith('No eligible photos are available for publishing'),
+    );
+    expect(toast.info).not.toHaveBeenCalledWith('All photos are already prepared for publishing');
+    expect(toast.success).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
     expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
   });

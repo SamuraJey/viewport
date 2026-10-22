@@ -400,13 +400,15 @@ export const ProjectPage = () => {
               `Preparing ${result.requested_count} photo${result.requested_count === 1 ? '' : 's'} for publishing; ${result.skipped_count} already prepared`,
             );
             await Promise.all([loadProject(), loadProjectPhotos()]);
-          } else {
+          } else if (result.skipped_count > 0) {
             toast.info('All photos are already prepared for publishing');
+          } else {
+            toast.info('No eligible photos are available for publishing');
           }
         } catch (err) {
           const apiError = handleApiError(err);
           if (apiError.statusCode === 404) {
-            toast.info('All photos are already prepared for publishing');
+            toast.info('No eligible photos are available for publishing');
             return;
           }
           setError(apiError.message || 'Failed to request publication files');

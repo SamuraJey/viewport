@@ -167,6 +167,6 @@ async def request_gallery_publication(gallery_id: uuid.UUID, photos: list[Photo]
     if len(requested_ids) > PHOTO_ID_BATCH_MAX:
         raise HTTPException(status_code=409, detail="Too many photos for a single publication request")
     requested_count = await run_in_threadpool(_enqueue_publication_batches, requested_ids)
-    if not requested_count:
-        raise HTTPException(status_code=503, detail="Could not queue publication files; please try again")
+    if requested_count < len(requested_ids):
+        raise HTTPException(status_code=503, detail=f"Queued {requested_count} of {len(requested_ids)} publication files; please try again")
     return PublicationRequestResponse(requested_count=requested_count, skipped_count=skipped_count + already_prepared_count)

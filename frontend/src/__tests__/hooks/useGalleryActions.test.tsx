@@ -603,14 +603,10 @@ describe('useGalleryActions', () => {
     expect(toastMock.error).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])('reports already prepared photos for an empty response or 404 (404: %s)', async (notFound) => {
-    if (notFound) {
-      vi.mocked(photoService.requestPublicationPhotos).mockRejectedValueOnce(new ApiError(404, 'No photos found'));
-    } else {
-      vi.mocked(photoService.requestPublicationPhotos).mockResolvedValueOnce({
-        requested_count: 0, skipped_count: 2,
-      });
-    }
+  it('reports already prepared photos when the response confirms prepared files', async () => {
+    vi.mocked(photoService.requestPublicationPhotos).mockResolvedValueOnce({
+      requested_count: 0, skipped_count: 2,
+    });
     const { result } = renderUseGalleryActions();
     act(() => {
       result.current.handleRequestPublication();
@@ -623,6 +619,40 @@ describe('useGalleryActions', () => {
     expect(toastMock.error).not.toHaveBeenCalled();
     expect(result.current.error).toBeFalsy();
     expect(result.current.isPreparingPublication).toBe(false);
+  });
+
+  it.each([
+    ['empty', []],
+    ['video-only', photos.map((photo) => ({ ...photo, media_type: 'video' as const }))],
+    ['pending rotations', photos.map((photo) => ({ ...photo, rotation_status: 'pending' as const }))],
+    ['processing rotations', photos.map((photo) => ({ ...photo, rotation_status: 'processing' as const }))],
+    ['prepared photos on the loaded page', photos.map((photo) => ({ ...photo, publication_state: 'ready' as const }))],
+  ])('does not infer publication readiness from a 404 with %s', async (_scope, scopePhotos) => {
+    vi.mocked(galleryService.getGallery).mockResolvedValueOnce({ ...baseGallery, photos: scopePhotos });
+    vi.mocked(photoService.requestPublicationPhotos).mockRejectedValueOnce(new ApiError(404, 'No photos found'));
+    const { result } = renderUseGalleryActions();
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, true, true);
+      await result.current.handleRequestPublicationConfirm();
+    });
+    expect(toastMock.info).toHaveBeenCalledWith('No eligible photos are available for publishing');
+    expect(toastMock.info).not.toHaveBeenCalledWith('All photos are already prepared for publishing');
+    expect(toastMock.success).not.toHaveBeenCalled();
+    expect(toastMock.error).not.toHaveBeenCalled();
+    expect(result.current.error).toBeFalsy();
+    expect(result.current.isPreparingPublication).toBe(false);
+  });
+
+  it('reports no eligible photos for a response with zero requested and prepared files', async () => {
+    vi.mocked(photoService.requestPublicationPhotos).mockResolvedValueOnce({
+      requested_count: 0, skipped_count: 0,
+    });
+    const { result } = renderUseGalleryActions();
+    await act(async () => {
+      await result.current.handleRequestPublicationConfirm();
+    });
+    expect(toastMock.info).toHaveBeenCalledWith('No eligible photos are available for publishing');
+    expect(toastMock.success).not.toHaveBeenCalled();
   });
 
   it('keeps server publication failures inline without a success toast after confirmation', async () => {

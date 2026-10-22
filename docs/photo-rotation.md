@@ -129,9 +129,10 @@ whole gallery prefix.
 
 ## Deployment and verification
 
-Apply Alembic revision `1174ab994e82`, rebuild backend/photo-worker containers
-(runtime requires `libimage-exiftool-perl`, now in `Dockerfile.backend`) and
-restart workers/Beat alongside the backend. Local workers need `exiftool` on
+Rebuild backend/photo-worker containers (runtime requires
+`libimage-exiftool-perl`, now in `Dockerfile.backend`), upgrade the database to
+Alembic head (`uv run alembic upgrade head`), then restart workers/Beat alongside
+the backend. Local workers need `exiftool` on
 PATH as well as the existing libvips dependencies.
 
 The Python CI job runs inside `Dockerfile.backend --target test`, sharing the

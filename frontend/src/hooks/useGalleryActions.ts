@@ -444,12 +444,14 @@ export const useGalleryActions = ({
         );
         pageCache.clear();
         await fetchGalleryDetails(page, false, false, { silent: true });
-      } else {
+      } else if (result.skipped_count > 0) {
         toast.info('All photos are already prepared for publishing');
+      } else {
+        toast.info('No eligible photos are available for publishing');
       }
     } catch (err) {
       if (handleApiError(err).statusCode === 404) {
-        toast.info('All photos are already prepared for publishing');
+        toast.info('No eligible photos are available for publishing');
         return;
       }
       handleError(err, { redirect: false });
