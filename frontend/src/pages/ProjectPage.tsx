@@ -407,7 +407,7 @@ export const ProjectPage = () => {
           }
         } catch (err) {
           const apiError = handleApiError(err);
-          if (apiError.statusCode === 404) {
+          if (apiError.statusCode === 404 && apiError.message === 'No photos found') {
             toast.info('No eligible photos are available for publishing');
             return;
           }

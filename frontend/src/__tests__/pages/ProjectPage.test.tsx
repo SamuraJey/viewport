@@ -473,6 +473,24 @@ describe('ProjectPage', () => {
     expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
   });
 
+  it.each(['Project not found', 'Not Found'])('preserves other publication 404 errors: %s', async (message) => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    const { toast } = await import('sonner');
+    vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(new ApiError(404, message));
+
+    renderProjectPage();
+    await screen.findByRole('heading', { name: 'Wedding Weekend' });
+    await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
+    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /prepare publication files/i })).toBeEnabled();
+  });
+
   it('renames the project from the project actions', async () => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
