@@ -30,12 +30,56 @@ def seed_download_scope(sync_engine, gallery_id: str) -> dict:
     for key, value in payloads.items():
         s3.put_object(Bucket=bucket, Key=key, Body=value)
     with Session(sync_engine) as db:
-        db.add_all([
-            Photo(id=ids["first"], gallery_id=UUID(gallery_id), object_key=f"{prefix}/first.jpg", thumbnail_object_key=f"{prefix}/first_thumbnail.avif", rotated_object_key=f"{prefix}/rotated.jpg", rotation=90, requested_rotation=90, rotation_revision=1, display_name="same.jpg", file_size=6_000_000, publication_object_key=f"{prefix}/first_publication.jpg", publication_file_size=400_000, status=PhotoUploadStatus.SUCCESSFUL),
-            Photo(id=ids["second"], gallery_id=UUID(gallery_id), object_key=f"{prefix}/second.png", thumbnail_object_key=f"{prefix}/second_thumbnail.avif", display_name="same.png", file_size=4_000_000, publication_object_key=f"{prefix}/second_publication.jpg", publication_file_size=300_000, status=PhotoUploadStatus.SUCCESSFUL),
-            Photo(id=ids["video"], gallery_id=UUID(gallery_id), object_key=f"{prefix}/clip.mp4", thumbnail_object_key=f"{prefix}/clip_thumbnail.avif", playback_object_key=f"{prefix}/clip.mp4", display_name="clip.mp4", file_size=20_000_000, media_type="video", status=PhotoUploadStatus.SUCCESSFUL),
-            Photo(id=ids["unfinished"], gallery_id=UUID(gallery_id), object_key=f"{prefix}/unfinished.jpg", thumbnail_object_key=f"{prefix}/unfinished_thumbnail.avif", display_name="unfinished.jpg", file_size=90_000_000, status=PhotoUploadStatus.PROCESSING),
-        ])
+        db.add_all(
+            [
+                Photo(
+                    id=ids["first"],
+                    gallery_id=UUID(gallery_id),
+                    object_key=f"{prefix}/first.jpg",
+                    thumbnail_object_key=f"{prefix}/first_thumbnail.avif",
+                    rotated_object_key=f"{prefix}/rotated.jpg",
+                    rotation=90,
+                    requested_rotation=90,
+                    rotation_revision=1,
+                    display_name="same.jpg",
+                    file_size=6_000_000,
+                    publication_object_key=f"{prefix}/first_publication.jpg",
+                    publication_file_size=400_000,
+                    status=PhotoUploadStatus.SUCCESSFUL,
+                ),
+                Photo(
+                    id=ids["second"],
+                    gallery_id=UUID(gallery_id),
+                    object_key=f"{prefix}/second.png",
+                    thumbnail_object_key=f"{prefix}/second_thumbnail.avif",
+                    display_name="same.png",
+                    file_size=4_000_000,
+                    publication_object_key=f"{prefix}/second_publication.jpg",
+                    publication_file_size=300_000,
+                    status=PhotoUploadStatus.SUCCESSFUL,
+                ),
+                Photo(
+                    id=ids["video"],
+                    gallery_id=UUID(gallery_id),
+                    object_key=f"{prefix}/clip.mp4",
+                    thumbnail_object_key=f"{prefix}/clip_thumbnail.avif",
+                    playback_object_key=f"{prefix}/clip.mp4",
+                    display_name="clip.mp4",
+                    file_size=20_000_000,
+                    media_type="video",
+                    status=PhotoUploadStatus.SUCCESSFUL,
+                ),
+                Photo(
+                    id=ids["unfinished"],
+                    gallery_id=UUID(gallery_id),
+                    object_key=f"{prefix}/unfinished.jpg",
+                    thumbnail_object_key=f"{prefix}/unfinished_thumbnail.avif",
+                    display_name="unfinished.jpg",
+                    file_size=90_000_000,
+                    status=PhotoUploadStatus.PROCESSING,
+                ),
+            ]
+        )
         db.commit()
     return {"ids": ids, "prefix": prefix, "payloads": payloads}
 

@@ -38,7 +38,16 @@ def publication_photo(sync_engine):
         gallery = Gallery(owner_id=owner.id, name="Publication backfill")
         db.add(gallery)
         db.flush()
-        photo = Photo(gallery_id=gallery.id, object_key=f"{gallery.id}/source.jpg", thumbnail_object_key=f"{gallery.id}/thumbnail.avif", display_name="source.jpg", file_size=100, status=PhotoUploadStatus.SUCCESSFUL, width=640, height=480)
+        photo = Photo(
+            gallery_id=gallery.id,
+            object_key=f"{gallery.id}/source.jpg",
+            thumbnail_object_key=f"{gallery.id}/thumbnail.avif",
+            display_name="source.jpg",
+            file_size=100,
+            status=PhotoUploadStatus.SUCCESSFUL,
+            width=640,
+            height=480,
+        )
         db.add(photo)
         db.flush()
         ids = SimpleNamespace(photo_id=photo.id, gallery_id=gallery.id, owner_id=owner.id, source_key=photo.object_key)
@@ -313,7 +322,10 @@ def test_request_gallery_publication_rejects_more_than_500(sync_engine, publicat
     ids = publication_photo
     enqueue = MagicMock()
     monkeypatch.setattr(publication_tasks.create_publication_images_batch_task, "delay", enqueue)
-    photos = [SimpleNamespace(id=uuid.UUID(int=index), status=PhotoUploadStatus.SUCCESSFUL, media_type="image", publication_object_key=None, publication_file_size=None, rotation_status="ready") for index in range(501)]
+    photos = [
+        SimpleNamespace(id=uuid.UUID(int=index), status=PhotoUploadStatus.SUCCESSFUL, media_type="image", publication_object_key=None, publication_file_size=None, rotation_status="ready")
+        for index in range(501)
+    ]
     with pytest.raises(Exception) as exc_info:
         asyncio.run(publication_tasks.request_gallery_publication(ids.gallery_id, photos))
     assert "Too many photos" in str(exc_info.value)
@@ -324,7 +336,9 @@ def test_request_gallery_publication_rejects_more_than_500(sync_engine, publicat
 def test_publication_requests_reject_incomplete_queueing(monkeypatch, failed_batches, expected_count):
     import asyncio
 
-    photos = [SimpleNamespace(id=uuid.uuid4(), status=PhotoUploadStatus.SUCCESSFUL, media_type="image", publication_object_key=None, publication_file_size=None, rotation_status="ready") for _ in range(25)]
+    photos = [
+        SimpleNamespace(id=uuid.uuid4(), status=PhotoUploadStatus.SUCCESSFUL, media_type="image", publication_object_key=None, publication_file_size=None, rotation_status="ready") for _ in range(25)
+    ]
     batches = []
 
     def enqueue(batch):

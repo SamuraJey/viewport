@@ -480,10 +480,14 @@ def test_cleanup_protects_active_assets_and_superseded_url_lifetime(sync_engine,
         photo.rotation_updated_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=1)
         db.commit()
     client = MagicMock()
-    client.get_paginator.return_value.paginate.return_value = [{"Contents": [
-        *[{"Key": key, "LastModified": datetime.now(UTC) - timedelta(hours=10)} for key in [current, old, current_publication, old_publication]],
-        {"Key": recent_publication, "LastModified": datetime.now(UTC) - timedelta(hours=2)},
-    ]}]
+    client.get_paginator.return_value.paginate.return_value = [
+        {
+            "Contents": [
+                *[{"Key": key, "LastModified": datetime.now(UTC) - timedelta(hours=10)} for key in [current, old, current_publication, old_publication]],
+                {"Key": recent_publication, "LastModified": datetime.now(UTC) - timedelta(hours=2)},
+            ]
+        }
+    ]
     monkeypatch.setattr(rotation_tasks, "get_s3_client", lambda: client)
     monkeypatch.setattr(rotation_tasks, "get_s3_settings", lambda: SimpleNamespace(bucket="bucket"))
     rotation_tasks.cleanup_photo_rotation_versions_task.run()
@@ -502,7 +506,9 @@ async def test_private_download_blocks_pending_edits_and_uses_published_asset():
 
     from viewport.api.photo import download_photo
 
-    photo = SimpleNamespace(id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="pending", status=PhotoUploadStatus.SUCCESSFUL, media_type="image")
+    photo = SimpleNamespace(
+        id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="pending", status=PhotoUploadStatus.SUCCESSFUL, media_type="image"
+    )
     repo = SimpleNamespace(get_gallery_by_id_and_owner=AsyncMock(return_value=object()), get_photo_by_id_and_gallery=AsyncMock(return_value=photo))
     s3 = SimpleNamespace(generate_presigned_url_async=AsyncMock(return_value="https://example.com/edited.jpg"))
     with pytest.raises(HTTPException) as error:
@@ -519,7 +525,9 @@ async def test_private_download_blocks_pending_edits_and_uses_published_asset():
 async def test_public_download_keeps_last_published_version_during_rotation(monkeypatch):
     from viewport.api import public
 
-    photo = SimpleNamespace(id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="processing", status=PhotoUploadStatus.SUCCESSFUL, media_type="image")
+    photo = SimpleNamespace(
+        id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="processing", status=PhotoUploadStatus.SUCCESSFUL, media_type="image"
+    )
     monkeypatch.setattr(public, "_get_downloadable_public_photo", AsyncMock(return_value=photo))
     repo = SimpleNamespace(record_single_download=AsyncMock())
     s3 = SimpleNamespace(generate_presigned_url_async=AsyncMock(return_value="https://example.com/edited.jpg"))
@@ -539,7 +547,9 @@ async def test_private_zip_uses_published_assets_and_blocks_pending(monkeypatch)
     from viewport.downloads import prepare_download_entries
     from viewport.schemas.download import DownloadQuality
 
-    photo = SimpleNamespace(id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="ready", status=PhotoUploadStatus.SUCCESSFUL, media_type="image")
+    photo = SimpleNamespace(
+        id=uuid.uuid4(), object_key="original.jpg", rotated_object_key="edited.jpg", display_name="photo.jpg", rotation_status="ready", status=PhotoUploadStatus.SUCCESSFUL, media_type="image"
+    )
     s3 = MagicMock()
     s3.get_object.return_value = {"Body": io.BytesIO(b"edited image")}
     monkeypatch.setattr(gallery, "get_sync_s3_client", lambda: s3)

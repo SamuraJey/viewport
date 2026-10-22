@@ -848,15 +848,23 @@ class TestDownloadQuality:
             json={"photo_ids": [str(photo_id) for photo_id in scope["ids"].values()]},
         )
         expected = {
-            "image_count": 2, "video_count": int(include_videos), "available_video_count": 1,
-            "original_size_bytes": original_size, "publication_size_bytes": publication_size, "publication_pending_count": 0,
+            "image_count": 2,
+            "video_count": int(include_videos),
+            "available_video_count": 1,
+            "original_size_bytes": original_size,
+            "publication_size_bytes": publication_size,
+            "publication_pending_count": 0,
         }
         assert all_response.status_code == selected_response.status_code == 200
         assert all_response.json() == selected_response.json() == expected
         single = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/{scope['ids']['first']}/download/estimate")
         assert single.json() == {
-            "image_count": 1, "video_count": 0, "available_video_count": 0,
-            "original_size_bytes": 6_000_000, "publication_size_bytes": 400_000, "publication_pending_count": 0,
+            "image_count": 1,
+            "video_count": 0,
+            "available_video_count": 0,
+            "original_size_bytes": 6_000_000,
+            "publication_size_bytes": 400_000,
+            "publication_pending_count": 0,
         }
 
     def test_selected_validates_membership_before_filter_and_preserves_order(self, authenticated_client, gallery_id_fixture, sync_engine):
@@ -883,8 +891,12 @@ class TestDownloadQuality:
         empty = authenticated_client.post(url + "/estimate", json={"photo_ids": [unfinished]})
         assert empty.status_code == 200
         assert empty.json() == {
-            "image_count": 0, "video_count": 0, "available_video_count": 0,
-            "original_size_bytes": 0, "publication_size_bytes": 0, "publication_pending_count": 0,
+            "image_count": 0,
+            "video_count": 0,
+            "available_video_count": 0,
+            "original_size_bytes": 0,
+            "publication_size_bytes": 0,
+            "publication_pending_count": 0,
         }
         assert authenticated_client.post(url, json={"photo_ids": [unfinished]}).status_code == 404
 
@@ -923,7 +935,8 @@ class TestDownloadQuality:
                 ("video", "clip.mp4", "clip.mp4"),
             ]:
                 response = authenticated_client.post(
-                    f"/galleries/{gallery_id_fixture}/photos/{scope['ids'][name]}/download?quality=publication", follow_redirects=False,
+                    f"/galleries/{gallery_id_fixture}/photos/{scope['ids'][name]}/download?quality=publication",
+                    follow_redirects=False,
                 )
                 assert response.status_code == 303
                 assert presign.await_args.args[0] == f"{scope['prefix']}/{key}"
@@ -959,16 +972,29 @@ class TestDownloadQuality:
         from viewport.models.gallery import Photo, PhotoUploadStatus
 
         with Session(sync_engine) as db:
-            db.add_all([
-                Photo(gallery_id=UUID(gallery_id_fixture), object_key=f"{gallery_id_fixture}/{index}.jpg", thumbnail_object_key=f"{gallery_id_fixture}/{index}_thumbnail.avif", display_name=f"{index}.jpg", file_size=100, status=PhotoUploadStatus.SUCCESSFUL)
-                for index in range(125)
-            ])
+            db.add_all(
+                [
+                    Photo(
+                        gallery_id=UUID(gallery_id_fixture),
+                        object_key=f"{gallery_id_fixture}/{index}.jpg",
+                        thumbnail_object_key=f"{gallery_id_fixture}/{index}_thumbnail.avif",
+                        display_name=f"{index}.jpg",
+                        file_size=100,
+                        status=PhotoUploadStatus.SUCCESSFUL,
+                    )
+                    for index in range(125)
+                ]
+            )
             db.commit()
         response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/download/all/estimate")
         assert response.status_code == 200
         assert response.json() == {
-            "image_count": 125, "video_count": 0, "available_video_count": 0,
-            "original_size_bytes": 12_500, "publication_size_bytes": None, "publication_pending_count": 125,
+            "image_count": 125,
+            "video_count": 0,
+            "available_video_count": 0,
+            "original_size_bytes": 12_500,
+            "publication_size_bytes": None,
+            "publication_pending_count": 125,
         }
 
     @pytest.mark.parametrize("query", ["quality=bogus", "include_videos=bogus"])

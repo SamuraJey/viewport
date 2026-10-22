@@ -358,12 +358,7 @@ class ProjectRepository(BaseRepository):
             Photo.status == PhotoUploadStatus.SUCCESSFUL,
             Photo.media_type == MediaType.IMAGE.value,
         ]
-        prepared_stmt = (
-            select(func.count())
-            .select_from(Photo)
-            .join(Photo.gallery)
-            .where(*filters, Photo.publication_object_key.is_not(None), Photo.publication_file_size.is_not(None))
-        )
+        prepared_stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(*filters, Photo.publication_object_key.is_not(None), Photo.publication_file_size.is_not(None))
         prepared_count = int((await self.db.execute(prepared_stmt)).scalar() or 0)
         stmt = (
             select(Photo)

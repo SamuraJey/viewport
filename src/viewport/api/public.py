@@ -742,9 +742,7 @@ async def get_public_photos_by_ids(
     return result
 
 
-async def _load_public_download_scope(
-    sharelink: ShareLink, *, repo: ShareLinkRepository, project_repo: ProjectRepository
-) -> tuple[list[Photo], dict[UUID, str] | None]:
+async def _load_public_download_scope(sharelink: ShareLink, *, repo: ShareLinkRepository, project_repo: ProjectRepository) -> tuple[list[Photo], dict[UUID, str] | None]:
     if sharelink.scope_type == ShareScopeType.PROJECT.value:
         if sharelink.project_id is None:
             raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
@@ -757,9 +755,7 @@ async def _load_public_download_scope(
     return sorted(photos, key=lambda photo: (photo.display_name or "").lower()), None
 
 
-async def _load_public_project_gallery_download_scope(
-    gallery_id: UUID, *, sharelink: ShareLink, repo: ShareLinkRepository, project_repo: ProjectRepository
-) -> tuple[Gallery, list[Photo]]:
+async def _load_public_project_gallery_download_scope(gallery_id: UUID, *, sharelink: ShareLink, repo: ShareLinkRepository, project_repo: ProjectRepository) -> tuple[Gallery, list[Photo]]:
     if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
         raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
     gallery = await project_repo.get_visible_project_gallery_by_id(sharelink.project_id, gallery_id)
@@ -768,13 +764,9 @@ async def _load_public_project_gallery_download_scope(
     return gallery, await repo.get_photos_by_gallery_id(gallery.id, status=PhotoUploadStatus.SUCCESSFUL)
 
 
-def _prepare_public_download_entries(
-    photos: list[Photo], *, quality: DownloadQuality, include_videos: bool, gallery_names: dict[UUID, str] | None = None
-) -> list[DownloadEntry]:
+def _prepare_public_download_entries(photos: list[Photo], *, quality: DownloadQuality, include_videos: bool, gallery_names: dict[UUID, str] | None = None) -> list[DownloadEntry]:
     try:
-        return prepare_download_entries(
-            photos, quality=quality, include_videos=include_videos, block_pending_rotations=False, gallery_names=gallery_names
-        )
+        return prepare_download_entries(photos, quality=quality, include_videos=include_videos, block_pending_rotations=False, gallery_names=gallery_names)
     except HTTPException as exc:
         exc.headers = {**(exc.headers or {}), **PUBLIC_CACHE_CONTROL_HEADERS}
         raise
@@ -784,6 +776,7 @@ def _build_public_zip_response(entries: list[DownloadEntry], archive_name: str) 
     settings = get_s3_settings()
     z = zipstream.ZipStream()
     for entry in entries:
+
         def file_generator(object_key: str = entry.object_key):
             body = get_s3_client().get_object(Bucket=settings.bucket, Key=object_key)["Body"]
             try:

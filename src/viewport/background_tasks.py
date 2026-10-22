@@ -263,7 +263,7 @@ def _process_single_photo(
                         with task_db_session() as db_cleanup:
                             gallery = db_cleanup.scalar(select(Gallery).where(Gallery.id == uuid.UUID(snapshot["gallery_id"]), Gallery.is_deleted.is_(False)).with_for_update())
                             photo = db_cleanup.scalar(select(Photo).where(Photo.id == uuid.UUID(photo_id)).with_for_update()) if gallery else None
-                            if photo is None or not _matches_thumbnail_snapshot(photo, snapshot):
+                            if gallery is None or photo is None or not _matches_thumbnail_snapshot(photo, snapshot):
                                 result_tracker.add_skipped(photo_id, "Photo changed during processing")
                                 return
                             try:
@@ -491,7 +491,7 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
             for result in results:
                 gallery = db.scalar(select(Gallery).where(Gallery.id == uuid.UUID(result["gallery_id"]), Gallery.is_deleted.is_(False)).with_for_update())
                 photo = db.scalar(select(Photo).where(Photo.id == uuid.UUID(result["photo_id"])).with_for_update()) if gallery else None
-                if photo is None or not _matches_thumbnail_snapshot(photo, result):
+                if gallery is None or photo is None or not _matches_thumbnail_snapshot(photo, result):
                     if result["status"] == "success":
                         result_tracker.successful -= 1
                         result_tracker.skipped += 1

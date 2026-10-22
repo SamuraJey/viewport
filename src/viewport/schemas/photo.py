@@ -99,9 +99,7 @@ def _build_photo_response_payload(
     }
     if include_gallery_id:
         payload["gallery_id"] = photo.gallery_id
-    payload["publication_state"] = "ready" if (
-        media_type == "image" and photo.publication_object_key is not None and photo.publication_file_size is not None
-    ) else None
+    payload["publication_state"] = "ready" if (media_type == "image" and photo.publication_object_key is not None and photo.publication_file_size is not None) else None
     return payload
 
 

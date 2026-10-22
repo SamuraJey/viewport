@@ -372,6 +372,7 @@ def _build_gallery_zip_response(gallery_id: uuid.UUID, entries: list[DownloadEnt
     settings = get_s3_settings()
     z = zipstream.ZipStream()
     for entry in entries:
+
         def file_generator(key: str = entry.object_key):
             client = get_sync_s3_client()
             body = client.get_object(Bucket=settings.bucket, Key=key)["Body"]
@@ -407,9 +408,7 @@ async def _load_gallery_download_photos(gallery_id: uuid.UUID, *, repo: GalleryR
     return await repo.get_photos_by_gallery_id(gallery_id)
 
 
-async def _load_selected_download_photos(
-    gallery_id: uuid.UUID, request: DownloadSelectedPhotosRequest, *, repo: GalleryRepository, owner_id: uuid.UUID
-) -> list:
+async def _load_selected_download_photos(gallery_id: uuid.UUID, request: DownloadSelectedPhotosRequest, *, repo: GalleryRepository, owner_id: uuid.UUID) -> list:
     if not await repo.get_gallery_by_id_and_owner(gallery_id, owner_id):
         raise HTTPException(status_code=404, detail="Gallery not found")
     ordered_ids = list(dict.fromkeys(request.photo_ids))

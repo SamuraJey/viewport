@@ -193,8 +193,12 @@ def create_publication_image_from_path(image_path: str | os.PathLike[str]) -> by
     pyvips = _get_pyvips()
     # Debian's libvips 8.16 calls this export_profile; newer releases retain it.
     image = pyvips.Image.thumbnail(
-        os.fspath(image_path), 2048, height=2048, size="down",
-        export_profile="srgb", fail_on="error",
+        os.fspath(image_path),
+        2048,
+        height=2048,
+        size="down",
+        export_profile="srgb",
+        fail_on="error",
     )
     if image.interpretation != "srgb":
         image = image.colourspace("srgb")

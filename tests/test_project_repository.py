@@ -39,14 +39,16 @@ async def test_project_publication_finds_eligible_photos_after_prepared_gallery(
 
     prepared = [photo(first.id, publication_object_key="prepared.jpg", publication_file_size=50) for _ in range(500)]
     eligible = [photo(last.id) for _ in range(eligible_count)]
-    db_session.add_all([
-        *prepared,
-        *eligible,
-        photo(first.id, media_type="video"),
-        photo(first.id, rotation_status="pending"),
-        photo(first.id, rotation_status="processing"),
-        photo(deleted.id),
-    ])
+    db_session.add_all(
+        [
+            *prepared,
+            *eligible,
+            photo(first.id, media_type="video"),
+            photo(first.id, rotation_status="pending"),
+            photo(first.id, rotation_status="processing"),
+            photo(deleted.id),
+        ]
+    )
     unfinished = photo(first.id)
     unfinished.status = PhotoUploadStatus.PROCESSING
     db_session.add(unfinished)

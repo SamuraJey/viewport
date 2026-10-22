@@ -1405,9 +1405,12 @@ class TestPublicDownloadQuality:
         estimate = authenticated_client.get(url + "/estimate", params={"include_videos": params["include_videos"]})
         assert estimate.status_code == 200
         assert estimate.json() == {
-            "image_count": 2, "video_count": int(include_videos), "available_video_count": 1,
+            "image_count": 2,
+            "video_count": int(include_videos),
+            "available_video_count": 1,
             "original_size_bytes": 30_000_000 if include_videos else 10_000_000,
-            "publication_size_bytes": 20_700_000 if include_videos else 700_000, "publication_pending_count": 0,
+            "publication_size_bytes": 20_700_000 if include_videos else 700_000,
+            "publication_pending_count": 0,
         }
         assert "no-store" in estimate.headers["cache-control"]
         assert authenticated_client.head(url, params=params).status_code == 204
@@ -1535,8 +1538,12 @@ class TestPublicDownloadQuality:
         base = f"/s/{share}/download/all"
         response = authenticated_client.get(base + "/estimate?include_videos=false")
         assert response.json() == {
-            "image_count": 0, "video_count": 0, "available_video_count": 1,
-            "original_size_bytes": 0, "publication_size_bytes": 0, "publication_pending_count": 0,
+            "image_count": 0,
+            "video_count": 0,
+            "available_video_count": 1,
+            "original_size_bytes": 0,
+            "publication_size_bytes": 0,
+            "publication_pending_count": 0,
         }
         assert authenticated_client.head(base + "?include_videos=false").status_code == 404
         assert authenticated_client.get(base + "?include_videos=false").json()["detail"] == "No photos found"

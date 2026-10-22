@@ -61,7 +61,7 @@ def prepare_download_entries(
         fallback = build_zip_fallback_name(filename, object_key=key, fallback_stem=f"photo-{photo.id}")
         if publication:
             _, extension = split_name_and_ext(filename)
-            stem = filename[:-len(extension)] if extension else filename
+            stem = filename[: -len(extension)] if extension else filename
             filename = f"{stem}_publication.jpg" if stem else ""
             fallback = f"photo-{photo.id}_publication.jpg"
         if gallery_names is not None:
@@ -73,9 +73,7 @@ def prepare_download_entries(
     return entries
 
 
-def build_download_estimate(
-    photos: Sequence[Photo], *, include_videos: bool, block_pending_rotations: bool
-) -> DownloadEstimateResponse:
+def build_download_estimate(photos: Sequence[Photo], *, include_videos: bool, block_pending_rotations: bool) -> DownloadEstimateResponse:
     included, available_video_count = _eligible_photos(photos, include_videos=include_videos, block_pending_rotations=block_pending_rotations)
     images = [photo for photo in included if photo.media_type != MediaType.VIDEO.value]
     videos = [photo for photo in included if photo.media_type == MediaType.VIDEO.value]
