@@ -67,7 +67,7 @@
 | src/viewport/schemas/sharelink.py                       |       80 |        4 |       22 |        4 |     92% |20, 22, 75, 79 |
 | src/viewport/selection\_utils.py                        |       16 |        0 |        8 |        0 |    100% |           |
 | src/viewport/services/\_\_init\_\_.py                   |        3 |        0 |        0 |        0 |    100% |           |
-| src/viewport/services/auth\_rate\_limiter.py            |      294 |        0 |      106 |        1 |     99% | 418-\>422 |
+| src/viewport/services/auth\_rate\_limiter.py            |      294 |        0 |      106 |        0 |    100% |           |
 | src/viewport/services/presigned\_cache.py               |      144 |        0 |       32 |        2 |     99% |214-\>213, 319-\>exit |
 | src/viewport/services/project\_presence.py              |       48 |        0 |       10 |        1 |     98% |   74-\>72 |
 | src/viewport/services/redis\_service.py                 |      277 |        0 |       56 |        2 |     99% |208-\>213, 424-\>422 |
@@ -77,7 +77,7 @@
 | src/viewport/thumbnail\_tasks.py                        |       15 |        0 |        2 |        0 |    100% |           |
 | src/viewport/video\_metrics.py                          |       27 |       10 |        2 |        0 |     59% |54-57, 61, 65, 69, 73, 77-78 |
 | src/viewport/zip\_utils.py                              |       71 |        4 |       26 |        4 |     92% |68, 84, 97, 118 |
-| **TOTAL**                                               | **7928** |  **753** | **1926** |  **238** | **89%** |           |
+| **TOTAL**                                               | **7928** |  **753** | **1926** |  **237** | **89%** |           |
 
 
 ## Setup coverage badge
