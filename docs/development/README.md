@@ -67,12 +67,14 @@ Python and JavaScript/TypeScript code style guidelines.
 
 ### Required Tools
 - Python 3.13+
-- Node.js 18+
+- Node.js 24.x
 - Docker & Docker Compose
 - Git
 - PostgreSQL (or use Docker)
 - Redis (or use Docker)
 - S3-compatible storage (rustfs) or use S3 credentials
+
+Use `nvm install && nvm use` from the repository root to select Node.js 24 from `.nvmrc`. Frontend CI reads the same file, the Docker build defaults to Node.js 24, and `frontend/package.json` declares Node.js `24.x` with matching `@types/node` 24.x.
 
 ### Recommended IDE Extensions
 - **VS Code:**
