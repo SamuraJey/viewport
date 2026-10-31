@@ -42,7 +42,7 @@ A modern, full-stack photo portfolio sharing platform that enables photographers
 
 ### Prerequisites
 - Docker & Docker Compose (recommended)
-- Or: Python 3.13+, Node.js 18+, PostgreSQL, Redis, rustfs
+- Or: Python 3.13+, Node.js 24.x, PostgreSQL, Redis, rustfs
 
 ### Option 1: Docker (Recommended)
 ```bash
