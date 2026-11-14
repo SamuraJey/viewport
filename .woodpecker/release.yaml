@@ -13,7 +13,9 @@ steps:
   - name: build-push
     image: docker:28-cli
     environment:
-      NPM_REGISTRY: https://npm-mirror.gitverse.ru
+      NPM_REGISTRY: https://registry.npmjs.org
+      NPM_FALLBACK_REGISTRIES: https://npm-mirror.gitverse.ru
+      NPM_INSTALL_TIMEOUT: "180"
       VITE_API_URL:
         from_secret: vite_api_url
       REGISTRY:

@@ -10,18 +10,48 @@ separate BuildKit container. Build cache remains in the daemon across pipelines.
 Backend and frontend are built sequentially from the release's root Dockerfiles
 with target `runtime`. The backend runtime is also used by both Celery workers.
 
-The pipeline sets `NPM_REGISTRY=https://npm-mirror.gitverse.ru`. The build script
-defaults to npmjs when run without that variable. For compatibility with older
-releases, it creates a temporary frontend Dockerfile and inserts an ARG and ENV
-for `npm_config_registry` immediately before npm installation. The matcher
-supports both legacy `RUN npm ci` and `RUN --mount=... npm ci` instructions.
-The release checkout, npm install flags and lockfile remain unchanged.
-Current frontend builds cache npm downloads in `/root/.npm`; host `node_modules`
-is excluded from the build context. npm replaces default
-npmjs tarball URLs with the configured registry and retains lockfile integrity
-checks. This also supports retrying an existing release after only updating CI
-in `main`; it does not fix that release's other Dockerfile issues. The temporary
-Dockerfile is removed on exit. No second Dockerfile is maintained in the repo.
+## npm registry fallback
+
+Woodpecker tries `https://registry.npmjs.org` first and
+`https://npm-mirror.gitverse.ru` second. Configure the primary with
+`NPM_REGISTRY` and the ordered, space-separated alternatives with
+`NPM_FALLBACK_REGISTRIES`. Set the latter to an empty string to disable fallback.
+Only HTTPS registry URLs are accepted.
+
+Each complete `npm ci` attempt has a `NPM_INSTALL_TIMEOUT` budget (180 seconds by
+default), followed by at most 10 seconds before forced termination. Individual
+HTTP requests have a 20-second timeout and one retry after one second. With the
+default two registries, installation takes at most about 6 minutes 20 seconds
+before failing if neither works. This budget includes dependency lifecycle scripts;
+increase it for unusually slow cold installs. Registry failures and transitions
+are printed in the build log. Every registry failing still fails the build.
+
+For compatibility with existing release tags, `ci/build.sh` uses
+`ci/prepare-frontend.awk` to inject the current `ci/npm-ci.sh` installer from
+`main` into a temporary frontend Dockerfile. Both legacy `RUN npm ci` and
+`RUN --mount=... npm ci` instructions retain their original install flags and
+error handling. The release checkout and lockfile remain unchanged. The
+temporary Dockerfile is removed on exit; no second Dockerfile is maintained.
+
+Current frontend builds cache npm downloads in `/root/.npm`; fallback attempts
+reuse successful downloads via `--prefer-offline`. Host `node_modules` is
+excluded from the build context. npm replaces default npmjs tarball URLs with
+the registry for the current attempt and retains lockfile integrity checks.
+Lockfiles committed with third-party tarball URLs require separate review;
+the installer does not rewrite arbitrary package hosts.
+
+To recover the failed release, get these CI files onto the Woodpecker pipeline's
+`main` branch, then rerun that release pipeline. A new application release tag
+is not required: the application source still comes from `RELEASE_SHA`, while
+the fallback installer comes from `main`. This does not fix unrelated problems
+in an older release's Dockerfile.
+
+Offline fallback checks (success, registry failure, timeout, total failure and
+legacy Dockerfile compatibility):
+
+```sh
+python -m unittest discover -s ci -p 'test_*.py' -v
+```
 
 Set `forgejo_clone_url`, `registry_address` and `vite_api_url` as Woodpecker
 repository secrets allowed for manual events. Infrastructure addresses are not
