@@ -7,7 +7,15 @@ case "$RELEASE_ID" in *[!0-9]*|'') exit 1;; esac
 : "${FORGEJO_CLONE_URL:?missing FORGEJO_CLONE_URL}"
 : "${VITE_API_URL:?missing VITE_API_URL: required for the production frontend}"
 case "$VITE_API_URL" in https://?*) ;; *) echo 'VITE_API_URL must be an absolute HTTPS URL' >&2; exit 1;; esac
+ci_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmjs.org}
+NPM_FALLBACK_REGISTRIES=${NPM_FALLBACK_REGISTRIES-https://npm-mirror.gitverse.ru}
+NPM_INSTALL_TIMEOUT=${NPM_INSTALL_TIMEOUT:-180}
+case "$NPM_INSTALL_TIMEOUT" in *[!0-9]*|'') echo 'NPM_INSTALL_TIMEOUT must be positive seconds' >&2; exit 1;; esac
+test "$NPM_INSTALL_TIMEOUT" -gt 0
+for npm_fallback in $NPM_FALLBACK_REGISTRIES; do
+  case "$npm_fallback" in https://?*) ;; *) echo 'NPM_FALLBACK_REGISTRIES must contain HTTPS URLs' >&2; exit 1;; esac
+done
 case "$NPM_REGISTRY" in https://?*) ;; *) echo 'NPM_REGISTRY must be an absolute HTTPS URL' >&2; exit 1;; esac
 : "${REGISTRY:?missing REGISTRY: configure registry_address in Woodpecker}"
 printf '%s\n' "$REGISTRY" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9.-]*:[0-9]{1,5}$' || {
@@ -47,19 +55,13 @@ tag_sha=$(git -C "$source_dir" rev-parse --verify "refs/tags/$RELEASE_TAG^{commi
 test "$tag_sha" = "$RELEASE_SHA"
 unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 FORGEJO_READ_TOKEN auth
 
-# Older releases do not declare a registry build argument. Configure npm in a
-# temporary Dockerfile without changing the release checkout or its lockfile.
+# Inject the installer from main so existing release tags get the same fallback
+# policy without modifying their checkout, lockfile, install flags or cache mounts.
 frontend_dockerfile=$(mktemp /tmp/viewport-frontend.XXXXXX)
-awk '
-  /^[[:space:]]*RUN[[:space:]]+(--mount=[^[:space:]]+[[:space:]]+)*npm[[:space:]]+ci([[:space:]]|$)/ && !configured {
-    print "ARG CI_NPM_REGISTRY"
-    print "ENV npm_config_registry=$CI_NPM_REGISTRY"
-    configured = 1
-  }
-  { print }
-  END { if (!configured) exit 1 }
-' "$source_dir/Dockerfile.frontend" > "$frontend_dockerfile" || {
-  echo 'Cannot configure npm registry: expected a RUN npm ci instruction' >&2
+install_script=$(base64 < "$ci_dir/npm-ci.sh" | tr -d '\n')
+awk -v install_script="$install_script" -f "$ci_dir/prepare-frontend.awk" \
+  "$source_dir/Dockerfile.frontend" > "$frontend_dockerfile" || {
+  echo 'Cannot configure npm fallback: expected a RUN npm ci instruction' >&2
   exit 1
 }
 
@@ -75,10 +77,11 @@ docker buildx build --builder default --progress plain --push \
   -t "$REGISTRY/viewport/backend:$RELEASE_TAG" \
   -t "$REGISTRY/viewport/backend:release-$RELEASE_ID" "$source_dir"
 
-# The release Dockerfile receives only the CI npm registry setting above.
+# Registry attempts share the release Dockerfile's npm download cache.
 docker buildx build --builder default --progress plain --push \
   --file "$frontend_dockerfile" --target runtime \
-  --build-arg "CI_NPM_REGISTRY=$NPM_REGISTRY" \
+  --build-arg "CI_NPM_REGISTRIES=$NPM_REGISTRY $NPM_FALLBACK_REGISTRIES" \
+  --build-arg "CI_NPM_INSTALL_TIMEOUT=$NPM_INSTALL_TIMEOUT" \
   --build-arg "VITE_API_URL=$VITE_API_URL" \
   --label "org.opencontainers.image.revision=$RELEASE_SHA" \
   --label "org.opencontainers.image.version=$RELEASE_TAG" \
