@@ -1,5 +1,6 @@
 import { Eye, ImageIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 
 import type { Project } from '../../types';
@@ -22,16 +23,18 @@ export const ProjectCardHeader = ({
   linkTo,
 }: ProjectCardHeaderProps) => {
   const coverUrl = project.cover_photo_thumbnail_url;
+  const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null);
   const previewUrls = project.preview_thumbnail_urls.slice(0, 4);
 
   const media = (
     <>
-      {coverUrl ? (
+      {coverUrl && coverUrl !== failedCoverUrl ? (
         <img
           src={coverUrl}
           alt=""
           aria-hidden="true"
           loading="lazy"
+          onError={() => setFailedCoverUrl(coverUrl)}
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.035]"
           style={{
             objectPosition: `${project.cover_focal_x}% ${project.cover_focal_y}%`,
@@ -41,12 +44,16 @@ export const ProjectCardHeader = ({
         <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-accent/18 via-surface-2 to-surface dark:from-accent/22 dark:via-surface-dark-2 dark:to-surface-dark">
           <div className="flex flex-col items-center gap-3 text-muted">
             <ImageIcon className="h-9 w-9" aria-hidden="true" />
-            <span className="text-sm font-semibold">Add a project cover</span>
+            <span className="text-sm font-semibold">
+              {coverUrl ? 'Project preview unavailable' : 'Add a project cover'}
+            </span>
           </div>
         </div>
       )}
 
-      <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/5 to-black/65" />
+      {coverUrl && coverUrl !== failedCoverUrl ? (
+        <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/5 to-black/65" />
+      ) : null}
 
       {previewUrls.length > 0 ? (
         <div

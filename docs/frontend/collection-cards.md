@@ -12,8 +12,8 @@ primitives keep both collection levels consistent:
 
 - `CollectionCardCover` provides the fixed-height media area and separate
   overlay zones for status badges, persistent controls, and contextual actions.
-- `CollectionCardTitle` provides the shared Oswald, uppercase, responsive title
-  treatment.
+- `CollectionCardTitle` provides a readable, sentence-case title with two-line
+  clamping and wrapping for long names.
 - `CollectionCardMetrics` renders the divided metric footer from data items
   rather than project- or gallery-specific markup.
 - `CollectionShareBadge` provides the common public-share status.
@@ -26,6 +26,10 @@ menus, mutations, or domain-specific state.
 Project cards retain project-only behavior: preview rotation, active-viewer and
 delivery indicators, quick actions, the project menu, and the dashboard reorder
 handle.
+
+If a project cover fails to load, its image and dark scrim are replaced with a
+neutral preview placeholder. The project link and actions remain usable; a new
+cover URL is attempted normally.
 
 Gallery cards retain gallery-only behavior: project visibility, share/delete
 actions, inline rename, and the separate reorder service row used on the project
