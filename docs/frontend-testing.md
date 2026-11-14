@@ -1,10 +1,17 @@
 # Frontend tests
 
-Run the complete suite from `frontend/`:
+Use the Node.js version in `.nvmrc` and install the locked dependencies before
+running tests or updating snapshots. Run from `frontend/`:
 
 ```sh
+npm ci --prefer-offline --no-audit
 npm run test:run
 ```
+
+If a snapshot differs only in third-party markup (such as Lucide icon classes),
+check the installed package version against `package-lock.json` first. Do not
+update snapshots to match stale local `node_modules`; CI installs the lockfile
+with `npm ci`.
 
 Vitest uses isolated worker threads, capped at 12 or the machine's available
 parallelism, whichever is smaller. File isolation remains enabled. Override the
