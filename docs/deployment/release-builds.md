@@ -46,13 +46,6 @@ is not required: the application source still comes from `RELEASE_SHA`, while
 the fallback installer comes from `main`. This does not fix unrelated problems
 in an older release's Dockerfile.
 
-Offline fallback checks (success, registry failure, timeout, total failure and
-legacy Dockerfile compatibility):
-
-```sh
-python -m unittest discover -s ci -p 'test_*.py' -v
-```
-
 Set `forgejo_clone_url`, `registry_address` and `vite_api_url` as Woodpecker
 repository secrets allowed for manual events. Infrastructure addresses are not
 stored in the public pipeline. The NAS Docker daemon must already support the
