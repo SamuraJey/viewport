@@ -25,6 +25,10 @@ Project search, loading feedback, responsive controls, typography and elevation.
 
 Desktop sidebar, project photo overview, compact archive view and bundled demo imagery.
 
+### [Owner Rendering Audit](./owner-rendering-audit.md)
+
+Measured React render counts, localized editing/search state, scroll-controller lifecycle and remaining performance limits.
+
 ### 🔄 [State Management](./state-management.md)
 Zustand store setup, state patterns, and data flow.
 

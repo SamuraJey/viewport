@@ -9,6 +9,11 @@ and Escape clear both the input and URL immediately, reset pagination, preserve
 the selected sort, and retain focus in the input. The empty-results action also
 clears the search immediately.
 
+The toolbar owns uncommitted input and the debounce; DashboardPage owns only the
+committed URL query. Typing must not re-render project cards before applying the
+filter. The page's clear-search generation resets pending local input even when
+the clear action comes from outside the toolbar.
+
 Only initial loading replaces the grid with layout-matched skeletons. Search,
 sort, pagination and refresh requests retain existing cards. User-initiated
 requests show an accessible “Updating projects…” status and mark the grid busy.

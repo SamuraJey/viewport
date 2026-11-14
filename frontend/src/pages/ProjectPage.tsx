@@ -57,7 +57,6 @@ export const ProjectPage = () => {
   const [projectNameDraft, setProjectNameDraft] = useState('');
   const [isRenamingProject, setIsRenamingProject] = useState(false);
   const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
-  const [renameInput, setRenameInput] = useState('');
   const [isRenamingGallery, setIsRenamingGallery] = useState(false);
   const projectContentRef = useRef<HTMLElement>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
@@ -70,7 +69,6 @@ export const ProjectPage = () => {
   const [isUploadingFolder, setUploadingFolder] = useState(false);
   const [isPreparingPublication, setIsPreparingPublication] = useState(false);
   const projectNameInputRef = useRef<HTMLInputElement | null>(null);
-  const renameInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [projectPhotos, setProjectPhotos] = useState<GalleryPhoto[]>([]);
   const [isLoadingProjectPhotos, setIsLoadingProjectPhotos] = useState(false);
   const activeProjectIdRef = useRef(projectId);
@@ -413,17 +411,15 @@ export const ProjectPage = () => {
   const beginInlineRename = (gallery: Gallery) => {
     setError('');
     setRenameGalleryId(gallery.id);
-    setRenameInput(gallery.name);
   };
 
   const cancelInlineRename = () => {
     setRenameGalleryId(null);
-    setRenameInput('');
   };
 
-  const handleConfirmRename = async () => {
+  const handleConfirmRename = async (name: string) => {
     if (!renameGalleryId) return;
-    const normalizedName = renameInput.trim();
+    const normalizedName = name.trim();
     const currentGallery = project?.galleries.find((gallery) => gallery.id === renameGalleryId);
     const currentName = currentGallery?.name?.trim() ?? '';
 
@@ -740,17 +736,14 @@ export const ProjectPage = () => {
     <ProjectGalleriesPanel
       galleries={project.galleries}
       renameGalleryId={renameGalleryId}
-      renameInput={renameInput}
       isRenamingGallery={isRenamingGallery}
-      renameInputRef={renameInputRef}
       isUpdatingGallery={isUpdatingGallery}
       isReorderingGallery={isReorderingGallery}
       requiresReorderConfirmation={projectSelectionWarningSummary.hasSensitiveSessions}
       openGalleryDialog={openGalleryDialog}
       onUploadFolder={folderPickerSupported ? () => folderInputRef.current?.click() : undefined}
       isUploadingFolder={isUploadingFolder}
-      setRenameInput={setRenameInput}
-      handleConfirmRename={() => void handleConfirmRename()}
+      handleConfirmRename={(name) => void handleConfirmRename(name)}
       cancelInlineRename={cancelInlineRename}
       beginInlineRename={beginInlineRename}
       handleDeleteGallery={handleDeleteGallery}

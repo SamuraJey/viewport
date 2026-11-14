@@ -1,4 +1,3 @@
-import { createRef } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -45,10 +44,7 @@ const variants = {
 const baseProps = {
   gallery,
   isRenamingThis: false,
-  renameInput: gallery.name,
   isRenaming: false,
-  renameInputRef: createRef<HTMLTextAreaElement>(),
-  onRenameInputChange: vi.fn(),
   onConfirmRename: vi.fn(),
   onCancelRename: vi.fn(),
   onBeginRename: vi.fn(),
@@ -103,19 +99,15 @@ describe('EnhancedGalleryCard', () => {
 
     render(
       <MemoryRouter>
-        <EnhancedGalleryCard
-          {...baseProps}
-          isRenamingThis
-          renameInput="Ceremony highlights"
-          onConfirmRename={onConfirmRename}
-        />
+        <EnhancedGalleryCard {...baseProps} isRenamingThis onConfirmRename={onConfirmRename} />
       </MemoryRouter>,
     );
 
     const input = screen.getByRole('textbox', { name: 'Rename gallery input' });
+    fireEvent.change(input, { target: { value: 'Ceremony highlights' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    expect(onConfirmRename).toHaveBeenCalledOnce();
+    expect(onConfirmRename).toHaveBeenCalledExactlyOnceWith('Ceremony highlights');
   });
 
   it('keeps hidden navigation out of the editor and cancels with Escape', () => {

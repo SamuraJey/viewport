@@ -1,9 +1,12 @@
 import { ArrowUpDown, LayoutGrid, List, LoaderCircle, Search, X } from 'lucide-react';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppListbox } from '../ui/AppListbox';
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 interface DashboardProjectToolbarProps {
   search: string;
+  searchResetKey: number;
   onSearchChange: (value: string) => void;
   onClearSearch: () => void;
   sort: string;
@@ -17,6 +20,7 @@ interface DashboardProjectToolbarProps {
 
 export const DashboardProjectToolbar = ({
   search,
+  searchResetKey,
   onSearchChange,
   onClearSearch,
   sort,
@@ -28,7 +32,21 @@ export const DashboardProjectToolbar = ({
   onViewChange,
 }: DashboardProjectToolbarProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [searchInput, setSearchInput] = useState(search);
+  const [source, setSource] = useState({ search, resetKey: searchResetKey });
+  if (source.search !== search || source.resetKey !== searchResetKey) {
+    setSource({ search, resetKey: searchResetKey });
+    setSearchInput(search);
+  }
+
+  useEffect(() => {
+    const normalized = searchInput.trim();
+    if (normalized === search) return;
+    const timer = window.setTimeout(() => onSearchChange(normalized), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [onSearchChange, search, searchInput]);
   const clearSearch = () => {
+    setSearchInput('');
     onClearSearch();
     inputRef.current?.focus();
   };
@@ -49,10 +67,10 @@ export const DashboardProjectToolbar = ({
             ref={inputRef}
             id="dashboard-project-search"
             type="search"
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Escape' && search) {
+              if (event.key === 'Escape' && searchInput) {
                 event.preventDefault();
                 clearSearch();
               }
@@ -60,7 +78,7 @@ export const DashboardProjectToolbar = ({
             placeholder="Search projects"
             className="dashboard-project-search-input h-full min-w-0 w-full border-0 bg-transparent p-0 text-base text-text outline-none placeholder:text-muted focus:ring-0 sm:text-sm [&::-webkit-search-cancel-button]:appearance-none"
           />
-          {search ? (
+          {searchInput ? (
             <button
               type="button"
               onClick={clearSearch}

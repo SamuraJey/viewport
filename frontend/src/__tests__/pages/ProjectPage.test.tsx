@@ -7,6 +7,18 @@ import userEvent from '@testing-library/user-event';
 import type { ShareLink } from '../../types';
 import { ApiError } from '../../lib/errorHandling';
 
+vi.mock('../../components/project-page/ProjectOverview', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../components/project-page/ProjectOverview')>();
+  return { ...actual, ProjectOverview: vi.fn(actual.ProjectOverview) };
+});
+
+vi.mock('../../components/dashboard/EnhancedGalleryCard', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../components/dashboard/EnhancedGalleryCard')>();
+  return { ...actual, EnhancedGalleryCard: vi.fn(actual.EnhancedGalleryCard) };
+});
+
 vi.mock('../../components/ui/AppPopover', () => {
   return {
     AppPopover: ({
@@ -34,7 +46,11 @@ vi.mock('../../components/ui/AppPopover', () => {
           >
             {buttonContent}
           </button>
-          {open ? <div className={panelClassName}>{typeof panel === 'function' ? panel(() => setOpen(false)) : panel}</div> : null}
+          {open ? (
+            <div className={panelClassName}>
+              {typeof panel === 'function' ? panel(() => setOpen(false)) : panel}
+            </div>
+          ) : null}
         </div>
       );
     },
@@ -269,6 +285,23 @@ describe('ProjectPage', () => {
     expect(screen.getByText('Client proofing')).toBeInTheDocument();
   });
 
+  it('keeps gallery-name keystrokes local without rerendering the overview or gallery cards', async () => {
+    const user = userEvent.setup();
+    const { ProjectOverview } = await import('../../components/project-page/ProjectOverview');
+    const { EnhancedGalleryCard } = await import('../../components/dashboard/EnhancedGalleryCard');
+    renderProjectPage();
+    await user.click(await screen.findByRole('button', { name: 'Rename Photos' }));
+    const overviewRenders = vi.mocked(ProjectOverview).mock.calls.length;
+    const cardRenders = vi.mocked(EnhancedGalleryCard).mock.calls.length;
+    const input = screen.getByRole('textbox', { name: 'Rename gallery input' });
+    await user.type(input, 'abcdefghijkl');
+    expect(input).toHaveValue('Photosabcdefghijkl');
+    expect(vi.mocked(ProjectOverview).mock.calls).toHaveLength(overviewRenders);
+    expect(vi.mocked(EnhancedGalleryCard).mock.calls).toHaveLength(cardRenders);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('textbox', { name: 'Rename gallery input' })).not.toBeInTheDocument();
+  });
+
   it('opens presentation settings from the cover and moves keyboard focus to the selected tab', async () => {
     const user = userEvent.setup();
     renderProjectPage();
@@ -287,7 +320,10 @@ describe('ProjectPage', () => {
       projectProofingShareLink({ id: 'current', is_active: true, expires_at: null }),
     ]);
     renderProjectPage();
-    expect(await screen.findByRole('link', { name: /open client view/i })).toHaveAttribute('href', '/share/current');
+    expect(await screen.findByRole('link', { name: /open client view/i })).toHaveAttribute(
+      'href',
+      '/share/current',
+    );
     expect(screen.getByText('1 active project link')).toBeInTheDocument();
   });
 
@@ -417,7 +453,8 @@ describe('ProjectPage', () => {
     const { toast } = await import('sonner');
 
     vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
-      requested_count: 9, skipped_count: 3,
+      requested_count: 9,
+      skipped_count: 3,
     });
 
     renderProjectPage();
@@ -440,31 +477,37 @@ describe('ProjectPage', () => {
     expect(projectService.getProject).toHaveBeenCalledTimes(2);
   });
 
-  it.each([0, 12])('uses the confirmed prepared count for an empty project response (%s)', async (skippedCount) => {
-    const user = userEvent.setup();
-    const { projectService } = await import('../../services/projectService');
-    const { toast } = await import('sonner');
+  it.each([0, 12])(
+    'uses the confirmed prepared count for an empty project response (%s)',
+    async (skippedCount) => {
+      const user = userEvent.setup();
+      const { projectService } = await import('../../services/projectService');
+      const { toast } = await import('sonner');
 
-    vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
-      requested_count: 0, skipped_count: skippedCount,
-    });
+      vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
+        requested_count: 0,
+        skipped_count: skippedCount,
+      });
 
-    renderProjectPage();
-    await screen.findByRole('heading', { name: 'Wedding Weekend' });
-    await user.click(screen.getByRole('button', { name: 'Project options' }));
-    await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
+      renderProjectPage();
+      await screen.findByRole('heading', { name: 'Wedding Weekend' });
+      await user.click(screen.getByRole('button', { name: 'Project options' }));
+      await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
 
-    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
-    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+      const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+      await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
 
-    await waitFor(() =>
-      expect(toast.info).toHaveBeenCalledWith(skippedCount > 0
-        ? 'All photos are already prepared for publishing'
-        : 'No eligible photos are available for publishing'),
-    );
-    expect(toast.error).not.toHaveBeenCalled();
-    expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
-  });
+      await waitFor(() =>
+        expect(toast.info).toHaveBeenCalledWith(
+          skippedCount > 0
+            ? 'All photos are already prepared for publishing'
+            : 'No eligible photos are available for publishing',
+        ),
+      );
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
+    },
+  );
 
   it.each([
     ['empty', null],
@@ -472,53 +515,76 @@ describe('ProjectPage', () => {
     ['pending rotations', { rotation_status: 'pending' as const }],
     ['processing rotations', { rotation_status: 'processing' as const }],
     ['prepared photos on the loaded page', { publication_state: 'ready' as const }],
-  ])('does not infer project publication readiness from a 404 with %s', async (_scope, photoFields) => {
-    const user = userEvent.setup();
-    const { projectService } = await import('../../services/projectService');
-    const { toast } = await import('sonner');
-    const photos = photoFields ? [{
-      id: 'photo-1', url: '/photo.jpg', thumbnail_url: '/thumb.jpg', filename: 'photo.jpg',
-      file_size: 100, uploaded_at: '2026-01-01T00:00:00Z',
-      media_type: 'image' as const, status: 'successful' as const, ...photoFields,
-    }] : [];
-    vi.mocked(projectService.getProjectPhotos).mockResolvedValueOnce({ photos, total: photos.length });
-    vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(new ApiError(404, 'No photos found'));
+  ])(
+    'does not infer project publication readiness from a 404 with %s',
+    async (_scope, photoFields) => {
+      const user = userEvent.setup();
+      const { projectService } = await import('../../services/projectService');
+      const { toast } = await import('sonner');
+      const photos = photoFields
+        ? [
+            {
+              id: 'photo-1',
+              url: '/photo.jpg',
+              thumbnail_url: '/thumb.jpg',
+              filename: 'photo.jpg',
+              file_size: 100,
+              uploaded_at: '2026-01-01T00:00:00Z',
+              media_type: 'image' as const,
+              status: 'successful' as const,
+              ...photoFields,
+            },
+          ]
+        : [];
+      vi.mocked(projectService.getProjectPhotos).mockResolvedValueOnce({
+        photos,
+        total: photos.length,
+      });
+      vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(
+        new ApiError(404, 'No photos found'),
+      );
 
-    renderProjectPage();
-    await screen.findByRole('heading', { name: 'Wedding Weekend' });
-    await user.click(screen.getByRole('button', { name: 'Project options' }));
-    await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
-    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
-    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+      renderProjectPage();
+      await screen.findByRole('heading', { name: 'Wedding Weekend' });
+      await user.click(screen.getByRole('button', { name: 'Project options' }));
+      await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
+      const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+      await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
 
-    await waitFor(() =>
-      expect(toast.info).toHaveBeenCalledWith('No eligible photos are available for publishing'),
-    );
-    expect(toast.info).not.toHaveBeenCalledWith('All photos are already prepared for publishing');
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(toast.error).not.toHaveBeenCalled();
-    expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
-  });
+      await waitFor(() =>
+        expect(toast.info).toHaveBeenCalledWith('No eligible photos are available for publishing'),
+      );
+      expect(toast.info).not.toHaveBeenCalledWith('All photos are already prepared for publishing');
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
+    },
+  );
 
-  it.each(['Project not found', 'Not Found'])('preserves other publication 404 errors: %s', async (message) => {
-    const user = userEvent.setup();
-    const { projectService } = await import('../../services/projectService');
-    const { toast } = await import('sonner');
-    vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(new ApiError(404, message));
+  it.each(['Project not found', 'Not Found'])(
+    'preserves other publication 404 errors: %s',
+    async (message) => {
+      const user = userEvent.setup();
+      const { projectService } = await import('../../services/projectService');
+      const { toast } = await import('sonner');
+      vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(
+        new ApiError(404, message),
+      );
 
-    renderProjectPage();
-    await screen.findByRole('heading', { name: 'Wedding Weekend' });
-    await user.click(screen.getByRole('button', { name: 'Project options' }));
-    await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
-    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
-    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+      renderProjectPage();
+      await screen.findByRole('heading', { name: 'Wedding Weekend' });
+      await user.click(screen.getByRole('button', { name: 'Project options' }));
+      await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
+      const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+      await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
 
-    expect(await screen.findByText(message)).toBeInTheDocument();
-    expect(toast.info).not.toHaveBeenCalled();
-    expect(toast.success).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Project options' }));
-    expect(screen.getByRole('button', { name: /prepare publication files/i })).toBeEnabled();
-  });
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(toast.info).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
+      await user.click(screen.getByRole('button', { name: 'Project options' }));
+      expect(screen.getByRole('button', { name: /prepare publication files/i })).toBeEnabled();
+    },
+  );
 
   it('renames the project from the project actions', async () => {
     const user = userEvent.setup();

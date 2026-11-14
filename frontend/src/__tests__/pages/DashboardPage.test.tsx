@@ -6,6 +6,11 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { DashboardPage } from '../../pages/DashboardPage';
 import type { Project, ShareLink } from '../../types';
 
+vi.mock('../../components/dashboard/ProjectCard', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../components/dashboard/ProjectCard')>();
+  return { ...actual, ProjectCard: vi.fn(actual.ProjectCard) };
+});
+
 const mockNavigate = vi.fn();
 
 const makeProject = (overrides: Partial<Project>): Project => ({
@@ -204,20 +209,60 @@ describe('DashboardPage', () => {
     });
   });
 
+  it('keeps search keystrokes local until the debounced URL update', async () => {
+    const { ProjectCard } = await import('../../components/dashboard/ProjectCard');
+    const { projectService } = await import('../../services/projectService');
+    render(<DashboardPageWrapper />);
+    await screen.findByText('Wedding Weekend');
+    const before = vi.mocked(ProjectCard).mock.calls.length;
+    vi.useFakeTimers();
+    try {
+      const input = screen.getByRole('searchbox', { name: 'Search projects' });
+      for (const value of ['c', 'cl', 'cli', 'clie', 'clien', 'client']) {
+        fireEvent.change(input, { target: { value } });
+      }
+      expect(vi.mocked(ProjectCard).mock.calls).toHaveLength(before);
+      expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
+        search: 'client',
+        sort_by: 'manual_order',
+        order: 'asc',
+      });
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
   it('switches between grid and list without losing filters, pagination or refetching', async () => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
-    render(<DashboardPageWrapper initialPath="/dashboard?search=client&sort_by=name&order=asc&page=3" />);
+    render(
+      <DashboardPageWrapper initialPath="/dashboard?search=client&sort_by=name&order=asc&page=3" />,
+    );
     await screen.findByText('Wedding Weekend');
     await user.click(screen.getByRole('button', { name: 'List view' }));
     expect(screen.getByRole('table', { name: 'Project library' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('location')).toHaveTextContent('/dashboard?search=client&sort_by=name&order=asc&page=3&view=list');
-    expect(screen.getByRole('link', { name: /Wedding Weekend/ })).toHaveAttribute('href', '/projects/project-1');
+    expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/dashboard?search=client&sort_by=name&order=asc&page=3&view=list',
+    );
+    expect(screen.getByRole('link', { name: /Wedding Weekend/ })).toHaveAttribute(
+      'href',
+      '/projects/project-1',
+    );
     expect(projectService.getProjects).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole('button', { name: 'Grid view' }));
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(screen.getByRole('article', { name: /Wedding Weekend.*20 photos/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('article', { name: /Wedding Weekend.*20 photos/i }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('location')).not.toHaveTextContent('view=list');
     expect(projectService.getProjects).toHaveBeenCalledTimes(1);
   });

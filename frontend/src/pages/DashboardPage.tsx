@@ -23,7 +23,6 @@ import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';
 import type { Project, ProjectListSortBy, SortOrder } from '../types';
 
-const SEARCH_DEBOUNCE_MS = 300;
 const PROJECT_POLL_INTERVAL_MS = 60_000;
 const PROJECT_PAGE_SIZE = 18;
 const DEFAULT_PROJECT_SORT_BY: ProjectListSortBy = 'manual_order';
@@ -97,7 +96,7 @@ export const DashboardPage = () => {
   const [isReordering, setIsReordering] = useState(false);
   const [error, setError] = useState('');
   const [announcement, setAnnouncement] = useState('');
-  const [searchInput, setSearchInput] = useState(searchParams.get('search') ?? '');
+  const [searchResetKey, setSearchResetKey] = useState(0);
   const fetchRequestIdRef = useRef(0);
   const isReorderingRef = useRef(false);
   const fetchProjectsRef = useRef<(showLoading?: boolean) => Promise<void>>(async () => undefined);
@@ -183,24 +182,17 @@ export const DashboardPage = () => {
     return () => window.clearInterval(intervalId);
   }, [fetchProjects]);
 
-  const [lastSyncedSearch, setLastSyncedSearch] = useState(activeSearch);
-  if (lastSyncedSearch !== activeSearch) {
-    setLastSyncedSearch(activeSearch);
-    setSearchInput(activeSearch);
-  }
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      const normalized = searchInput.trim();
+  const updateSearch = useCallback(
+    (normalized: string) => {
       if (normalized === activeSearch) return;
       const nextParams = new URLSearchParams(searchParams);
       if (normalized) nextParams.set('search', normalized);
       else nextParams.delete('search');
       nextParams.delete('page');
       setSearchParams(nextParams);
-    }, SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timeoutId);
-  }, [activeSearch, searchInput, searchParams, setSearchParams]);
+    },
+    [activeSearch, searchParams, setSearchParams],
+  );
 
   usePendingAction((action) => {
     if (action === 'create-project') createProjectModal.open();
@@ -217,7 +209,7 @@ export const DashboardPage = () => {
   };
 
   const clearSearch = () => {
-    setSearchInput('');
+    setSearchResetKey((key) => key + 1);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('search');
     nextParams.delete('page');
@@ -366,8 +358,9 @@ export const DashboardPage = () => {
       <DashboardProjectToolbar
         view={view}
         onViewChange={setView}
-        search={searchInput}
-        onSearchChange={setSearchInput}
+        search={activeSearch}
+        searchResetKey={searchResetKey}
+        onSearchChange={updateSearch}
         onClearSearch={clearSearch}
         sort={activeSortValue}
         onSortChange={(value) => updateSort(parseProjectSortValue(value))}

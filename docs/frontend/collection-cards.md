@@ -29,6 +29,10 @@ shows a focus indicator. Keep Enter/blur save, Escape cancel and IME composition
 handling intact. Desktop entry focuses/selects the name without scrolling;
 coarse-pointer layouts wait for the user to focus the field.
 
+`GalleryNameEditor` owns the unsaved input locally and passes the name up only
+when saving. Do not lift per-keystroke state back into ProjectPage: doing so
+re-renders the gallery grid and unrelated project sections for each character.
+
 ## Domain-specific extensions
 
 Project cards retain project-only behavior: preview rotation, active-viewer and
