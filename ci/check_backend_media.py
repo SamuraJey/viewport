@@ -33,7 +33,7 @@ assert required_decoders <= decoders, f"Missing input decoders: {required_decode
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
     image = pyvips.Image.black(1300, 98, bands=3).copy(interpretation="srgb")
-    # Photo color profiles must remain supported by the reduced libvips build.
+    # Photo color profiles must remain supported by the production libvips package.
     color_managed = image.icc_transform("srgb", input_profile="srgb")
     assert color_managed.get("icc-profile-data")
     image.ppmsave(str(root / "frame.ppm"))

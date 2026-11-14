@@ -105,3 +105,6 @@ frontend/coverage
 .uv-docker-cache
 .uv-docker-test-cache
 .ci-reports/
+
+# Never copy host dependencies over the container npm ci installation.
+**/node_modules
