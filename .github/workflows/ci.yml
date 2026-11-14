@@ -50,7 +50,7 @@ jobs:
   python-tests:
     name: Backend Images and Python Tests (coverage >= 75%)
     runs-on: ubuntu-latest
-    # One builder shares native stages between runtime and test targets.
+    # One builder shares dependency stages between runtime and test targets.
     timeout-minutes: 30
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
@@ -80,7 +80,7 @@ jobs:
           cache-map: |
             {".uv-docker-test-cache": "/root/.cache/uv"}
 
-      # Validate the production target first; the test build reuses its native stages.
+      # Validate the production target first; the test build reuses its dependency stages.
       - name: Build backend image
         uses: docker/build-push-action@v7.3.0
         with:

@@ -7,19 +7,14 @@ Python or media-library installation on the GitHub runner is needed.
 
 ## Image targets
 
-- `ffmpeg-build`: compiles Debian's patched FFmpeg source with shared libraries,
-  built-in file/container codecs, libx264 and libdav1d, without autodetected
-  GUI/GPU/device dependencies. Only the installed runtime tools, libraries and
-  licenses are copied into production.
-- `build`: production Python environment from the locked dependencies, compiled
-  with the existing libvips build toolchain. Dependency bytecode is omitted and
-  native Python libraries have debug symbols stripped; source and dynamic
-  symbols remain intact.
-- `vips-build`: compiles Debian's patched libvips source with JPEG, PNG, AVIF,
-  EXIF, Little CMS and Highway SIMD. Unused PDF/SVG/RAW/scientific loaders and
-  their transitive runtime dependencies are excluded.
-- `runtime-base`: production Python environment, source and native runtime
-  packages (ExifTool, libvips, FFmpeg and AVIF encoder). The native media smoke
+- `build`: production Python environment from locked dependencies, with Debian's
+  libvips development toolchain for pyvips API mode. Dependency bytecode is
+  omitted and native Python libraries have debug symbols stripped; source,
+  dynamic symbols and package data remain intact. Application source is not
+  copied into this stage, so code edits do not invalidate `test-deps`.
+- `runtime-base`: production Python environment, source and prebuilt Debian runtime
+  packages (ExifTool, libvips, FFmpeg and AVIF encoder). No FFmpeg/libvips source
+  compilation is performed. The native media smoke
   check (`ci/check_backend_media.py`) verifies JPEG orientation, ICC, PNG/AVIF,
   FFprobe, H.264/AAC transcoding, scale/format/FPS, remux and poster extraction
   for both production and test builds.
@@ -37,14 +32,13 @@ download caches are retained. Both builds read the shared `backend` layer cache
 (and the former `backend-image` / `backend-tests` scopes during migration); only
 the test build exports `mode=max` to `backend`, once per job. CI also runs on
 pushes to `main`, so new pull requests can read the default branch cache instead
-of recompiling native dependencies with an empty cache. GitHub limits cache
+of reinstalling dependencies with an empty cache. GitHub limits cache
 visibility by branch: caches written by one PR cannot seed another PR.
 
-FFmpeg source download uses apt cache mounts, but compilation runs in a separate
-step without those mounts. This releases the shared apt locks before the long
-compile, allowing other stages to install packages. The installed codecs and
-final image contents remain the same. Cold builds and base-image updates still
-require native compilation; cache reuse does not replace cold-build budgets.
+Apt and uv download caches are retained, but the main cold-build saving comes
+from using prebuilt Debian FFmpeg/libvips packages. GitHub's cache is independent
+of the release NAS Docker daemon cache. See [backend-image-size.md](backend-image-size.md)
+for the size tradeoff and measurement procedure.
 
 ## Testcontainers and runner isolation
 

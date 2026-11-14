@@ -51,7 +51,7 @@ unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0 FORGEJO_READ_TOKEN au
 # temporary Dockerfile without changing the release checkout or its lockfile.
 frontend_dockerfile=$(mktemp /tmp/viewport-frontend.XXXXXX)
 awk '
-  /^[[:space:]]*RUN[[:space:]]+npm[[:space:]]+ci([[:space:]]|$)/ && !configured {
+  /^[[:space:]]*RUN[[:space:]]+(--mount=[^[:space:]]+[[:space:]]+)*npm[[:space:]]+ci([[:space:]]|$)/ && !configured {
     print "ARG CI_NPM_REGISTRY"
     print "ENV npm_config_registry=$CI_NPM_REGISTRY"
     configured = 1

@@ -1,100 +1,102 @@
-# Backend image size
+# Backend image size and build speed
 
-The backend and Celery workers share one runtime image. It includes Python,
-production Python dependencies, ExifTool, libvips/AVIF and FFmpeg. The build
-toolchain and Python dev dependencies stay in separate stages.
+The backend and Celery workers share one runtime image. Production installs
+Debian's prebuilt `ffmpeg`, `libvips42t64`, `libheif-plugin-aomenc` and
+`libimage-exiftool-perl` packages with `--no-install-recommends`. FFmpeg and
+libvips are no longer compiled from source during application builds. This
+prioritizes simpler, lower-CPU cold builds on GitHub Actions and the release NAS.
 
-## Main source of excess size
+## Build layout
 
-The locally inspected `viewport-app:latest` image was 921 MB (Docker's
-uncompressed size). Its native package installation layer was 578 MB; the
-Python environment layer was 214 MB. Debian's general-purpose FFmpeg brought
-in graphics/device dependencies, including libllvm19 (124 MiB), Mesa Gallium
-(41 MiB), libz3 (27 MiB) and speech synthesis data (libflite, 27 MiB).
-
-`--no-install-recommends` cannot remove these hard dependencies. Apt download
-and index caches already use BuildKit cache mounts, so clearing them is not
-the main improvement. A registry push reports individual layer transfer sizes,
-which must not be compared directly with the uncompressed full image size.
-
-## FFmpeg build
-
-`ffmpeg-build` retrieves source through Debian's signed apt repositories,
-including distribution patches, rather than fetching an unverified third-party
-binary. It builds shared FFmpeg libraries and `ffmpeg`/`ffprobe` with:
-
-- all available built-in input codecs, demuxers, parsers and software filters;
-- libdav1d for AV1 input and libx264 for H.264 output;
-- native AAC encoding, PNG posters and zlib/bzip2/lzma support;
-- no autodetected external libraries, ffplay, device capture, network input,
-  debug symbols or development headers in the final image.
-
-Uploaded files are downloaded from S3 by Python before FFmpeg reads them, so
-FFmpeg does not need network protocols. HEVC, VP8/VP9, MPEG and other built-in
-decoders remain enabled. This is a CPU build; it does not provide hardware
-acceleration. ExifTool and the Debian AVIF encoder are retained.
-
-## libvips and Python environment
-
-`vips-build` also uses Debian's patched source. The application accepts JPEG
-and PNG uploads and creates AVIF derivatives, so the runtime retains JPEG,
-PNG/libspng, HEIF/AVIF, EXIF, Little CMS ICC handling and Highway SIMD. It omits
-PDF, SVG, RAW, TIFF and scientific-format integrations, font rendering, the C++
-wrapper, command-line tools and introspection/development files. Python still
-uses the compiled pyvips API binding, built against the same Debian libvips ABI.
-If upload formats are expanded, update the enabled libvips features and runtime
-libraries together.
+The Python dependency builder retains `build-essential`, `libvips-dev` and
+`pkg-config` for the compiled pyvips API binding. Build tools and development
+headers do not enter production. Builder and runtime use the same Python/Debian
+base so the binding uses the distribution's libvips ABI.
 
 Production Python dependencies are installed without eager bytecode compilation.
-Native Python shared libraries are stripped of debug symbols in the build stage,
-before copying them into runtime. This retains dynamic symbols and package data.
-The test dependencies extend that same stripped production environment. Omitting
-bytecode trades a little process startup time for size; native debugging no
-longer has those symbols. Babel localization and botocore service data remain
-intact, as do all declared Python dependencies.
+Any `.pyc` files are removed and native Python shared libraries are stripped of
+debug symbols before copying the environment into runtime. Dynamic symbols and
+package data, including Babel and botocore data, remain intact.
 
-Compilation uses four jobs by default; set `--build-arg FFMPEG_BUILD_JOBS=2`
-and `--build-arg VIPS_BUILD_JOBS=2` for a smaller builder. Cold builds take longer; the compiled stages are cached
-independently of application code and Python dependency changes. FFmpeg releases
-the apt cache mounts before compilation, so other build stages do not wait on
-its package-manager locks. CI builds runtime and test targets with one builder
-and seeds their shared cache from pushes to `main`; see [backend-ci.md](backend-ci.md). Rebuild with
-`--pull --no-cache` to pick up base image and Debian source/security updates.
+The `test-deps` stage extends the production dependency builder with dev
+packages. Application source is copied directly into runtime after dependencies,
+so editing source does not invalidate production or test dependency installation.
+The final/default `runtime` target remains production-only and non-root; `test`
+inherits the same native media environment.
 
-## Verification and size measurements
+## Cache and update behavior
 
-The runtime-base build runs `ci/check_backend_media.py` using a read-only
-BuildKit bind mount. The script exercises actual image orientation, PNG/AVIF,
-FFprobe, H.264/AAC, scale/pixel-format/FPS conversion, faststart remux and PNG
-poster extraction, plus ICC conversion. It does not need PostgreSQL, Redis or S3. The test target
-inherits the same compiled FFmpeg and native runtime libraries.
+Apt and uv downloads use BuildKit cache mounts. GitHub Actions imports/exports
+its shared `backend` layer cache; the release NAS reuses its Docker daemon's
+local cache. These are independent caches. See [backend-ci.md](backend-ci.md).
+Missing caches now cause package downloads and Python dependency installation,
+rather than FFmpeg/libvips source compilation.
 
-Local builds of the original and updated Dockerfiles with identical application
-code and Python dependencies measured 921,037,493 and 566,314,333 bytes
-respectively: a reduction of 354,723,160 bytes (38.5%). The updated native package
-layer is 199 MB, plus 24.9 MB for compiled FFmpeg. These are uncompressed Docker
-image/layer sizes, not registry transfer sizes, and will vary with updates.
-Real short fixtures in MP4, M4V, MOV, WebM, MKV, AVI, MPEG and 3GP using H.264,
-HEVC, VP8, VP9, AV1, MPEG-4, MPEG-2 and H.263 all passed H.264/AAC conversion
-and PNG poster extraction in the updated non-root production container.
+Routine builds should reuse cache. To refresh the base image and Debian security
+packages, deliberately rebuild with `--pull --no-cache`; this also reinstalls
+Python dependencies. Ordinary cache hits do not refresh apt packages.
 
-With the additional libvips/Python optimizations, the local runtime measured
-393,651,276 bytes: another 172,663,057 bytes below the FFmpeg-only build, and
-57.3% below the original 921 MB image. The Python dependency layer fell from
-214 MB to 134 MB, native apt packages from 199 MB to 103 MB, plus 3.58 MB for
-custom libvips. The stripped uvloop extension shrank from 15,438,104 to 1,826,032
-bytes and the production virtual environment contains no `.pyc` files. ICC
-conversion and all nine real video fixtures passed again.
-Targeted container tests for thumbnails, photo rotation, video processing, S3,
-admin views and auth rate-limit endpoints passed: 133 tests. A native uvloop
-event loop also ran successfully in the stripped production environment.
+## Size tradeoff and historical measurements
+
+Earlier local measurements (uncompressed Docker image sizes) were:
+
+| Configuration | Bytes |
+| --- | ---: |
+| Original Debian packages and Python environment | 921,037,493 |
+| Custom FFmpeg | 566,314,333 |
+| Custom FFmpeg/libvips and stripped Python environment | 393,651,276 |
+
+Debian's general-purpose FFmpeg pulls in graphics/device dependencies, including
+Mesa/LLVM. `--no-install-recommends` does not remove hard dependencies. Custom
+libvips also removed unused PDF/SVG/RAW/scientific integrations. Returning to
+prebuilt packages accepts those dependencies in exchange for avoiding expensive
+native builds. Python stripping and bytecode removal are retained; historically
+the Python layer fell from 214 MB to 134 MB.
+
+These are historical results, not measurements of the current Dockerfile.
+Registry transfer sizes are compressed and must not be compared directly with
+uncompressed Docker sizes.
+
+### Local verification after switching to packages
+
+On the verification machine (amd64, Python 3.14.10 / Debian trixie), the first
+runtime build took approximately 195 seconds including package installation and
+image export. The unchanged warm build took 2.1 seconds. A source-only change in
+a temporary copy rebuilt the test image in 20 seconds; both production and dev
+`uv sync` layers remained cached. These timings are local observations, not a
+GitHub/NAS guarantee or a controlled comparison with the former Dockerfile.
+
+The runtime's history layer sizes sum to approximately 875 MB (including a
+587 MB apt layer and a 154 MB Python environment). On this Docker installation,
+`docker image inspect --format '{{.Size}}'` reported 1,182,272,045 bytes; retain
+the measurement method when comparing results. The frontend image initially reported
+98,438,693 bytes; switching to nginx 1.31.8 alpine-slim subsequently reduced it
+to 25,361,038 bytes (see [release-builds.md](deployment/release-builds.md)). The current backend is larger than the historical compact
+image; using ready-made distribution packages deliberately accepts that cost.
+
+The native media smoke check and frontend Docker build passed. The full backend
+suite in the test container passed 1,007 tests with 88.82% branch-aware coverage
+(75% gate); three tests already explicitly marked skipped in the repository
+remained skipped. There were no Docker-availability skips.
+
+## Verification
+
+`ci/check_backend_media.py` runs during the runtime-base build and verifies
+pyvips API mode, JPEG orientation, publication JPEG/ICC/alpha, PNG/AVIF,
+FFprobe, video input decoders, H.264/AAC conversion, scale/pixel-format/FPS,
+faststart remux and PNG posters. Both runtime and test inherit this check.
+Do not remove libraries or package data manually to reduce size.
 
 ```sh
-docker build --target runtime -f Dockerfile.backend -t viewport/backend:slim-check .
-docker image inspect viewport/backend:slim-check --format '{{.Size}}'
-docker history viewport/backend:slim-check --format '{{.Size}} {{.CreatedBy}}'
-docker build --target test -f Dockerfile.backend -t viewport/backend-test:slim-check .
+docker build --target runtime -f Dockerfile.backend -t viewport/backend:package-check .
+docker image inspect viewport/backend:package-check --format '{{.Size}}'
+docker history viewport/backend:package-check --format '{{.Size}} {{.CreatedBy}}'
+docker build --target test -f Dockerfile.backend -t viewport/backend-test:package-check .
 ```
 
-Do not remove random shared libraries or Python package data to save space:
-that can silently break media formats, botocore service definitions or the admin UI.
+For performance comparison, use the same builder and record cold, warm and
+source-only-change builds separately. Record image size and separate build time
+from pull/push and cache export time. Cold builds must contain no FFmpeg/libvips
+compilation; source-only changes should reuse dependency installation layers.
+Run the existing thumbnail, rotation, publication and video tests in the test
+container, followed by the normal backend coverage job.

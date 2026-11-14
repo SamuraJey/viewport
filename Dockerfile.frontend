@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 ARG NODE_VERSION=24
 ARG VITE_API_URL
 
@@ -5,7 +7,7 @@ FROM node:${NODE_VERSION}-alpine AS build
 WORKDIR /app
 
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --include=dev --no-audit --no-fund --loglevel=http \
+RUN --mount=type=cache,target=/root/.npm npm ci --include=dev --no-audit --no-fund --loglevel=http \
     || { cat /root/.npm/_logs/*debug*.log; exit 1; }
 # Re-declare ARG for stage scope; expose as ENV so Vite picks it up at build time
 ARG VITE_API_URL
@@ -15,7 +17,7 @@ ENV VITE_API_URL=$VITE_API_URL
 COPY frontend/ .
 RUN npm run build
 
-FROM nginx@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913 AS runtime
+FROM nginx:1.31.8-alpine-slim@sha256:4c734d33ee731135dc9f2349914a34551c920f4451fca8bb05bf5880eb9079e8 AS runtime
 ENV NODE_ENV=production
 
 # Configure nginx for SPA

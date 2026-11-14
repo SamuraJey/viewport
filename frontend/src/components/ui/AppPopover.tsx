@@ -1,4 +1,10 @@
-import type { ComponentProps, MutableRefObject, RefObject, ReactNode } from 'react';
+import {
+  useState,
+  type ComponentProps,
+  type MutableRefObject,
+  type RefObject,
+  type ReactNode,
+} from 'react';
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '../../lib/utils';
@@ -36,6 +42,40 @@ interface AppPopoverProps {
   anchor?: PopoverAnchor;
 }
 
+const AnimatedPopoverPanel = ({
+  anchor,
+  panelFocus,
+  panelClassName,
+  panel,
+}: Pick<AppPopoverProps, 'anchor' | 'panelFocus' | 'panelClassName' | 'panel'>) => {
+  const [entered, setEntered] = useState(false);
+
+  return (
+    <PopoverPanel
+      static
+      as={motion.div}
+      anchor={anchor}
+      // Anchored panels mount in a portal before their coordinates are resolved.
+      // Wait for the enter animation before focusing an action so the browser
+      // cannot scroll to the portal's initial origin.
+      focus={panelFocus && entered}
+      className={cn(
+        'z-50 max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain origin-top-right [--anchor-padding:12px]',
+        panelClassName,
+      )}
+      variants={panelVariants}
+      initial="closed"
+      animate="open"
+      exit="closed"
+      onAnimationComplete={(definition) => {
+        if (definition === 'open') setEntered(true);
+      }}
+    >
+      {({ close }) => <>{typeof panel === 'function' ? panel(close) : panel}</>}
+    </PopoverPanel>
+  );
+};
+
 export const AppPopover = ({
   className,
   buttonClassName,
@@ -67,22 +107,12 @@ export const AppPopover = ({
 
         <AnimatePresence>
           {open ? (
-            <PopoverPanel
-              static
-              as={motion.div}
+            <AnimatedPopoverPanel
               anchor={anchor}
-              focus={panelFocus}
-              className={cn(
-                'z-50 max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain origin-top-right [--anchor-padding:12px]',
-                panelClassName,
-              )}
-              variants={panelVariants}
-              initial="closed"
-              animate="open"
-              exit="closed"
-            >
-              {({ close }) => <>{typeof panel === 'function' ? panel(close) : panel}</>}
-            </PopoverPanel>
+              panelFocus={panelFocus}
+              panelClassName={panelClassName}
+              panel={panel}
+            />
           ) : null}
         </AnimatePresence>
       </>
