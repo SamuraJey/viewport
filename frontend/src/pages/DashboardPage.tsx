@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { DashboardEmptyState } from '../components/dashboard/DashboardEmptyState';
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
 import { RenameProjectModal } from '../components/dashboard/RenameProjectModal';
+import { ProjectList, ProjectListSkeleton } from '../components/dashboard/ProjectList';
 import { SortableProjectGrid } from '../components/dashboard/SortableProjectGrid';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { PaginationControls } from '../components/PaginationControls';
@@ -100,6 +101,15 @@ export const DashboardPage = () => {
   const fetchRequestIdRef = useRef(0);
   const isReorderingRef = useRef(false);
   const fetchProjectsRef = useRef<(showLoading?: boolean) => Promise<void>>(async () => undefined);
+
+  const view = searchParams.get('view') === 'list' ? 'list' : 'grid';
+  const ProjectCollection = view === 'list' ? ProjectList : SortableProjectGrid;
+  const setView = (nextView: 'grid' | 'list') => {
+    const params = new URLSearchParams(searchParams);
+    if (nextView === 'list') params.set('view', 'list');
+    else params.delete('view');
+    setSearchParams(params);
+  };
 
   const activeSearch = useMemo(() => searchParams.get('search')?.trim() ?? '', [searchParams]);
   const sortByParam = searchParams.get('sort_by');
@@ -328,9 +338,19 @@ export const DashboardPage = () => {
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-7">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2">
         <div className="contents">
-          <h1 className="text-3xl font-bold tracking-[-0.04em] text-text sm:text-4xl">Projects</h1>
+          <div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-muted">
+              Your studio, in focus
+            </p>
+            <h1 className="text-4xl font-bold tracking-[-0.045em] text-text sm:text-5xl">
+              Projects
+              <span className="text-accent" aria-hidden="true">
+                .
+              </span>
+            </h1>
+          </div>
           <p className="col-span-2 row-start-2 max-w-xl text-sm leading-6 text-muted sm:text-base">
-            Your work, ready for its next audience.
+            Every shoot. Every gallery. One considered delivery.
           </p>
         </div>
         <button
@@ -344,6 +364,8 @@ export const DashboardPage = () => {
       </header>
 
       <DashboardProjectToolbar
+        view={view}
+        onViewChange={setView}
         search={searchInput}
         onSearchChange={setSearchInput}
         onClearSearch={clearSearch}
@@ -367,7 +389,7 @@ export const DashboardPage = () => {
         />
       ) : null}
 
-      {hasLoaded && projects.length > 1 ? (
+      {hasLoaded && projects.length > 1 && view === 'grid' ? (
         <div className="-mt-4 flex flex-wrap items-center justify-end gap-3 text-xs text-muted">
           {canReorder ? (
             <p className="inline-flex items-center gap-2">
@@ -390,7 +412,11 @@ export const DashboardPage = () => {
 
       <section aria-label="Projects grid" aria-busy={isLoading || isReordering}>
         {!hasLoaded && isLoading ? (
-          renderLoading()
+          view === 'list' ? (
+            <ProjectListSkeleton />
+          ) : (
+            renderLoading()
+          )
         ) : !hasLoaded ? null : projects.length === 0 ? (
           <DashboardEmptyState
             hasSearch={Boolean(loadedView?.search)}
@@ -400,7 +426,7 @@ export const DashboardPage = () => {
           />
         ) : (
           <>
-            <SortableProjectGrid
+            <ProjectCollection
               projects={projects}
               disabled={!canReorder || isReordering || isLoading || !hasCurrentResults}
               onReorder={(reordered) => void handleReorder(reordered)}

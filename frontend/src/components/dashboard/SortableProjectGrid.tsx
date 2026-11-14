@@ -25,7 +25,7 @@ import { ProjectCard } from './ProjectCard';
 import { ProjectCardHeader } from './ProjectCardHeader';
 import { ProjectCardMetrics } from './ProjectCardMetrics';
 
-interface ProjectActions {
+export interface ProjectActions {
   onCopyLink: (project: Project) => void;
   onOpenProject: (project: Project) => void;
   onOpenShare: (project: Project) => void;

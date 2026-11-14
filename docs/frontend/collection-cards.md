@@ -21,6 +21,14 @@ primitives keep both collection levels consistent:
 The shared shell remains responsible for presentation. It does not own routing,
 menus, mutations, or domain-specific state.
 
+Inline gallery rename keeps the normal title/metadata slot mounted but invisible
+and inaccessible, with a fixed two-line editor over that slot. Long input scrolls
+inside the editor instead of changing card/grid height. `CollectionCard.isEditing`
+disables layout animation, hover lift and the outer focus ring; only the editor
+shows a focus indicator. Keep Enter/blur save, Escape cancel and IME composition
+handling intact. Desktop entry focuses/selects the name without scrolling;
+coarse-pointer layouts wait for the user to focus the field.
+
 ## Domain-specific extensions
 
 Project cards retain project-only behavior: preview rotation, active-viewer and

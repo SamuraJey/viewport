@@ -1,0 +1,76 @@
+# Studio workspace
+
+## Navigation
+
+The owner shell has a persistent 240px sidebar on desktop (`lg`, 1024px and up).
+It starts below the 64px sticky header, so gallery toolbars retain their existing
+header offsets. The sidebar highlights Projects for all project/gallery routes
+and Share links for analytics routes. Storage uses the authenticated account's
+usage/quota snapshot and opens account settings. The visual fill is clamped to
+0–100%; an unknown or zero quota hides the storage card.
+
+Tablets retain header navigation. Phones retain the two-item safe-area-aware
+dock. The sidebar does not take space on either smaller layout.
+
+The sidebar scrolls independently on short desktop windows. Text accents use
+`text-accent-text`, a semantic primary-700 token that follows both theme palettes
+and the readability contrast overrides. Filled actions keep the existing accent
+background/foreground pair.
+
+## Project overview
+
+`ProjectOverview` replaces the previous metadata/action/metric-card cluster with
+a photo-led cover using the project's existing thumbnail URL and focal point.
+A failed or absent cover uses a themed illustration; private projects never
+receive stock imagery. Titles wrap naturally, including unbroken names.
+
+**Add gallery** and **Share project** remain visible primary actions. The
+**Project options** popover contains Rename project, Upload folder (when
+supported and applicable), Prepare publication files, and Delete project.
+Existing publication/deletion/proofing confirmations are unchanged.
+
+**Edit presentation** selects the existing Appearance tab, scrolls to its section,
+and focuses the selected tab. Reduced motion uses an immediate scroll.
+
+The footer counts only active, unexpired project share links and offers
+**Open client view** for the first eligible link. Expiry is reevaluated every
+30 seconds. Opening client view uses the normal public password/access gate;
+it does not bypass permissions or create a share link.
+
+## Project library views
+
+`/dashboard?view=list` shows a compact responsive table; the default is the photo
+grid. Switching views preserves the current search, sort and page, does not
+request new data, and participates in browser history. Copying, renaming,
+settings, sharing and deletion use the same handlers in both views.
+
+At phone widths, table rows show a cover, name, gallery/photo counts and actions.
+Additional date, storage and link columns appear as space permits. Drag reorder
+and its instructions appear only in grid view. List mode preserves the server
+order and can return to the grid to reorder. Initial skeletons match each view;
+revalidation keeps the selected presentation mounted.
+
+## Reliable demo photography
+
+Demo images are bundled under `frontend/public/demo/` and use Vite's base path.
+Existing persisted demo records that reference `https://picsum.photos/` migrate
+to local images without resetting projects, share links or selections. Other
+URLs are preserved. Original videos still use the existing sample video source.
+
+Image sources, downloaded at 1600px with JPEG quality 82:
+
+- `wedding.jpg`: [Unsplash image](https://images.unsplash.com/photo-1519741497674-611481863552?w=1600&q=82&auto=format&fit=crop)
+- `celebration.jpg`: [Unsplash image](https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=1600&q=82&auto=format&fit=crop)
+- `landscape.jpg`: [Unsplash image](https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1600&q=82&auto=format&fit=crop)
+
+Refer to the [Unsplash license](https://unsplash.com/license) when reusing these
+assets outside the sample gallery. These photos illustrate demo content, not
+customer work.
+
+## Verification
+
+Regression coverage includes project menu actions and confirmations, folder
+intake, appearance scroll/focus, active/expired client preview, view switching
+without refetch or filter loss, nested sidebar navigation, storage settings and
+demo cover updates. Orca visual checks cover desktop and phone layouts in both
+themes.

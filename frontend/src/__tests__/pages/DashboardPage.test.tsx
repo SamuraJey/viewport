@@ -204,6 +204,24 @@ describe('DashboardPage', () => {
     });
   });
 
+  it('switches between grid and list without losing filters, pagination or refetching', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    render(<DashboardPageWrapper initialPath="/dashboard?search=client&sort_by=name&order=asc&page=3" />);
+    await screen.findByText('Wedding Weekend');
+    await user.click(screen.getByRole('button', { name: 'List view' }));
+    expect(screen.getByRole('table', { name: 'Project library' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('location')).toHaveTextContent('/dashboard?search=client&sort_by=name&order=asc&page=3&view=list');
+    expect(screen.getByRole('link', { name: /Wedding Weekend/ })).toHaveAttribute('href', '/projects/project-1');
+    expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Grid view' }));
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByRole('article', { name: /Wedding Weekend.*20 photos/i })).toBeInTheDocument();
+    expect(screen.getByTestId('location')).not.toHaveTextContent('view=list');
+    expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+  });
+
   it('exposes project loading as a polite live status', async () => {
     const { projectService } = await import('../../services/projectService');
     vi.mocked(projectService.getProjects).mockReturnValue(new Promise(() => undefined));

@@ -15,6 +15,7 @@ interface CollectionCardProps extends Pick<
   cover: ReactNode;
   footer?: ReactNode;
   interactiveOverlay?: ReactNode;
+  isEditing?: boolean;
   variants?: Variants;
 }
 
@@ -127,16 +128,20 @@ export const CollectionCard = ({
   cover,
   footer,
   interactiveOverlay,
+  isEditing = false,
   variants,
   ...interactionProps
 }: CollectionCardProps) => {
   return (
     <motion.article
-      layout
+      layout={!isEditing}
       aria-label={ariaLabel}
       variants={variants}
       exit="exit"
-      className={DEFAULT_SHELL_CLASSNAME}
+      className={cn(
+        DEFAULT_SHELL_CLASSNAME,
+        isEditing && 'hover:translate-y-0 hover:shadow-sm focus-within:ring-0',
+      )}
       {...interactionProps}
     >
       {interactiveOverlay}

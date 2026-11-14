@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ShareLink } from '../../types';
 import { ApiError } from '../../lib/errorHandling';
 
 vi.mock('../../components/ui/AppPopover', () => {
@@ -19,7 +20,7 @@ vi.mock('../../components/ui/AppPopover', () => {
       buttonClassName?: string;
       buttonContent: ReactNode;
       panelClassName?: string;
-      panel: ReactNode;
+      panel: ReactNode | ((close: () => void) => ReactNode);
     }) => {
       const [open, setOpen] = useState(false);
 
@@ -33,7 +34,7 @@ vi.mock('../../components/ui/AppPopover', () => {
           >
             {buttonContent}
           </button>
-          {open ? <div className={panelClassName}>{panel}</div> : null}
+          {open ? <div className={panelClassName}>{typeof panel === 'function' ? panel(() => setOpen(false)) : panel}</div> : null}
         </div>
       );
     },
@@ -132,7 +133,7 @@ const projectSelectionSummary = {
   latest_activity_at: '2026-04-18T00:00:00Z',
 };
 
-const projectProofingShareLink = (overrides: Record<string, unknown> = {}) => ({
+const projectProofingShareLink = (overrides: Partial<ShareLink> = {}): ShareLink => ({
   id: 'link-1',
   scope_type: 'project',
   project_id: 'project-1',
@@ -261,11 +262,33 @@ describe('ProjectPage', () => {
 
     const headings = await screen.findAllByRole('heading', { level: 1, name: 'Wedding Weekend' });
     expect(headings.length).toBeGreaterThan(0);
-    expect(headings[0]).toHaveClass('wrap-break-word');
+    expect(headings[0]).toHaveClass('wrap-anywhere');
     expect(await screen.findByRole('heading', { name: /share links/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create new share link/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /all links/i })).toBeInTheDocument();
     expect(screen.getByText('Client proofing')).toBeInTheDocument();
+  });
+
+  it('opens presentation settings from the cover and moves keyboard focus to the selected tab', async () => {
+    const user = userEvent.setup();
+    renderProjectPage();
+    await user.click(await screen.findByRole('button', { name: 'Edit presentation' }));
+    const tab = screen.getByRole('tab', { name: 'Appearance' });
+    await waitFor(() => expect(tab).toHaveFocus());
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('project-appearance')).toBeInTheDocument();
+  });
+
+  it('only offers client preview for active, unexpired project links', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([
+      projectProofingShareLink({ id: 'inactive', is_active: false }),
+      projectProofingShareLink({ id: 'expired', expires_at: '2000-01-01T00:00:00Z' }),
+      projectProofingShareLink({ id: 'current', is_active: true, expires_at: null }),
+    ]);
+    renderProjectPage();
+    expect(await screen.findByRole('link', { name: /open client view/i })).toHaveAttribute('href', '/share/current');
+    expect(screen.getByText('1 active project link')).toBeInTheDocument();
   });
 
   it('uploads a folder into a new gallery when the project already has galleries', async () => {
@@ -298,6 +321,7 @@ describe('ProjectPage', () => {
       );
       render(<RouterProvider router={router} />);
 
+      await user.click(await screen.findByRole('button', { name: 'Project options' }));
       const uploadButton = await screen.findByRole('button', { name: 'Upload folder' });
       const input = screen.getByLabelText('Choose a folder to upload into a new gallery');
       const clickSpy = vi.spyOn(input, 'click');
@@ -398,6 +422,7 @@ describe('ProjectPage', () => {
 
     renderProjectPage();
     await screen.findByRole('heading', { name: 'Wedding Weekend' });
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
 
     const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
@@ -426,6 +451,7 @@ describe('ProjectPage', () => {
 
     renderProjectPage();
     await screen.findByRole('heading', { name: 'Wedding Weekend' });
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
 
     const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
@@ -460,6 +486,7 @@ describe('ProjectPage', () => {
 
     renderProjectPage();
     await screen.findByRole('heading', { name: 'Wedding Weekend' });
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
     const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
     await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
@@ -481,6 +508,7 @@ describe('ProjectPage', () => {
 
     renderProjectPage();
     await screen.findByRole('heading', { name: 'Wedding Weekend' });
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
     const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
     await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
@@ -488,6 +516,7 @@ describe('ProjectPage', () => {
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(toast.info).not.toHaveBeenCalled();
     expect(toast.success).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     expect(screen.getByRole('button', { name: /prepare publication files/i })).toBeEnabled();
   });
 
@@ -517,6 +546,7 @@ describe('ProjectPage', () => {
     });
     expect(pageHeadings.length).toBeGreaterThan(0);
     expect(pageHeadings[0]).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /rename project/i }));
 
     const nameInput = screen.getByLabelText(/project name/i);
@@ -896,6 +926,7 @@ describe('ProjectPage', () => {
       await screen.findByText(/active\/submitted selection sessions across 1 project link/i),
     ).toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /delete project/i }));
 
     expect(await screen.findByText('Delete project?')).toBeInTheDocument();
@@ -963,6 +994,7 @@ describe('ProjectPage', () => {
     renderProjectPage();
 
     await screen.findByRole('heading', { name: 'Photos' });
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /delete project/i }));
 
     expect(

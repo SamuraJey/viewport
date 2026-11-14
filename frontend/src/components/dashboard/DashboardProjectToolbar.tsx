@@ -1,4 +1,4 @@
-import { ArrowUpDown, LoaderCircle, Search, X } from 'lucide-react';
+import { ArrowUpDown, LayoutGrid, List, LoaderCircle, Search, X } from 'lucide-react';
 import { useRef } from 'react';
 import { AppListbox } from '../ui/AppListbox';
 
@@ -11,6 +11,8 @@ interface DashboardProjectToolbarProps {
   options: Array<{ value: string; label: string }>;
   isUpdating: boolean;
   resultLabel: string;
+  view: 'grid' | 'list';
+  onViewChange: (view: 'grid' | 'list') => void;
 }
 
 export const DashboardProjectToolbar = ({
@@ -22,6 +24,8 @@ export const DashboardProjectToolbar = ({
   options,
   isUpdating,
   resultLabel,
+  view,
+  onViewChange,
 }: DashboardProjectToolbarProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const clearSearch = () => {
@@ -31,11 +35,11 @@ export const DashboardProjectToolbar = ({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 rounded-2xl border border-border/50 bg-surface-1/60 p-2 sm:flex-row sm:items-center dark:bg-surface-dark-1/60">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-2xl border border-border/50 bg-surface-1/60 p-2 sm:flex sm:items-center dark:bg-surface-dark-1/60">
         <div
           role="search"
           aria-label="Project search"
-          className="flex h-11 min-h-11 min-w-0 shrink-0 items-center sm:flex-1 rounded-xl border border-border/50 bg-surface pl-3 focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/25 dark:bg-surface-dark"
+          className="col-span-2 flex h-11 min-h-11 min-w-0 shrink-0 items-center sm:flex-1 rounded-xl border border-border/50 bg-surface pl-3 focus-within:border-accent focus-within:ring-[3px] focus-within:ring-accent/25 dark:bg-surface-dark"
         >
           <Search className="mr-2.5 h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
           <label htmlFor="dashboard-project-search" className="sr-only">
@@ -73,11 +77,35 @@ export const DashboardProjectToolbar = ({
           value={sort}
           onChange={onSortChange}
           options={options}
-          className="min-w-0 sm:w-64 sm:shrink-0"
+          className="min-w-0 sm:w-56 sm:shrink-0"
           aria-label="Sort projects"
           startContent={<ArrowUpDown className="h-4 w-4 text-muted" aria-hidden="true" />}
           buttonClassName="h-11 border border-border/50 bg-surface px-3 text-sm font-semibold text-text transition-colors hover:border-accent/50 dark:bg-surface-dark"
         />
+        <div
+          role="group"
+          aria-label="Project view"
+          className="flex shrink-0 gap-1 self-auto rounded-xl border border-border/50 bg-surface p-1 sm:self-auto dark:bg-surface-dark"
+        >
+          {(
+            [
+              { key: 'grid', label: 'Grid view', icon: LayoutGrid },
+              { key: 'list', label: 'List view', icon: List },
+            ] as const
+          ).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              aria-label={label}
+              title={label}
+              aria-pressed={view === key}
+              onClick={() => onViewChange(key)}
+              className={`flex h-9 w-10 items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent ${view === key ? 'bg-accent/10 text-accent-text' : 'text-muted hover:bg-surface-2 hover:text-text dark:hover:bg-surface-dark-2'}`}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ))}
+        </div>
       </div>
       <p
         role="status"

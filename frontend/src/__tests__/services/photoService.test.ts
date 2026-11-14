@@ -1172,7 +1172,9 @@ describe('photoService', () => {
 
     expect(submitSpy).not.toHaveBeenCalled();
     expect(clickSpy).toHaveBeenCalledTimes(1);
-    expect(clickedHref).toBe(targetPhoto.url);
+    const expectedLink = document.createElement('a');
+    expectedLink.href = targetPhoto.url;
+    expect(clickedHref).toBe(expectedLink.href);
     expect(clickedDownload).toBe(targetPhoto.filename);
     expect(api.get).not.toHaveBeenCalled();
     expect(api.post).not.toHaveBeenCalled();

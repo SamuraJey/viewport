@@ -388,7 +388,7 @@ describe('demoService', () => {
     );
 
     expect(project?.cover_photo_thumbnail_url).toBe(
-      'https://picsum.photos/seed/demo-project-porto-photos-1/700/500',
+      '/demo/celebration.jpg',
     );
   });
 

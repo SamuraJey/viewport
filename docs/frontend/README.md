@@ -21,6 +21,10 @@ Shared project and gallery card structure, extension points, interaction rules, 
 
 Project search, loading feedback, responsive controls, typography and elevation.
 
+### [Studio Workspace](./studio-workspace.md)
+
+Desktop sidebar, project photo overview, compact archive view and bundled demo imagery.
+
 ### 🔄 [State Management](./state-management.md)
 Zustand store setup, state patterns, and data flow.
 

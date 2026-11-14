@@ -117,4 +117,40 @@ describe('EnhancedGalleryCard', () => {
 
     expect(onConfirmRename).toHaveBeenCalledOnce();
   });
+
+  it('keeps hidden navigation out of the editor and cancels with Escape', () => {
+    const onCancelRename = vi.fn();
+    const onConfirmRename = vi.fn();
+    render(
+      <MemoryRouter>
+        <EnhancedGalleryCard
+          {...baseProps}
+          isRenamingThis
+          onCancelRename={onCancelRename}
+          onConfirmRename={onConfirmRename}
+        />
+      </MemoryRouter>,
+    );
+    const input = screen.getByRole('textbox', { name: 'Rename gallery input' });
+    expect(input).toHaveFocus();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rename Ceremony' })).not.toBeInTheDocument();
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(onCancelRename).toHaveBeenCalledOnce();
+    expect(onConfirmRename).not.toHaveBeenCalled();
+  });
+
+  it('does not save while confirming an IME composition', () => {
+    const onConfirmRename = vi.fn();
+    render(
+      <MemoryRouter>
+        <EnhancedGalleryCard {...baseProps} isRenamingThis onConfirmRename={onConfirmRename} />
+      </MemoryRouter>,
+    );
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Rename gallery input' }), {
+      key: 'Enter',
+      isComposing: true,
+    });
+    expect(onConfirmRename).not.toHaveBeenCalled();
+  });
 });

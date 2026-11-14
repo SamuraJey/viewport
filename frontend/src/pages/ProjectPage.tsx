@@ -1,28 +1,7 @@
-import {
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
-import {
-  ArrowLeft,
-  CalendarDays,
-  FolderPlus,
-  FolderUp,
-  HardDrive,
-  ImageDown,
-  ImageIcon,
-  Link2,
-  ListChecks,
-  LoaderCircle,
-  PencilLine,
-  Share2,
-} from 'lucide-react';
-import { MetricCard } from '../components/dashboard/MetricCard';
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
+import { CalendarDays, FolderPlus, ListChecks, LoaderCircle, PencilLine } from 'lucide-react';
+import { ProjectOverview } from '../components/project-page/ProjectOverview';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui/AppDialog';
 import { AppTabs } from '../components/ui/AppTabs';
@@ -32,7 +11,6 @@ import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorM
 import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { handleApiError } from '../lib/errorHandling';
-import { formatDateOnly, formatFileSize } from '../lib/utils';
 import { galleryService } from '../services/galleryService';
 import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';
@@ -81,6 +59,7 @@ export const ProjectPage = () => {
   const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const [isRenamingGallery, setIsRenamingGallery] = useState(false);
+  const projectContentRef = useRef<HTMLElement>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const [folderPickerSupported] = useState(() => {
@@ -91,9 +70,7 @@ export const ProjectPage = () => {
   const [isUploadingFolder, setUploadingFolder] = useState(false);
   const [isPreparingPublication, setIsPreparingPublication] = useState(false);
   const projectNameInputRef = useRef<HTMLInputElement | null>(null);
-  const projectTitleRef = useRef<HTMLHeadingElement | null>(null);
   const renameInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [projectTitleFontSizePx, setProjectTitleFontSizePx] = useState(40);
   const [projectPhotos, setProjectPhotos] = useState<GalleryPhoto[]>([]);
   const [isLoadingProjectPhotos, setIsLoadingProjectPhotos] = useState(false);
   const activeProjectIdRef = useRef(projectId);
@@ -202,54 +179,6 @@ export const ProjectPage = () => {
   }, [loadProject]);
 
   useDocumentTitle(project?.name ? `${project.name} · Project · Viewport` : 'Project · Viewport');
-
-  useLayoutEffect(() => {
-    const heading = projectTitleRef.current;
-    if (!heading || !project?.name) {
-      return;
-    }
-
-    const minSize = 20;
-    const maxLines = 2;
-
-    const recalc = () => {
-      let nextSize = window.innerWidth >= 640 ? 40 : 32;
-      heading.style.fontSize = `${nextSize}px`;
-
-      while (nextSize > minSize) {
-        const computed = window.getComputedStyle(heading);
-        const lineHeight = parseFloat(computed.lineHeight);
-        const lines = lineHeight > 0 ? Math.round(heading.scrollHeight / lineHeight) : 1;
-        if (lines <= maxLines) {
-          break;
-        }
-        nextSize -= 1;
-        heading.style.fontSize = `${nextSize}px`;
-      }
-
-      setProjectTitleFontSizePx(nextSize);
-    };
-
-    recalc();
-
-    const resizeObserver =
-      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(recalc) : null;
-    resizeObserver?.observe(heading);
-    window.addEventListener('resize', recalc);
-
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener('resize', recalc);
-    };
-  }, [project?.name]);
-
-  const visibleGalleryCount = useMemo(
-    () =>
-      project?.galleries.filter((folder) => (folder.project_visibility ?? 'listed') === 'listed')
-        .length ?? 0,
-    [project?.galleries],
-  );
-  const directOnlyGalleryCount = (project?.gallery_count ?? 0) - visibleGalleryCount;
 
   const buildSelectionWarningSummary = useCallback((links: ShareLink[]) => {
     const affectedLinks = links.filter((link) => {
@@ -805,11 +734,7 @@ export const ProjectPage = () => {
   }
 
   const contentTabClassName = ({ selected }: { selected: boolean }): string =>
-    `inline-flex h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
-      selected
-        ? 'border-accent/60 bg-accent/12 text-accent shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_12px_24px_-18px_rgba(56,189,248,0.9)]'
-        : 'border-border/70 bg-surface/70 text-text hover:border-accent/35 hover:text-text'
-    }`;
+    `inline-flex min-h-12 shrink-0 items-center justify-center whitespace-nowrap border-b-2 px-1 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent ${selected ? 'border-accent text-accent-text' : 'border-transparent text-muted hover:border-border hover:text-text'}`;
 
   const galleriesPanel = (
     <ProjectGalleriesPanel
@@ -893,138 +818,37 @@ export const ProjectPage = () => {
           className="hidden"
         />
       )}
-      <section className="relative overflow-hidden rounded-4xl border border-border/50 bg-surface p-5 shadow-xs dark:border-border/30 dark:bg-surface-dark">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(31,144,255,0.12),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(34,197,94,0.08),transparent_28%)]" />
-        <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 max-w-5xl space-y-2">
-            <Link
-              to="/dashboard"
-              className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-surface/80 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-muted transition-colors hover:border-accent/40 hover:text-accent dark:border-white/10 dark:bg-surface-dark/70"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to dashboard
-            </Link>
-            <div>
-              <h1
-                ref={projectTitleRef}
-                style={{ fontSize: `${projectTitleFontSizePx}px` }}
-                className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-none tracking-wide text-text dark:text-accent-foreground"
-              >
-                {project.name}
-              </h1>
-              <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
-                <span>{formatDateOnly(project.shooting_date)}</span>
-                <span aria-hidden="true">·</span>
-                <span>{project.gallery_count} galleries</span>
-                <span aria-hidden="true">·</span>
-                <span>{visibleGalleryCount} visible</span>
-                <span aria-hidden="true">·</span>
-                <span>{project.total_photo_count} photos</span>
-                <span aria-hidden="true">·</span>
-                <span>{formatFileSize(project.total_size_bytes)}</span>
-                <span aria-hidden="true">·</span>
-                <span>
-                  {shareLinks.length} project share link{shareLinks.length === 1 ? '' : 's'}
-                </span>
-                {directOnlyGalleryCount > 0 ? (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span>{directOnlyGalleryCount} direct-only</span>
-                  </>
-                ) : null}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            <button
-              type="button"
-              onClick={openProjectRenameDialog}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
-            >
-              <PencilLine className="h-4 w-4" />
-              Rename project
-            </button>
-            <button
-              type="button"
-              onClick={openGalleryDialog}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
-            >
-              <FolderPlus className="h-4 w-4" />
-              Add gallery
-            </button>
-            {folderPickerSupported && project.galleries.length > 0 && (
-              <button
-                type="button"
-                onClick={() => folderInputRef.current?.click()}
-                disabled={isUploadingFolder}
-                className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-              >
-                {isUploadingFolder ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <FolderUp className="h-4 w-4" />
-                )}
-                {isUploadingFolder ? 'Creating gallery…' : 'Upload folder'}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void handleRequestProjectPublication()}
-              disabled={isPreparingPublication || project.total_photo_count === 0}
-              className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-            >
-              {isPreparingPublication ? (
-                <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-              ) : (
-                <ImageDown className="h-4 w-4" />
-              )}
-              {isPreparingPublication ? 'Preparing…' : 'Prepare publication files'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsShareLinkCreateOpen(true)}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
-            >
-              <Share2 className="h-4 w-4" />
-              Share project
-            </button>
-            <button
-              type="button"
-              onClick={requestDeleteProject}
-              className="cursor-pointer rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2 text-sm font-semibold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/15 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-danger"
-            >
-              Delete project
-            </button>
-          </div>
-        </div>
-
-        <div className="relative mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            icon={FolderPlus}
-            label="Galleries"
-            value={project.gallery_count}
-            helper={`${visibleGalleryCount} listed · ${directOnlyGalleryCount} direct-only`}
-          />
-          <MetricCard
-            icon={ImageIcon}
-            label="Photos"
-            value={project.total_photo_count}
-            helper="Across every gallery in this project"
-          />
-          <MetricCard
-            icon={HardDrive}
-            label="Storage"
-            value={formatFileSize(project.total_size_bytes)}
-            helper="Originals and generated thumbnails"
-          />
-          <MetricCard
-            icon={Link2}
-            label="Project links"
-            value={shareLinks.length}
-            helper="Project-scoped client delivery links"
-          />
-        </div>
+      <ProjectOverview
+        project={project}
+        shareLinks={shareLinks}
+        onAddGallery={openGalleryDialog}
+        onShare={() => setIsShareLinkCreateOpen(true)}
+        onRename={openProjectRenameDialog}
+        onDelete={requestDeleteProject}
+        onUploadFolder={
+          folderPickerSupported && project.galleries.length > 0
+            ? () => folderInputRef.current?.click()
+            : undefined
+        }
+        isUploadingFolder={isUploadingFolder}
+        onPreparePublication={() => void handleRequestProjectPublication()}
+        isPreparingPublication={isPreparingPublication}
+        onEditAppearance={() => {
+          setActiveTab('appearance');
+          requestAnimationFrame(() => {
+            const reducedMotion =
+              window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+            projectContentRef.current?.scrollIntoView({
+              block: 'start',
+              behavior: reducedMotion ? 'instant' : 'smooth',
+            });
+            projectContentRef.current
+              ?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')
+              ?.focus({ preventScroll: true });
+          });
+        }}
+      />
+      <>
         {error ? (
           <div className="relative mt-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm text-danger">
             {error}
@@ -1036,15 +860,15 @@ export const ProjectPage = () => {
             changes will ask for confirmation before changing the live proofing layout.
           </div>
         ) : null}
-      </section>
+      </>
 
-      <section className="rounded-2xl border border-border/50 bg-surface p-4 shadow-xs sm:p-5 dark:border-border/30 dark:bg-surface-dark">
+      <section ref={projectContentRef} className="scroll-mt-20">
         <AppTabs
           items={contentTabItems}
           selectedKey={activeTab}
           onChange={setActiveTab}
           preserveInactivePanels
-          listClassName="flex flex-wrap items-center gap-2 overflow-x-auto border-b border-border/40 pb-3 dark:border-border/25"
+          listClassName="flex items-center gap-7 overflow-x-auto border-b border-border/40 dark:border-border/25"
           panelsClassName="mt-4"
         />
       </section>
@@ -1061,11 +885,11 @@ export const ProjectPage = () => {
         <form onSubmit={handleRenameProjectSubmit}>
           <div className="mobile-dialog-intro bg-linear-to-br from-accent/12 via-surface to-surface px-4 py-3 sm:px-6 sm:py-5 dark:from-accent/15 dark:via-surface-dark dark:to-surface-dark">
             <div className="flex items-start gap-3">
-              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent-text">
                 <PencilLine className="h-6 w-6" />
               </span>
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent-text">
                   Project settings
                 </p>
                 <AppDialogTitle className="mt-1 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
@@ -1145,11 +969,11 @@ export const ProjectPage = () => {
         <form onSubmit={handleCreateGallerySubmit}>
           <div className="mobile-dialog-intro bg-linear-to-br from-accent/12 via-surface to-surface px-4 py-3 sm:px-6 sm:py-5 dark:from-accent/15 dark:via-surface-dark dark:to-surface-dark">
             <div className="flex items-start gap-3">
-              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent-text">
                 <FolderPlus className="h-6 w-6" />
               </span>
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent-text">
                   Add gallery
                 </p>
                 <AppDialogTitle className="mt-1 font-oswald text-xl font-bold uppercase tracking-wide text-text sm:text-2xl">
@@ -1228,7 +1052,7 @@ export const ProjectPage = () => {
               </select>
               <div className="mobile-dialog-detail mt-3 rounded-2xl border border-border/35 bg-surface-1/70 p-3 text-sm leading-6 text-muted dark:border-border/25 dark:bg-white/[0.035]">
                 <span className="inline-flex items-center gap-2 font-semibold text-text">
-                  <ListChecks className="h-4 w-4 text-accent" />
+                  <ListChecks className="h-4 w-4 text-accent-text" />
                   What this controls
                 </span>
                 <p className="mt-1">

@@ -258,12 +258,14 @@ const buildSeedGalleryState = (
   };
 };
 
+const demoPhotoUrl = (index: number): string =>
+  `${import.meta.env.BASE_URL}demo/${['wedding', 'celebration', 'landscape'][index % 3]}.jpg`;
+
 const buildPhoto = (
   galleryId: string,
   index: number,
   overrides?: Partial<GalleryPhoto>,
 ): GalleryPhoto => {
-  const seed = `${galleryId}-${index}`;
   const isVideo = overrides?.media_type === 'video';
 
   return {
@@ -274,10 +276,8 @@ const buildPhoto = (
       : `shot_${String(index + 1).padStart(3, '0')}.jpg`,
     url: isVideo
       ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
-      : `https://picsum.photos/seed/${seed}/1600/1100`,
-    thumbnail_url: isVideo
-      ? `https://picsum.photos/seed/${seed}/700/500`
-      : `https://picsum.photos/seed/${seed}/700/500`,
+      : demoPhotoUrl(index),
+    thumbnail_url: demoPhotoUrl(index),
     playback_url: isVideo
       ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
       : undefined,
@@ -677,6 +677,13 @@ class DemoServiceStore {
     const restored = ensureProjectRecords(ensureProjectDemoContent(this.restoreState()));
     this.galleries = (restored?.galleries || seedState()).map((galleryState) => ({
       ...galleryState,
+      photos: galleryState.photos.map((photo, index) => ({
+        ...photo,
+        url: photo.url?.startsWith('https://picsum.photos/') ? demoPhotoUrl(index) : photo.url,
+        thumbnail_url: photo.thumbnail_url?.startsWith('https://picsum.photos/')
+          ? demoPhotoUrl(index)
+          : photo.thumbnail_url,
+      })),
       selectionSessions: normalizeSelectionSessionMap(galleryState.selectionSessions),
     }));
     this.projects = (restored ? (restored.projects ?? []) : buildInitialProjectState()).map(
@@ -3295,15 +3302,14 @@ class DemoServiceStore {
         loaded += item.file.size;
 
         const isVideo = isVideoUploadFile(item.file);
-        const seed = `${item.filename}-${makeDemoId()}`;
         const created: GalleryPhoto = {
           id: makeDemoId(),
           media_type: isVideo ? 'video' : 'image',
           filename: item.filename,
           url: isVideo
             ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
-            : `https://picsum.photos/seed/${encodeURIComponent(seed)}/1600/1100`,
-          thumbnail_url: `https://picsum.photos/seed/${encodeURIComponent(seed)}/700/500`,
+            : demoPhotoUrl(state.photos.length),
+          thumbnail_url: demoPhotoUrl(state.photos.length),
           playback_url: isVideo
             ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
             : undefined,

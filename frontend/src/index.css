@@ -176,6 +176,7 @@ summary {
 
 @theme {
   --color-accent: rgb(var(--color-accent-rgb));
+  --color-accent-text: rgb(var(--color-accent-text-rgb));
   --color-accent-foreground: rgb(var(--color-accent-foreground-rgb));
   --color-border: rgb(var(--color-border-rgb));
   --color-text: rgb(var(--color-text-rgb));
@@ -481,6 +482,7 @@ html.dark {
   --color-surface-dark-2-rgb: var(--color-neutral-200-rgb);
   --color-surface-foreground-rgb: 255 255 255;
   --color-accent-rgb: var(--color-primary-500-rgb);
+  --color-accent-text-rgb: var(--color-primary-700-rgb);
   --color-accent-foreground-rgb: var(--color-white-rgb);
   --color-danger-rgb: 239 68 68;
   --color-success-rgb: 16 185 129;
@@ -579,6 +581,7 @@ html.dark {
   --color-surface-dark-2-rgb: 63 63 70;
   --color-surface-foreground-rgb: 39 39 42;
   --color-accent-rgb: var(--color-primary-500-rgb);
+  --color-accent-text-rgb: var(--color-primary-700-rgb);
   --color-accent-foreground-rgb: var(--color-white-rgb);
   --color-danger-rgb: 248 113 113;
   --color-success-rgb: 34 197 94;
@@ -634,6 +637,12 @@ body {
   box-shadow: none;
 }
 
+/* Inline rename has one inset indicator, without the default offset halo. */
+.gallery-card-rename-input:focus {
+  box-shadow: inset 0 0 0 var(--readability-focus-ring-width)
+    rgb(var(--readability-focus-ring-rgb));
+}
+
 :where(main[id='main-content'], [id='main-content'][tabindex='-1']):focus-visible {
   --tw-ring-color: rgb(var(--readability-focus-ring-rgb));
   --tw-ring-offset-color: rgb(var(--color-surface-rgb));
@@ -683,6 +692,7 @@ html[data-readability-mode='on'][data-readability-contrast='black-on-white'] {
   --color-surface-dark-2-rgb: 245 245 245;
   --color-surface-foreground-rgb: 255 255 255;
   --color-accent-rgb: 0 0 0;
+  --color-accent-text-rgb: 0 0 0;
   --color-accent-foreground-rgb: 255 255 255;
   --readability-focus-ring-rgb: 0 0 0;
 }
@@ -699,6 +709,7 @@ html[data-readability-mode='on'][data-readability-contrast='white-on-black'] {
   --color-surface-dark-2-rgb: 18 18 18;
   --color-surface-foreground-rgb: 0 0 0;
   --color-accent-rgb: 255 255 255;
+  --color-accent-text-rgb: 255 255 255;
   --color-accent-foreground-rgb: 0 0 0;
   --color-danger-rgb: 255 140 140;
   --color-success-rgb: 150 255 170;
