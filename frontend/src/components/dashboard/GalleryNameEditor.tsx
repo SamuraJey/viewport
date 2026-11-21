@@ -6,6 +6,7 @@ interface GalleryNameEditorProps {
   isSaving: boolean;
   onSave: (name: string) => void;
   onCancel: () => void;
+  onRequestFocusRestore: (restore: boolean) => void;
 }
 
 export const GalleryNameEditor = ({
@@ -13,6 +14,7 @@ export const GalleryNameEditor = ({
   isSaving,
   onSave,
   onCancel,
+  onRequestFocusRestore,
 }: GalleryNameEditorProps) => {
   // Keystrokes belong to the editor, not the project and its entire gallery grid.
   const [name, setName] = useState(initialName);
@@ -24,8 +26,9 @@ export const GalleryNameEditor = ({
     inputRef.current?.select();
   }, []);
 
-  const commit = () => {
+  const commit = (restoreFocus = false) => {
     if (isSaving) return;
+    onRequestFocusRestore(restoreFocus);
     if (name.trim()) onSave(name);
     else onCancel();
   };
@@ -38,13 +41,17 @@ export const GalleryNameEditor = ({
         value={name}
         maxLength={GALLERY_NAME_MAX_LENGTH}
         onChange={(event) => setName(event.target.value)}
-        onBlur={commit}
+        onBlur={() => {
+          onRequestFocusRestore(false);
+          commit();
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            commit();
-          } else if (event.key === 'Escape') {
+            commit(true);
+          } else if (event.key === 'Escape' && !isSaving) {
             event.preventDefault();
+            onRequestFocusRestore(true);
             onCancel();
           }
         }}

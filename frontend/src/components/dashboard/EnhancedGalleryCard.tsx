@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import { Edit3, ImageIcon, Share2, Trash2 } from 'lucide-react';
 import type { ReactNode, SyntheticEvent } from 'react';
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 
 import {
   CollectionCard,
@@ -60,6 +60,14 @@ export const EnhancedGalleryCard = ({
   variants,
 }: EnhancedGalleryCardProps) => {
   const descriptionId = useId();
+  const renameButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreRenameFocus = useRef(false);
+
+  useEffect(() => {
+    if (isRenamingThis || isRenaming || !restoreRenameFocus.current) return;
+    restoreRenameFocus.current = false;
+    renameButtonRef.current?.focus({ preventScroll: true });
+  }, [isRenamingThis, isRenaming]);
   const galleryTitle = makeGalleryTitle(gallery);
   const coverUrl = gallery.cover_photo_thumbnail_url ?? null;
   const metadataParts = [
@@ -173,9 +181,10 @@ export const EnhancedGalleryCard = ({
               </p>
             </Link>
             <button
+              ref={renameButtonRef}
               type="button"
               onClick={beginRenameFromEvent}
-              disabled={isRenamingThis}
+              disabled={isRenamingThis || isRenaming}
               className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center can-hover:top-1 can-hover:h-4 can-hover:w-4 text-muted transition-opacity duration-200 hover:text-accent focus:opacity-100 focus:outline-none can-hover:opacity-0 can-hover:group-hover/card:opacity-100 can-hover:group-focus-within/card:opacity-100"
               aria-label={`Rename ${galleryTitle}`}
               title="Rename gallery"
@@ -190,6 +199,7 @@ export const EnhancedGalleryCard = ({
               isSaving={isRenaming}
               onSave={onConfirmRename}
               onCancel={onCancelRename}
+              onRequestFocusRestore={(restore) => { restoreRenameFocus.current = restore; }}
             />
           ) : null}
         </div>

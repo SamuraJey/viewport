@@ -273,7 +273,7 @@ const buildPhoto = (
     media_type: isVideo ? 'video' : 'image',
     filename: isVideo
       ? `clip_${String(index + 1).padStart(3, '0')}.mp4`
-      : `shot_${String(index + 1).padStart(3, '0')}.jpg`,
+      : `shot_${String(index + 1).padStart(3, '0')}.svg`,
     url: isVideo
       ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
       : demoPhotoUrl(index),
@@ -660,7 +660,11 @@ const triggerUrlDownload = (url: string, filename: string): void => {
 
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = filename;
+  // Demo uploads and restored records may retain a raster filename while using
+  // a bundled SVG substitute. Keep actual PNG/JPEG URLs and filenames intact.
+  anchor.download = url.startsWith(`${import.meta.env.BASE_URL}demo/placeholder-`) && url.endsWith('.svg')
+    ? `${filename.replace(/\.[^.]*$/, '')}.svg`
+    : filename;
   anchor.rel = 'noopener';
   anchor.target = '_blank';
   document.body.appendChild(anchor);
@@ -705,6 +709,15 @@ class DemoServiceStore {
       if (!parsed || !Array.isArray(parsed.galleries) || !parsed.user?.id) {
         return null;
       }
+
+      parsed.galleries = parsed.galleries.map((state) => ({
+        ...state,
+        photos: state.photos.map((photo, index) => photo.media_type === 'video' ? photo : {
+          ...photo,
+          url: demoPhotoUrl(index),
+          thumbnail_url: demoPhotoUrl(index),
+        }),
+      }));
 
       return parsed;
     } catch {

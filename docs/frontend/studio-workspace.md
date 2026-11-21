@@ -50,9 +50,23 @@ and its instructions appear only in grid view. List mode preserves the server
 order and can return to the grid to reorder. Initial skeletons match each view;
 revalidation keeps the selected presentation mounted.
 
+Gallery inline rename returns focus to the rename button after Enter or Escape
+closes the editor and any pending save finishes. Blur and Tab keep normal focus
+navigation. Date-only shoot dates retain their calendar date in every timezone;
+storage values include a TB unit for terabyte-scale quotas.
+
+If a list cover fails to load, its fallback remains visible. A replacement cover
+becomes visible after loading successfully without requiring a list remount.
+
 ## Demo placeholders
 
 Demo images use locally authored SVG placeholders under `frontend/public/demo/`.
+Seeded demo image filenames use `.svg` so owner and public single-photo downloads
+match the served asset format.
+Restored demo image URLs migrate to bundled placeholders; video URLs and other
+stored fields are preserved. Demo uploads also use placeholder images, so their
+single-photo downloads use `.svg` filenames while retaining the uploaded names
+in the gallery. Downloads with actual PNG/JPEG content retain matching filenames.
 Demo videos still use the existing sample video source.
 
 ## Verification

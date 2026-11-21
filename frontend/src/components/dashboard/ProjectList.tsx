@@ -69,6 +69,7 @@ export const ProjectList = ({ projects, ...actions }: ProjectActions & { project
                     <>
                       <ImageIcon className="h-5 w-5" aria-hidden="true" />
                       <img
+                        key={project.cover_photo_thumbnail_url}
                         src={project.cover_photo_thumbnail_url}
                         alt=""
                         loading="lazy"
@@ -78,6 +79,9 @@ export const ProjectList = ({ projects, ...actions }: ProjectActions & { project
                         }}
                         onError={(event) => {
                           event.currentTarget.style.visibility = 'hidden';
+                        }}
+                        onLoad={(event) => {
+                          event.currentTarget.style.visibility = '';
                         }}
                       />
                     </>

@@ -54,6 +54,55 @@ const baseProps = {
 };
 
 describe('EnhancedGalleryCard', () => {
+  it.each(['Enter', 'Escape'])('restores rename focus only after %s closes the editor', (key) => {
+    const view = (editing: boolean, saving = false) => (
+      <MemoryRouter>
+        <EnhancedGalleryCard {...baseProps} isRenamingThis={editing} isRenaming={saving} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(view(true));
+    const input = screen.getByRole('textbox');
+    fireEvent.keyDown(input, { key });
+    expect(input).toHaveFocus();
+    rerender(view(false));
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rename Ceremony' })).toHaveFocus();
+  });
+
+  it('waits for pending saves before enabling and focusing the rename button', () => {
+    const view = (editing: boolean, saving: boolean) => (
+      <MemoryRouter>
+        <EnhancedGalleryCard {...baseProps} isRenamingThis={editing} isRenaming={saving} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(view(true, false));
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    rerender(view(true, true));
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
+    rerender(view(false, true));
+    const button = screen.getByRole('button', { name: 'Rename Ceremony' });
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveFocus();
+    rerender(view(false, false));
+    expect(button).toBeEnabled();
+    expect(button).toHaveFocus();
+  });
+
+  it('preserves Tab focus after blur closes the editor', async () => {
+    const user = userEvent.setup();
+    const view = (editing: boolean) => (
+      <MemoryRouter>
+        <EnhancedGalleryCard {...baseProps} isRenamingThis={editing} />
+        <button type="button">Next control</button>
+      </MemoryRouter>
+    );
+    const { rerender } = render(view(true));
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus();
+    rerender(view(false));
+    expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus();
+  });
+
   it('preserves gallery navigation, metadata, badges, and actions', async () => {
     const user = userEvent.setup();
     const onBeginRename = vi.fn();

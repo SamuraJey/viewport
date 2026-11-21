@@ -1,7 +1,21 @@
-import { describe, it, expect } from 'vitest';
-import { cn, validateEmail, validatePassword, formatFileSize } from '../../lib/utils';
+import { describe, it, expect, vi } from 'vitest';
+import { cn, validateEmail, validatePassword, formatDateOnly, formatFileSize } from '../../lib/utils';
 
 describe('utils', () => {
+  it('preserves a date-only calendar date west of UTC while timestamps use local time', () => {
+    const DateTimeFormat = Intl.DateTimeFormat;
+    const formatter = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(function (locale, options) {
+      return new DateTimeFormat(locale, { timeZone: 'America/Los_Angeles', ...options });
+    });
+    try {
+      expect(formatDateOnly('2026-07-19')).toBe('Jul 19, 2026');
+      expect(formatDateOnly('2026-07-19T00:00:00Z')).toBe('Jul 18, 2026');
+      expect(formatDateOnly(new Date('2026-07-19T00:00:00Z'))).toBe('Jul 18, 2026');
+    } finally {
+      formatter.mockRestore();
+    }
+  });
+
   describe('cn', () => {
     it('should combine class names correctly', () => {
       expect(cn('class1', 'class2')).toBe('class1 class2');
@@ -54,6 +68,11 @@ describe('utils', () => {
   });
 
   describe('formatFileSize', () => {
+    it('formats a tebibyte and larger values with a valid unit', () => {
+      expect(formatFileSize(1024 ** 4)).toBe('1 TB');
+      expect(formatFileSize(1.5 * 1024 ** 4)).toBe('1.5 TB');
+      expect(formatFileSize(1024 ** 5)).toBe('1024 TB');
+    });
     it('should format bytes correctly', () => {
       expect(formatFileSize(0)).toBe('0 Bytes');
       expect(formatFileSize(500)).toBe('500 Bytes');
