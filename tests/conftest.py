@@ -27,7 +27,7 @@ from testcontainers.postgres import PostgresContainer
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
-S3_IMAGE = "rustfs/rustfs:1.0.1"
+S3_IMAGE = "rustfs/rustfs:1.0.6"
 S3_ROOT_ACCESS_KEY = "testaccesskey"
 S3_ROOT_SECRET_KEY = "testsecretkey"
 S3_PORT = 9000
