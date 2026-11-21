@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from 'react';
+import type { ReactNode } from 'react';
 import {
   Check,
   Eye,
@@ -23,17 +23,14 @@ import { SortableProjectGalleryGrid } from './SortableProjectGalleryGrid';
 interface ProjectGalleriesPanelProps {
   galleries: ProjectGallerySummary[];
   renameGalleryId: string | null;
-  renameInput: string;
   isRenamingGallery: boolean;
-  renameInputRef: RefObject<HTMLTextAreaElement | null>;
   isUpdatingGallery: string | null;
   isReorderingGallery: string | null;
   requiresReorderConfirmation: boolean;
   openGalleryDialog: () => void;
   onUploadFolder?: () => void;
   isUploadingFolder?: boolean;
-  setRenameInput: (value: string) => void;
-  handleConfirmRename: () => void;
+  handleConfirmRename: (name: string) => void;
   cancelInlineRename: () => void;
   beginInlineRename: (gallery: Gallery) => void;
   handleDeleteGallery: (gallery: Gallery) => void;
@@ -52,16 +49,13 @@ interface ProjectGalleriesPanelProps {
 export const ProjectGalleriesPanel = ({
   galleries,
   renameGalleryId,
-  renameInput,
   isRenamingGallery,
-  renameInputRef,
   isUpdatingGallery,
   isReorderingGallery,
   requiresReorderConfirmation,
   openGalleryDialog,
   onUploadFolder,
   isUploadingFolder = false,
-  setRenameInput,
   handleConfirmRename,
   cancelInlineRename,
   beginInlineRename,
@@ -171,10 +165,7 @@ export const ProjectGalleriesPanel = ({
                 <EnhancedGalleryCard
                   gallery={galleryCard}
                   isRenamingThis={renameGalleryId === galleryCard.id}
-                  renameInput={renameInput}
                   isRenaming={isRenamingGallery}
-                  renameInputRef={renameInputRef}
-                  onRenameInputChange={setRenameInput}
                   onConfirmRename={handleConfirmRename}
                   onCancelRename={cancelInlineRename}
                   onBeginRename={beginInlineRename}

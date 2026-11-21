@@ -1,6 +1,6 @@
 import { Skeleton } from '../ui/Skeleton';
 
-const METRIC_KEYS = ['galleries', 'photos', 'storage', 'links'] as const;
+const METRIC_KEYS = ['galleries', 'photos', 'storage'] as const;
 const GALLERY_KEYS = ['gallery-one', 'gallery-two', 'gallery-three'] as const;
 const SHARE_LINK_KEYS = ['share-link-one', 'share-link-two'] as const;
 
@@ -12,37 +12,33 @@ export const ProjectPageSkeleton = () => (
     aria-label="Loading project"
     data-testid="project-page-skeleton"
   >
-    <section className="overflow-hidden rounded-4xl border border-border/50 bg-surface p-5 shadow-xs dark:border-border/30 dark:bg-surface-dark">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 flex-1 space-y-3">
-          <Skeleton className="h-8 w-40 rounded-full" />
-          <Skeleton className="h-10 w-full max-w-xl rounded-xl sm:h-12" />
-          <Skeleton className="h-4 w-full max-w-2xl rounded-full" />
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:max-w-xl xl:justify-end">
-          <Skeleton className="h-10 rounded-xl sm:w-36" />
-          <Skeleton className="h-10 rounded-xl sm:w-32" />
-          <Skeleton className="h-10 rounded-xl sm:w-34" />
-          <Skeleton className="h-10 rounded-xl sm:w-32" />
+    <section className="overflow-hidden rounded-3xl border border-border/50 bg-surface dark:bg-surface-dark">
+      <div className="relative h-80 sm:h-96">
+        <Skeleton className="absolute inset-0 rounded-none" />
+        <div className="relative flex h-full flex-col justify-between p-5 sm:p-8">
+          <Skeleton className="h-11 w-40 rounded-full bg-muted/15" />
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-3/4 bg-muted/15 sm:h-16" />
+            <Skeleton className="h-4 w-32 bg-muted/15" />
+          </div>
         </div>
       </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {METRIC_KEYS.map((key) => (
-          <div
-            key={key}
-            className="rounded-2xl border border-border/45 bg-surface-1 p-4 dark:border-border/30 dark:bg-surface-dark-1"
-          >
-            <div className="flex items-center gap-3">
-              <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <Skeleton className="h-3 w-20 rounded-full" />
-                <Skeleton className="h-6 w-24 rounded-lg" />
-              </div>
+      <div className="flex flex-col justify-between gap-5 p-5 sm:p-6 xl:flex-row">
+        <div className="grid grid-cols-3 gap-8">
+          {METRIC_KEYS.map((key) => (
+            <div key={key} className="space-y-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-7 w-20" />
             </div>
-            <Skeleton className="mt-3 h-3 w-full rounded-full" />
-          </div>
-        ))}
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-11 w-32 rounded-xl" />
+          <Skeleton className="h-11 w-32 rounded-xl" />
+        </div>
+      </div>
+      <div className="border-t border-border/40 px-5 py-4">
+        <Skeleton className="h-4 w-40" />
       </div>
     </section>
 

@@ -17,6 +17,14 @@ Documentation of reusable React components and their usage.
 
 Shared project and gallery card structure, extension points, interaction rules, and tests.
 
+### [Dashboard UX](./dashboard-ux.md)
+
+Project search, loading feedback, responsive controls, typography and elevation.
+
+### [Studio Workspace](./studio-workspace.md)
+
+Desktop sidebar, project photo overview, compact archive view and bundled demo imagery.
+
 ### 🔄 [State Management](./state-management.md)
 Zustand store setup, state patterns, and data flow.
 

@@ -15,11 +15,12 @@ interface CollectionCardProps extends Pick<
   cover: ReactNode;
   footer?: ReactNode;
   interactiveOverlay?: ReactNode;
+  isEditing?: boolean;
   variants?: Variants;
 }
 
 const DEFAULT_SHELL_CLASSNAME =
-  'group/card relative flex h-full min-w-0 w-full flex-col overflow-hidden rounded-3xl border border-card-border bg-surface text-left shadow-sm transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-xl focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark motion-reduce:transform-none motion-reduce:transition-none';
+  'group/card relative flex h-full min-w-0 w-full flex-col overflow-hidden rounded-2xl border border-card-border bg-surface text-left shadow-sm transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark motion-reduce:transform-none motion-reduce:transition-none';
 
 interface CollectionCardCoverProps {
   children: ReactNode;
@@ -71,7 +72,7 @@ export const CollectionCardTitle = ({
 }: CollectionCardTitleProps) => (
   <Component
     className={cn(
-      'line-clamp-2 wrap-anywhere font-oswald text-xl font-bold uppercase leading-6 text-text transition-colors group-hover/card:text-accent',
+      'line-clamp-2 wrap-anywhere text-xl font-bold leading-6 tracking-[-0.02em] text-text transition-colors group-hover/card:text-accent',
       className,
     )}
     title={title}
@@ -127,16 +128,20 @@ export const CollectionCard = ({
   cover,
   footer,
   interactiveOverlay,
+  isEditing = false,
   variants,
   ...interactionProps
 }: CollectionCardProps) => {
   return (
     <motion.article
-      layout
+      layout={!isEditing}
       aria-label={ariaLabel}
       variants={variants}
       exit="exit"
-      className={DEFAULT_SHELL_CLASSNAME}
+      className={cn(
+        DEFAULT_SHELL_CLASSNAME,
+        isEditing && 'hover:translate-y-0 hover:shadow-sm focus-within:ring-0',
+      )}
       {...interactionProps}
     >
       {interactiveOverlay}

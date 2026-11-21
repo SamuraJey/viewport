@@ -258,12 +258,14 @@ const buildSeedGalleryState = (
   };
 };
 
+const demoPhotoUrl = (index: number): string =>
+  `${import.meta.env.BASE_URL}demo/placeholder-${index % 3 + 1}.svg`;
+
 const buildPhoto = (
   galleryId: string,
   index: number,
   overrides?: Partial<GalleryPhoto>,
 ): GalleryPhoto => {
-  const seed = `${galleryId}-${index}`;
   const isVideo = overrides?.media_type === 'video';
 
   return {
@@ -271,13 +273,11 @@ const buildPhoto = (
     media_type: isVideo ? 'video' : 'image',
     filename: isVideo
       ? `clip_${String(index + 1).padStart(3, '0')}.mp4`
-      : `shot_${String(index + 1).padStart(3, '0')}.jpg`,
+      : `shot_${String(index + 1).padStart(3, '0')}.svg`,
     url: isVideo
       ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
-      : `https://picsum.photos/seed/${seed}/1600/1100`,
-    thumbnail_url: isVideo
-      ? `https://picsum.photos/seed/${seed}/700/500`
-      : `https://picsum.photos/seed/${seed}/700/500`,
+      : demoPhotoUrl(index),
+    thumbnail_url: demoPhotoUrl(index),
     playback_url: isVideo
       ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
       : undefined,
@@ -660,7 +660,11 @@ const triggerUrlDownload = (url: string, filename: string): void => {
 
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = filename;
+  // Demo uploads and restored records may retain a raster filename while using
+  // a bundled SVG substitute. Keep actual PNG/JPEG URLs and filenames intact.
+  anchor.download = url.startsWith(`${import.meta.env.BASE_URL}demo/placeholder-`) && url.endsWith('.svg')
+    ? `${filename.replace(/\.[^.]*$/, '')}.svg`
+    : filename;
   anchor.rel = 'noopener';
   anchor.target = '_blank';
   document.body.appendChild(anchor);
@@ -705,6 +709,15 @@ class DemoServiceStore {
       if (!parsed || !Array.isArray(parsed.galleries) || !parsed.user?.id) {
         return null;
       }
+
+      parsed.galleries = parsed.galleries.map((state) => ({
+        ...state,
+        photos: state.photos.map((photo, index) => photo.media_type === 'video' ? photo : {
+          ...photo,
+          url: demoPhotoUrl(index),
+          thumbnail_url: demoPhotoUrl(index),
+        }),
+      }));
 
       return parsed;
     } catch {
@@ -3295,15 +3308,14 @@ class DemoServiceStore {
         loaded += item.file.size;
 
         const isVideo = isVideoUploadFile(item.file);
-        const seed = `${item.filename}-${makeDemoId()}`;
         const created: GalleryPhoto = {
           id: makeDemoId(),
           media_type: isVideo ? 'video' : 'image',
           filename: item.filename,
           url: isVideo
             ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
-            : `https://picsum.photos/seed/${encodeURIComponent(seed)}/1600/1100`,
-          thumbnail_url: `https://picsum.photos/seed/${encodeURIComponent(seed)}/700/500`,
+            : demoPhotoUrl(state.photos.length),
+          thumbnail_url: demoPhotoUrl(state.photos.length),
           playback_url: isVideo
             ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
             : undefined,

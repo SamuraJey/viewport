@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpDown, GripVertical, Plus, Search } from 'lucide-react';
+import { GripVertical, Plus } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 
 import { DashboardEmptyState } from '../components/dashboard/DashboardEmptyState';
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
 import { RenameProjectModal } from '../components/dashboard/RenameProjectModal';
+import { ProjectList, ProjectListSkeleton } from '../components/dashboard/ProjectList';
 import { SortableProjectGrid } from '../components/dashboard/SortableProjectGrid';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { PaginationControls } from '../components/PaginationControls';
-import { AppListbox } from '../components/ui/AppListbox';
+import { DashboardProjectToolbar } from '../components/dashboard/DashboardProjectToolbar';
 import { Skeleton } from '../components/ui/Skeleton';
 import { requestProjectAction } from '../components/command/commandActions';
 import { useConfirmation } from '../hooks/useConfirmation';
@@ -22,7 +23,6 @@ import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';
 import type { Project, ProjectListSortBy, SortOrder } from '../types';
 
-const SEARCH_DEBOUNCE_MS = 300;
 const PROJECT_POLL_INTERVAL_MS = 60_000;
 const PROJECT_PAGE_SIZE = 18;
 const DEFAULT_PROJECT_SORT_BY: ProjectListSortBy = 'manual_order';
@@ -91,14 +91,24 @@ export const DashboardPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadedView, setLoadedView] = useState<{ key: string; search: string } | null>(null);
   const [isCreatingShareLink, setIsCreatingShareLink] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [error, setError] = useState('');
   const [announcement, setAnnouncement] = useState('');
-  const [searchInput, setSearchInput] = useState(searchParams.get('search') ?? '');
+  const [searchResetKey, setSearchResetKey] = useState(0);
   const fetchRequestIdRef = useRef(0);
   const isReorderingRef = useRef(false);
   const fetchProjectsRef = useRef<(showLoading?: boolean) => Promise<void>>(async () => undefined);
+
+  const view = searchParams.get('view') === 'list' ? 'list' : 'grid';
+  const ProjectCollection = view === 'list' ? ProjectList : SortableProjectGrid;
+  const setView = (nextView: 'grid' | 'list') => {
+    const params = new URLSearchParams(searchParams);
+    if (nextView === 'list') params.set('view', 'list');
+    else params.delete('view');
+    setSearchParams(params);
+  };
 
   const activeSearch = useMemo(() => searchParams.get('search')?.trim() ?? '', [searchParams]);
   const sortByParam = searchParams.get('sort_by');
@@ -111,6 +121,9 @@ export const DashboardPage = () => {
     : DEFAULT_PROJECT_SORT_ORDER;
   const activeSortValue = toProjectSortValue(activeSortBy, activeSortOrder);
   const canReorder = activeSortBy === 'manual_order' && activeSortOrder === 'asc';
+  const queryKey = JSON.stringify([activeSearch, activeSortBy, activeSortOrder, page, pageSize]);
+  const hasLoaded = loadedView !== null;
+  const hasCurrentResults = loadedView?.key === queryKey;
 
   const fetchProjects = useCallback(
     async (showLoading = true) => {
@@ -127,6 +140,7 @@ export const DashboardPage = () => {
         if (requestId !== fetchRequestIdRef.current || isReorderingRef.current) return;
         setProjects(response.projects);
         setTotal(response.total);
+        setLoadedView({ key: queryKey, search: activeSearch });
       } catch (err: unknown) {
         if (requestId !== fetchRequestIdRef.current) return;
         setError(handleApiError(err).message || 'Failed to load projects');
@@ -134,7 +148,7 @@ export const DashboardPage = () => {
         if (requestId === fetchRequestIdRef.current) setIsLoading(false);
       }
     },
-    [activeSearch, activeSortBy, activeSortOrder, page, pageSize, setTotal],
+    [activeSearch, activeSortBy, activeSortOrder, page, pageSize, queryKey, setTotal],
   );
 
   useEffect(() => {
@@ -157,6 +171,7 @@ export const DashboardPage = () => {
     });
     return () => {
       cancelled = true;
+      fetchRequestIdRef.current += 1;
     };
   }, [fetchProjects]);
 
@@ -167,24 +182,17 @@ export const DashboardPage = () => {
     return () => window.clearInterval(intervalId);
   }, [fetchProjects]);
 
-  const [lastSyncedSearch, setLastSyncedSearch] = useState(activeSearch);
-  if (lastSyncedSearch !== activeSearch) {
-    setLastSyncedSearch(activeSearch);
-    setSearchInput(activeSearch);
-  }
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      const normalized = searchInput.trim();
+  const updateSearch = useCallback(
+    (normalized: string) => {
       if (normalized === activeSearch) return;
       const nextParams = new URLSearchParams(searchParams);
       if (normalized) nextParams.set('search', normalized);
       else nextParams.delete('search');
       nextParams.delete('page');
       setSearchParams(nextParams);
-    }, SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(timeoutId);
-  }, [activeSearch, searchInput, searchParams, setSearchParams]);
+    },
+    [activeSearch, searchParams, setSearchParams],
+  );
 
   usePendingAction((action) => {
     if (action === 'create-project') createProjectModal.open();
@@ -196,6 +204,14 @@ export const DashboardPage = () => {
     else nextParams.set('sort_by', sortBy);
     if (order === DEFAULT_PROJECT_SORT_ORDER) nextParams.delete('order');
     else nextParams.set('order', order);
+    nextParams.delete('page');
+    setSearchParams(nextParams);
+  };
+
+  const clearSearch = () => {
+    setSearchResetKey((key) => key + 1);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('search');
     nextParams.delete('page');
     setSearchParams(nextParams);
   };
@@ -290,10 +306,10 @@ export const DashboardPage = () => {
       {Array.from({ length: 6 }).map((_, index) => (
         <div
           key={index}
-          className="overflow-hidden rounded-2xl bg-surface shadow-card ring-1 ring-border/45 dark:bg-surface-dark dark:ring-border/35"
+          className="overflow-hidden rounded-2xl border border-card-border bg-surface shadow-sm dark:bg-surface-dark"
         >
-          <Skeleton className="aspect-[16/9] rounded-none" />
-          <div className="space-y-3 p-4">
+          <Skeleton className="h-52 rounded-none" />
+          <div className="min-h-28 space-y-3 p-4">
             <Skeleton className="h-6 w-2/3 rounded bg-muted/15" />
             <Skeleton className="h-4 w-1/2 rounded bg-muted/15" />
           </div>
@@ -312,48 +328,50 @@ export const DashboardPage = () => {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-7">
-      <header className="flex flex-col gap-5 border-b border-border/45 pb-6 lg:flex-row lg:items-end lg:justify-between dark:border-border/35">
-        <div>
-          <h1 className="text-4xl font-bold tracking-[-0.03em] text-text sm:text-5xl">Projects</h1>
-          <p className="mt-2 max-w-2xl text-base leading-7 text-muted">
-            Your proofing workspace, ordered around the deliveries that need attention.
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2">
+        <div className="contents">
+          <div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-muted">
+              Your studio, in focus
+            </p>
+            <h1 className="text-4xl font-bold tracking-[-0.045em] text-text sm:text-5xl">
+              Projects
+              <span className="text-accent" aria-hidden="true">
+                .
+              </span>
+            </h1>
+          </div>
+          <p className="col-span-2 row-start-2 max-w-xl text-sm leading-6 text-muted sm:text-base">
+            Every shoot. Every gallery. One considered delivery.
           </p>
         </div>
-        <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
-          <label
-            htmlFor="dashboard-project-search"
-            className="flex h-11 min-w-0 flex-1 items-center rounded-xl bg-surface px-3 shadow-control ring-1 ring-border/55 focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark dark:ring-border/40 sm:w-64"
-          >
-            <Search className="mr-2 h-4 w-4 text-muted" aria-hidden="true" />
-            <input
-              id="dashboard-project-search"
-              type="search"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search projects"
-              className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
-              aria-label="Search projects"
-            />
-          </label>
-          <AppListbox
-            value={activeSortValue}
-            onChange={(value) => updateSort(parseProjectSortValue(value))}
-            options={PROJECT_SORT_OPTIONS}
-            className="min-w-0 flex-1 sm:w-64 sm:flex-none"
-            aria-label="Sort projects"
-            startContent={<ArrowUpDown className="h-4 w-4 text-muted" aria-hidden="true" />}
-            buttonClassName="h-11 border border-border/55 bg-surface px-3 text-sm font-semibold text-text shadow-control dark:border-border/40 dark:bg-surface-dark"
-          />
-          <button
-            type="button"
-            onClick={createProjectModal.open}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 font-bold text-accent-foreground shadow-[0_8px_20px_rgba(31,144,255,0.22)] transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 motion-reduce:transform-none"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            New project
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={createProjectModal.open}
+          className="col-start-2 row-start-1 inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-3 text-sm font-bold text-accent-foreground transition-colors hover:bg-accent/90 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface sm:px-5 dark:focus-visible:ring-offset-surface-dark"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          New project
+        </button>
       </header>
+
+      <DashboardProjectToolbar
+        view={view}
+        onViewChange={setView}
+        search={activeSearch}
+        searchResetKey={searchResetKey}
+        onSearchChange={updateSearch}
+        onClearSearch={clearSearch}
+        sort={activeSortValue}
+        onSortChange={(value) => updateSort(parseProjectSortValue(value))}
+        options={PROJECT_SORT_OPTIONS}
+        isUpdating={isLoading && hasLoaded}
+        resultLabel={
+          hasLoaded
+            ? `${total} ${total === 1 ? 'project' : 'projects'}${loadedView?.search ? ` matching “${loadedView.search}”` : ''}`
+            : ''
+        }
+      />
 
       {error ? (
         <ErrorDisplay
@@ -364,12 +382,8 @@ export const DashboardPage = () => {
         />
       ) : null}
 
-      {!isLoading && projects.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
-          <p>
-            {total} {total === 1 ? 'project' : 'projects'}
-            {activeSearch ? ` matching “${activeSearch}”` : ''}
-          </p>
+      {hasLoaded && projects.length > 1 && view === 'grid' ? (
+        <div className="-mt-4 flex flex-wrap items-center justify-end gap-3 text-xs text-muted">
           {canReorder ? (
             <p className="inline-flex items-center gap-2">
               <GripVertical className="h-4 w-4" aria-hidden="true" />
@@ -389,21 +403,25 @@ export const DashboardPage = () => {
         </div>
       ) : null}
 
-      <section aria-label="Projects grid" aria-busy={isReordering}>
-        {isLoading ? (
-          renderLoading()
-        ) : projects.length === 0 ? (
+      <section aria-label="Projects grid" aria-busy={isLoading || isReordering}>
+        {!hasLoaded && isLoading ? (
+          view === 'list' ? (
+            <ProjectListSkeleton />
+          ) : (
+            renderLoading()
+          )
+        ) : !hasLoaded ? null : projects.length === 0 ? (
           <DashboardEmptyState
-            hasSearch={Boolean(activeSearch)}
-            searchTerm={activeSearch}
+            hasSearch={Boolean(loadedView?.search)}
+            searchTerm={loadedView?.search}
             onCreateProject={createProjectModal.open}
-            onClearSearch={() => setSearchInput('')}
+            onClearSearch={clearSearch}
           />
         ) : (
           <>
-            <SortableProjectGrid
+            <ProjectCollection
               projects={projects}
-              disabled={!canReorder || isReordering}
+              disabled={!canReorder || isReordering || isLoading || !hasCurrentResults}
               onReorder={(reordered) => void handleReorder(reordered)}
               onAnnouncement={setAnnouncement}
               onCopyLink={(project) => void handleCopyLink(project)}

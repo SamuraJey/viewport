@@ -176,6 +176,7 @@ summary {
 
 @theme {
   --color-accent: rgb(var(--color-accent-rgb));
+  --color-accent-text: rgb(var(--color-accent-text-rgb));
   --color-accent-foreground: rgb(var(--color-accent-foreground-rgb));
   --color-border: rgb(var(--color-border-rgb));
   --color-text: rgb(var(--color-text-rgb));
@@ -363,7 +364,7 @@ a[role='button'],
 
 html,
 body {
-  font-family: 'Oswald', sans-serif;
+  font-family: 'PT Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
@@ -481,6 +482,7 @@ html.dark {
   --color-surface-dark-2-rgb: var(--color-neutral-200-rgb);
   --color-surface-foreground-rgb: 255 255 255;
   --color-accent-rgb: var(--color-primary-500-rgb);
+  --color-accent-text-rgb: var(--color-primary-700-rgb);
   --color-accent-foreground-rgb: var(--color-white-rgb);
   --color-danger-rgb: 239 68 68;
   --color-success-rgb: 16 185 129;
@@ -579,6 +581,7 @@ html.dark {
   --color-surface-dark-2-rgb: 63 63 70;
   --color-surface-foreground-rgb: 39 39 42;
   --color-accent-rgb: var(--color-primary-500-rgb);
+  --color-accent-text-rgb: var(--color-primary-700-rgb);
   --color-accent-foreground-rgb: var(--color-white-rgb);
   --color-danger-rgb: 248 113 113;
   --color-success-rgb: 34 197 94;
@@ -587,7 +590,7 @@ html.dark {
   --color-info-foreground-rgb: 255 255 255;
   --color-warning-foreground-rgb: 255 255 255;
   --color-photo-overlay-rgb: var(--color-black-rgb);
-  --shadow-color-rgb: 255 255 255;
+  --shadow-color-rgb: 0 0 0;
 
   /* High-contrast focus ring on dark surfaces (RFC 002 §2.1) */
   --readability-focus-ring-rgb: var(--color-primary-600-rgb);
@@ -629,8 +632,15 @@ body {
 }
 
 /* The gallery search shell owns the focus indicator; avoid a second inner ring. */
-.gallery-photo-search-input:focus-visible {
+.gallery-photo-search-input:focus-visible,
+.dashboard-project-search-input:focus-visible {
   box-shadow: none;
+}
+
+/* Inline rename has one inset indicator, without the default offset halo. */
+.gallery-card-rename-input:focus {
+  box-shadow: inset 0 0 0 var(--readability-focus-ring-width)
+    rgb(var(--readability-focus-ring-rgb));
 }
 
 :where(main[id='main-content'], [id='main-content'][tabindex='-1']):focus-visible {
@@ -682,6 +692,7 @@ html[data-readability-mode='on'][data-readability-contrast='black-on-white'] {
   --color-surface-dark-2-rgb: 245 245 245;
   --color-surface-foreground-rgb: 255 255 255;
   --color-accent-rgb: 0 0 0;
+  --color-accent-text-rgb: 0 0 0;
   --color-accent-foreground-rgb: 255 255 255;
   --readability-focus-ring-rgb: 0 0 0;
 }
@@ -698,6 +709,7 @@ html[data-readability-mode='on'][data-readability-contrast='white-on-black'] {
   --color-surface-dark-2-rgb: 18 18 18;
   --color-surface-foreground-rgb: 0 0 0;
   --color-accent-rgb: 255 255 255;
+  --color-accent-text-rgb: 255 255 255;
   --color-accent-foreground-rgb: 0 0 0;
   --color-danger-rgb: 255 140 140;
   --color-success-rgb: 150 255 170;
@@ -721,95 +733,9 @@ html[data-readability-mode='on'] [class*='bg-text'][class*='dark:text-black'] {
   color: rgb(var(--color-surface-rgb)) !important;
 }
 
-/* ===== THEME SHADOW NORMALIZATION =====
-   Light theme: dark shadows.
-   Dark theme: light shadows. */
-html:not(.dark) .shadow-xs,
-.light .shadow-xs {
-  box-shadow:
-    0 0 0 1px rgb(2 6 23 / 0.05),
-    0 8px 18px rgb(2 6 23 / 0.08);
-}
-
-html:not(.dark) .shadow-sm,
-.light .shadow-sm {
-  box-shadow:
-    0 0 0 1px rgb(2 6 23 / 0.06),
-    0 10px 24px rgb(2 6 23 / 0.1);
-}
-
-html:not(.dark) .shadow-md,
-.light .shadow-md {
-  box-shadow:
-    0 0 0 1px rgb(2 6 23 / 0.07),
-    0 14px 30px rgb(2 6 23 / 0.14);
-}
-
-html:not(.dark) .shadow-lg,
-.light .shadow-lg {
-  box-shadow:
-    0 0 0 1px rgb(2 6 23 / 0.08),
-    0 18px 38px rgb(2 6 23 / 0.18);
-}
-
-html:not(.dark) .shadow-xl,
-.light .shadow-xl,
-html:not(.dark) .shadow-2xl,
-.light .shadow-2xl {
-  box-shadow:
-    0 0 0 1px rgb(2 6 23 / 0.1),
-    0 24px 48px rgb(2 6 23 / 0.22);
-}
-
-html:not(.dark) .shadow-inner,
-.light .shadow-inner {
-  box-shadow: inset 0 1px 2px rgb(2 6 23 / 0.1);
-}
-
-html.dark .shadow-xs,
-.dark .shadow-xs {
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.08),
-    0 8px 18px rgb(255 255 255 / 0.06);
-}
-
-html.dark .shadow-sm,
-.dark .shadow-sm {
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.1),
-    0 10px 24px rgb(255 255 255 / 0.08);
-}
-
-html.dark .shadow-md,
-.dark .shadow-md {
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.12),
-    0 14px 30px rgb(255 255 255 / 0.1),
-    0 0 22px rgb(255 255 255 / 0.06);
-}
-
-html.dark .shadow-lg,
-.dark .shadow-lg {
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.14),
-    0 18px 38px rgb(255 255 255 / 0.12),
-    0 0 26px rgb(255 255 255 / 0.08);
-}
-
-html.dark .shadow-xl,
-.dark .shadow-xl,
-html.dark .shadow-2xl,
-.dark .shadow-2xl {
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.16),
-    0 24px 48px rgb(255 255 255 / 0.14),
-    0 0 30px rgb(255 255 255 / 0.1);
-}
-
-html.dark .shadow-inner,
-.dark .shadow-inner {
-  box-shadow: inset 0 1px 2px rgb(255 255 255 / 0.08);
-}
+/* Shadows use Tailwind's elevation scale. Surface borders provide separation
+   in dark mode; do not override utility shadows with white glows or replace
+   the focus rings composed by interactive controls. */
 
 /* Demo helpers */
 .demo-swatch {
@@ -1767,7 +1693,7 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 /* Native rendering containment retains every owner card in the accessibility
    tree while skipping layout/paint of distant cards. Match rem-based image
    heights, caption padding and the caption target at each breakpoint. */
-.owner-photo-preview[data-loaded="true"] + .owner-photo-placeholder {
+.owner-photo-preview[data-loaded='true'] + .owner-photo-placeholder {
   display: none;
 }
 

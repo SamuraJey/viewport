@@ -4,7 +4,20 @@ import type { ReactNode } from 'react';
 import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ShareLink } from '../../types';
 import { ApiError } from '../../lib/errorHandling';
+
+vi.mock('../../components/project-page/ProjectOverview', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../components/project-page/ProjectOverview')>();
+  return { ...actual, ProjectOverview: vi.fn(actual.ProjectOverview) };
+});
+
+vi.mock('../../components/dashboard/EnhancedGalleryCard', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../../components/dashboard/EnhancedGalleryCard')>();
+  return { ...actual, EnhancedGalleryCard: vi.fn(actual.EnhancedGalleryCard) };
+});
 
 vi.mock('../../components/ui/AppPopover', () => {
   return {
@@ -19,7 +32,7 @@ vi.mock('../../components/ui/AppPopover', () => {
       buttonClassName?: string;
       buttonContent: ReactNode;
       panelClassName?: string;
-      panel: ReactNode;
+      panel: ReactNode | ((close: () => void) => ReactNode);
     }) => {
       const [open, setOpen] = useState(false);
 
@@ -33,7 +46,11 @@ vi.mock('../../components/ui/AppPopover', () => {
           >
             {buttonContent}
           </button>
-          {open ? <div className={panelClassName}>{panel}</div> : null}
+          {open ? (
+            <div className={panelClassName}>
+              {typeof panel === 'function' ? panel(() => setOpen(false)) : panel}
+            </div>
+          ) : null}
         </div>
       );
     },
@@ -132,7 +149,7 @@ const projectSelectionSummary = {
   latest_activity_at: '2026-04-18T00:00:00Z',
 };
 
-const projectProofingShareLink = (overrides: Record<string, unknown> = {}) => ({
+const projectProofingShareLink = (overrides: Partial<ShareLink> = {}): ShareLink => ({
   id: 'link-1',
   scope_type: 'project',
   project_id: 'project-1',
@@ -261,11 +278,53 @@ describe('ProjectPage', () => {
 
     const headings = await screen.findAllByRole('heading', { level: 1, name: 'Wedding Weekend' });
     expect(headings.length).toBeGreaterThan(0);
-    expect(headings[0]).toHaveClass('wrap-break-word');
+    expect(headings[0]).toHaveClass('wrap-anywhere');
     expect(await screen.findByRole('heading', { name: /share links/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create new share link/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /all links/i })).toBeInTheDocument();
     expect(screen.getByText('Client proofing')).toBeInTheDocument();
+  });
+
+  it('keeps gallery-name keystrokes local without rerendering the overview or gallery cards', async () => {
+    const user = userEvent.setup();
+    const { ProjectOverview } = await import('../../components/project-page/ProjectOverview');
+    const { EnhancedGalleryCard } = await import('../../components/dashboard/EnhancedGalleryCard');
+    renderProjectPage();
+    await user.click(await screen.findByRole('button', { name: 'Rename Photos' }));
+    const overviewRenders = vi.mocked(ProjectOverview).mock.calls.length;
+    const cardRenders = vi.mocked(EnhancedGalleryCard).mock.calls.length;
+    const input = screen.getByRole('textbox', { name: 'Rename gallery input' });
+    await user.type(input, 'abcdefghijkl');
+    expect(input).toHaveValue('Photosabcdefghijkl');
+    expect(vi.mocked(ProjectOverview).mock.calls).toHaveLength(overviewRenders);
+    expect(vi.mocked(EnhancedGalleryCard).mock.calls).toHaveLength(cardRenders);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('textbox', { name: 'Rename gallery input' })).not.toBeInTheDocument();
+  });
+
+  it('opens presentation settings from the cover and moves keyboard focus to the selected tab', async () => {
+    const user = userEvent.setup();
+    renderProjectPage();
+    await user.click(await screen.findByRole('button', { name: 'Edit presentation' }));
+    const tab = screen.getByRole('tab', { name: 'Appearance' });
+    await waitFor(() => expect(tab).toHaveFocus());
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('project-appearance')).toBeInTheDocument();
+  });
+
+  it('only offers client preview for active, unexpired project links', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([
+      projectProofingShareLink({ id: 'inactive', is_active: false }),
+      projectProofingShareLink({ id: 'expired', expires_at: '2000-01-01T00:00:00Z' }),
+      projectProofingShareLink({ id: 'current', is_active: true, expires_at: null }),
+    ]);
+    renderProjectPage();
+    expect(await screen.findByRole('link', { name: /open client view/i })).toHaveAttribute(
+      'href',
+      '/share/current',
+    );
+    expect(screen.getByText('1 active project link')).toBeInTheDocument();
   });
 
   it('uploads a folder into a new gallery when the project already has galleries', async () => {
@@ -298,6 +357,7 @@ describe('ProjectPage', () => {
       );
       render(<RouterProvider router={router} />);
 
+      await user.click(await screen.findByRole('button', { name: 'Project options' }));
       const uploadButton = await screen.findByRole('button', { name: 'Upload folder' });
       const input = screen.getByLabelText('Choose a folder to upload into a new gallery');
       const clickSpy = vi.spyOn(input, 'click');
@@ -393,11 +453,13 @@ describe('ProjectPage', () => {
     const { toast } = await import('sonner');
 
     vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
-      requested_count: 9, skipped_count: 3,
+      requested_count: 9,
+      skipped_count: 3,
     });
 
     renderProjectPage();
     await screen.findByRole('heading', { name: 'Wedding Weekend' });
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
 
     const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
@@ -415,30 +477,37 @@ describe('ProjectPage', () => {
     expect(projectService.getProject).toHaveBeenCalledTimes(2);
   });
 
-  it.each([0, 12])('uses the confirmed prepared count for an empty project response (%s)', async (skippedCount) => {
-    const user = userEvent.setup();
-    const { projectService } = await import('../../services/projectService');
-    const { toast } = await import('sonner');
+  it.each([0, 12])(
+    'uses the confirmed prepared count for an empty project response (%s)',
+    async (skippedCount) => {
+      const user = userEvent.setup();
+      const { projectService } = await import('../../services/projectService');
+      const { toast } = await import('sonner');
 
-    vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
-      requested_count: 0, skipped_count: skippedCount,
-    });
+      vi.mocked(projectService.requestProjectPublication).mockResolvedValueOnce({
+        requested_count: 0,
+        skipped_count: skippedCount,
+      });
 
-    renderProjectPage();
-    await screen.findByRole('heading', { name: 'Wedding Weekend' });
-    await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
+      renderProjectPage();
+      await screen.findByRole('heading', { name: 'Wedding Weekend' });
+      await user.click(screen.getByRole('button', { name: 'Project options' }));
+      await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
 
-    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
-    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+      const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+      await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
 
-    await waitFor(() =>
-      expect(toast.info).toHaveBeenCalledWith(skippedCount > 0
-        ? 'All photos are already prepared for publishing'
-        : 'No eligible photos are available for publishing'),
-    );
-    expect(toast.error).not.toHaveBeenCalled();
-    expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
-  });
+      await waitFor(() =>
+        expect(toast.info).toHaveBeenCalledWith(
+          skippedCount > 0
+            ? 'All photos are already prepared for publishing'
+            : 'No eligible photos are available for publishing',
+        ),
+      );
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
+    },
+  );
 
   it.each([
     ['empty', null],
@@ -446,50 +515,76 @@ describe('ProjectPage', () => {
     ['pending rotations', { rotation_status: 'pending' as const }],
     ['processing rotations', { rotation_status: 'processing' as const }],
     ['prepared photos on the loaded page', { publication_state: 'ready' as const }],
-  ])('does not infer project publication readiness from a 404 with %s', async (_scope, photoFields) => {
-    const user = userEvent.setup();
-    const { projectService } = await import('../../services/projectService');
-    const { toast } = await import('sonner');
-    const photos = photoFields ? [{
-      id: 'photo-1', url: '/photo.jpg', thumbnail_url: '/thumb.jpg', filename: 'photo.jpg',
-      file_size: 100, uploaded_at: '2026-01-01T00:00:00Z',
-      media_type: 'image' as const, status: 'successful' as const, ...photoFields,
-    }] : [];
-    vi.mocked(projectService.getProjectPhotos).mockResolvedValueOnce({ photos, total: photos.length });
-    vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(new ApiError(404, 'No photos found'));
+  ])(
+    'does not infer project publication readiness from a 404 with %s',
+    async (_scope, photoFields) => {
+      const user = userEvent.setup();
+      const { projectService } = await import('../../services/projectService');
+      const { toast } = await import('sonner');
+      const photos = photoFields
+        ? [
+            {
+              id: 'photo-1',
+              url: '/photo.jpg',
+              thumbnail_url: '/thumb.jpg',
+              filename: 'photo.jpg',
+              file_size: 100,
+              uploaded_at: '2026-01-01T00:00:00Z',
+              media_type: 'image' as const,
+              status: 'successful' as const,
+              ...photoFields,
+            },
+          ]
+        : [];
+      vi.mocked(projectService.getProjectPhotos).mockResolvedValueOnce({
+        photos,
+        total: photos.length,
+      });
+      vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(
+        new ApiError(404, 'No photos found'),
+      );
 
-    renderProjectPage();
-    await screen.findByRole('heading', { name: 'Wedding Weekend' });
-    await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
-    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
-    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+      renderProjectPage();
+      await screen.findByRole('heading', { name: 'Wedding Weekend' });
+      await user.click(screen.getByRole('button', { name: 'Project options' }));
+      await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
+      const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+      await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
 
-    await waitFor(() =>
-      expect(toast.info).toHaveBeenCalledWith('No eligible photos are available for publishing'),
-    );
-    expect(toast.info).not.toHaveBeenCalledWith('All photos are already prepared for publishing');
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(toast.error).not.toHaveBeenCalled();
-    expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
-  });
+      await waitFor(() =>
+        expect(toast.info).toHaveBeenCalledWith('No eligible photos are available for publishing'),
+      );
+      expect(toast.info).not.toHaveBeenCalledWith('All photos are already prepared for publishing');
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(screen.queryByText('No photos found')).not.toBeInTheDocument();
+    },
+  );
 
-  it.each(['Project not found', 'Not Found'])('preserves other publication 404 errors: %s', async (message) => {
-    const user = userEvent.setup();
-    const { projectService } = await import('../../services/projectService');
-    const { toast } = await import('sonner');
-    vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(new ApiError(404, message));
+  it.each(['Project not found', 'Not Found'])(
+    'preserves other publication 404 errors: %s',
+    async (message) => {
+      const user = userEvent.setup();
+      const { projectService } = await import('../../services/projectService');
+      const { toast } = await import('sonner');
+      vi.mocked(projectService.requestProjectPublication).mockRejectedValueOnce(
+        new ApiError(404, message),
+      );
 
-    renderProjectPage();
-    await screen.findByRole('heading', { name: 'Wedding Weekend' });
-    await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
-    const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
-    await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
+      renderProjectPage();
+      await screen.findByRole('heading', { name: 'Wedding Weekend' });
+      await user.click(screen.getByRole('button', { name: 'Project options' }));
+      await user.click(screen.getByRole('button', { name: /prepare publication files/i }));
+      const dialog = await screen.findByRole('dialog', { name: /prepare publication files\?/i });
+      await user.click(within(dialog).getByRole('button', { name: /prepare files/i }));
 
-    expect(await screen.findByText(message)).toBeInTheDocument();
-    expect(toast.info).not.toHaveBeenCalled();
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: /prepare publication files/i })).toBeEnabled();
-  });
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(toast.info).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
+      await user.click(screen.getByRole('button', { name: 'Project options' }));
+      expect(screen.getByRole('button', { name: /prepare publication files/i })).toBeEnabled();
+    },
+  );
 
   it('renames the project from the project actions', async () => {
     const user = userEvent.setup();
@@ -517,6 +612,7 @@ describe('ProjectPage', () => {
     });
     expect(pageHeadings.length).toBeGreaterThan(0);
     expect(pageHeadings[0]).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /rename project/i }));
 
     const nameInput = screen.getByLabelText(/project name/i);
@@ -896,6 +992,7 @@ describe('ProjectPage', () => {
       await screen.findByText(/active\/submitted selection sessions across 1 project link/i),
     ).toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /delete project/i }));
 
     expect(await screen.findByText('Delete project?')).toBeInTheDocument();
@@ -963,6 +1060,7 @@ describe('ProjectPage', () => {
     renderProjectPage();
 
     await screen.findByRole('heading', { name: 'Photos' });
+    await user.click(screen.getByRole('button', { name: 'Project options' }));
     await user.click(screen.getByRole('button', { name: /delete project/i }));
 
     expect(

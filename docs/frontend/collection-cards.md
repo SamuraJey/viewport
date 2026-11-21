@@ -12,8 +12,8 @@ primitives keep both collection levels consistent:
 
 - `CollectionCardCover` provides the fixed-height media area and separate
   overlay zones for status badges, persistent controls, and contextual actions.
-- `CollectionCardTitle` provides the shared Oswald, uppercase, responsive title
-  treatment.
+- `CollectionCardTitle` provides a readable, sentence-case title with two-line
+  clamping and wrapping for long names.
 - `CollectionCardMetrics` renders the divided metric footer from data items
   rather than project- or gallery-specific markup.
 - `CollectionShareBadge` provides the common public-share status.
@@ -21,11 +21,27 @@ primitives keep both collection levels consistent:
 The shared shell remains responsible for presentation. It does not own routing,
 menus, mutations, or domain-specific state.
 
+Inline gallery rename keeps the normal title/metadata slot mounted but invisible
+and inaccessible, with a fixed two-line editor over that slot. Long input scrolls
+inside the editor instead of changing card/grid height. `CollectionCard.isEditing`
+disables layout animation, hover lift and the outer focus ring; only the editor
+shows a focus indicator. Keep Enter/blur save, Escape cancel and IME composition
+handling intact. Desktop entry focuses/selects the name without scrolling;
+coarse-pointer layouts wait for the user to focus the field.
+
+`GalleryNameEditor` owns the unsaved input locally and passes the name up only
+when saving. Do not lift per-keystroke state back into ProjectPage: doing so
+re-renders the gallery grid and unrelated project sections for each character.
+
 ## Domain-specific extensions
 
 Project cards retain project-only behavior: preview rotation, active-viewer and
 delivery indicators, quick actions, the project menu, and the dashboard reorder
 handle.
+
+If a project cover fails to load, its image and dark scrim are replaced with a
+neutral preview placeholder. The project link and actions remain usable; a new
+cover URL is attempted normally.
 
 Gallery cards retain gallery-only behavior: project visibility, share/delete
 actions, inline rename, and the separate reorder service row used on the project

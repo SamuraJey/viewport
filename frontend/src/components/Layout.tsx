@@ -11,6 +11,7 @@ import { NetworkStatus } from './ErrorDisplay';
 import { AppPopover } from './ui/AppPopover';
 import { ReadabilitySettingsButton } from './ReadabilitySettingsButton';
 import { SkipToContentLink } from './a11y/SkipToContentLink';
+import { WorkspaceSidebar } from './WorkspaceSidebar';
 import { ProfileModal } from './ProfileModal';
 import { ThemeSwitch } from './ThemeSwitch';
 import { useAuthStore } from '../stores/authStore';
@@ -44,19 +45,20 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
     'border-border/40 bg-surface-1 text-text hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 dark:border-border/60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2';
   const navButtonActive =
     'border-accent/45 bg-accent/10 text-text shadow-sm dark:border-accent/55 dark:bg-accent/15';
-  const isDashboardActive = location.pathname === '/dashboard';
+  const isDashboardActive =
+    location.pathname === '/dashboard' || location.pathname.startsWith('/projects/');
   const isShareLinksActive =
     location.pathname === '/share-links' || location.pathname.startsWith('/share-links/');
   const navItems = [
-    { to: '/dashboard', label: 'Dashboard', icon: Home, active: isDashboardActive },
+    { to: '/dashboard', label: 'Projects', icon: Home, active: isDashboardActive },
     { to: '/share-links', label: 'Share Links', icon: Share2, active: isShareLinksActive },
   ];
 
   return (
     <div className="owner-workspace min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
       <SkipToContentLink />
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-surface/95 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur-xl dark:bg-surface-dark/95 sm:pt-[max(0.625rem,env(safe-area-inset-top))] sm:pb-2.5">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 sm:px-4">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-surface/95 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur-xl dark:bg-surface-dark/95 sm:pt-[max(0.625rem,env(safe-area-inset-top))] sm:pb-2.5 lg:h-16">
+        <div className="mx-auto flex w-full items-center justify-between gap-3 px-3 sm:px-6">
           <Link
             to="/dashboard"
             className="flex min-w-0 items-center gap-2 font-oswald text-lg font-bold uppercase tracking-wide text-text transition-opacity hover:opacity-80 sm:gap-2.5 sm:text-xl sm:tracking-wider dark:text-accent-foreground"
@@ -74,7 +76,7 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
                 Demo
               </span>
             ) : null}
-            <div className="hidden md:flex items-center gap-1.5">
+            <div className="hidden md:flex lg:hidden items-center gap-1.5">
               {navItems.map(({ to, label, icon: Icon, active }) => (
                 <Link
                   key={to}
@@ -179,46 +181,53 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
           </nav>
         </div>
       </header>
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-4 sm:pt-8 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8"
-      >
-        <NetworkStatus />
-        {children}
-      </main>
-      <nav
-        aria-label="Primary mobile navigation"
-        className="fixed inset-x-3 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 rounded-2xl border border-border/60 bg-surface/95 p-1 shadow-lg backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/95 md:hidden"
-      >
-        <div className="grid grid-cols-2 gap-1">
-          {navItems.map(({ to, label, icon: Icon, active }) => (
+      <WorkspaceSidebar
+        user={user}
+        pathname={location.pathname}
+        onOpenSettings={() => setProfileOpen(true)}
+      />
+      <div className="min-w-0 lg:pl-60">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto max-w-400 px-4 py-5 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 md:pb-8 xl:px-10 xl:pt-10"
+        >
+          <NetworkStatus />
+          {children}
+        </main>
+        <nav
+          aria-label="Primary mobile navigation"
+          className="fixed inset-x-3 bottom-[calc(0.5rem+env(safe-area-inset-bottom))] z-40 rounded-2xl border border-border/60 bg-surface/95 p-1 shadow-lg backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/95 md:hidden"
+        >
+          <div className="grid grid-cols-2 gap-1">
+            {navItems.map(({ to, label, icon: Icon, active }) => (
+              <Link
+                key={to}
+                to={to}
+                aria-current={active ? 'page' : undefined}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
+                  active
+                    ? 'bg-accent text-accent-foreground shadow-sm'
+                    : 'text-muted hover:bg-surface-1 hover:text-text dark:hover:bg-surface-dark-1'
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="truncate">{label}</span>
+              </Link>
+            ))}
+          </div>
+        </nav>
+        <footer className="border-t border-border/50 bg-surface/70 px-4 py-4 pb-[calc(6rem+env(safe-area-inset-bottom))] text-sm text-muted dark:bg-surface-dark/70 md:pb-4">
+          <div className="mx-auto flex w-full max-w-7xl justify-end">
             <Link
-              key={to}
-              to={to}
-              aria-current={active ? 'page' : undefined}
-              className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
-                active
-                  ? 'bg-accent text-accent-foreground shadow-sm'
-                  : 'text-muted hover:bg-surface-1 hover:text-text dark:hover:bg-surface-dark-1'
-              }`}
+              to="/accessibility"
+              className="font-semibold text-accent hover:underline focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
             >
-              <Icon className="h-4 w-4" />
-              <span className="truncate">{label}</span>
+              Accessibility
             </Link>
-          ))}
-        </div>
-      </nav>
-      <footer className="border-t border-border/50 bg-surface/70 px-4 py-4 pb-[calc(6rem+env(safe-area-inset-bottom))] text-sm text-muted dark:bg-surface-dark/70 md:pb-4">
-        <div className="mx-auto flex w-full max-w-7xl justify-end">
-          <Link
-            to="/accessibility"
-            className="font-semibold text-accent hover:underline focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
-          >
-            Accessibility
-          </Link>
-        </div>
-      </footer>
+          </div>
+        </footer>
+      </div>
       <AnimatePresence>
         {isProfileOpen && <ProfileModal isOpen={isProfileOpen} onClose={closeProfile} />}
       </AnimatePresence>

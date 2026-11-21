@@ -10,6 +10,9 @@ export function formatDateOnly(date: string | Date): string {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+    ...(typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? { timeZone: 'UTC' }
+      : {}),
   }).format(new Date(date));
 }
 
@@ -39,8 +42,8 @@ export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
 
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
 
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }

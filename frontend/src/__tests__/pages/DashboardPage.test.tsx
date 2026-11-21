@@ -6,6 +6,11 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { DashboardPage } from '../../pages/DashboardPage';
 import type { Project, ShareLink } from '../../types';
 
+vi.mock('../../components/dashboard/ProjectCard', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../components/dashboard/ProjectCard')>();
+  return { ...actual, ProjectCard: vi.fn(actual.ProjectCard) };
+});
+
 const mockNavigate = vi.fn();
 
 const makeProject = (overrides: Partial<Project>): Project => ({
@@ -204,6 +209,64 @@ describe('DashboardPage', () => {
     });
   });
 
+  it('keeps search keystrokes local until the debounced URL update', async () => {
+    const { ProjectCard } = await import('../../components/dashboard/ProjectCard');
+    const { projectService } = await import('../../services/projectService');
+    render(<DashboardPageWrapper />);
+    await screen.findByText('Wedding Weekend');
+    const before = vi.mocked(ProjectCard).mock.calls.length;
+    vi.useFakeTimers();
+    try {
+      const input = screen.getByRole('searchbox', { name: 'Search projects' });
+      for (const value of ['c', 'cl', 'cli', 'clie', 'clien', 'client']) {
+        fireEvent.change(input, { target: { value } });
+      }
+      expect(vi.mocked(ProjectCard).mock.calls).toHaveLength(before);
+      expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
+        search: 'client',
+        sort_by: 'manual_order',
+        order: 'asc',
+      });
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
+  it('switches between grid and list without losing filters, pagination or refetching', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    render(
+      <DashboardPageWrapper initialPath="/dashboard?search=client&sort_by=name&order=asc&page=3" />,
+    );
+    await screen.findByText('Wedding Weekend');
+    await user.click(screen.getByRole('button', { name: 'List view' }));
+    expect(screen.getByRole('table', { name: 'Project library' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/dashboard?search=client&sort_by=name&order=asc&page=3&view=list',
+    );
+    expect(screen.getByRole('link', { name: /Wedding Weekend/ })).toHaveAttribute(
+      'href',
+      '/projects/project-1',
+    );
+    expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Grid view' }));
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('article', { name: /Wedding Weekend.*20 photos/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('location')).not.toHaveTextContent('view=list');
+    expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+  });
+
   it('exposes project loading as a polite live status', async () => {
     const { projectService } = await import('../../services/projectService');
     vi.mocked(projectService.getProjects).mockReturnValue(new Promise(() => undefined));
@@ -214,6 +277,79 @@ describe('DashboardPage', () => {
       'aria-live',
       'polite',
     );
+  });
+
+  it('keeps loaded cards mounted while sorting and preserves them when the request fails', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    let rejectRequest!: (reason: Error) => void;
+    vi.mocked(projectService.getProjects)
+      .mockResolvedValueOnce({
+        projects: mockProjects,
+        total: 2,
+        page: 1,
+        size: 18,
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectRequest = reject;
+          }),
+      );
+
+    render(<DashboardPageWrapper initialPath="/dashboard?sort_by=name&order=asc" />);
+    const card = await screen.findByRole('article', { name: /Wedding Weekend.*20 photos/i });
+    await user.click(screen.getByLabelText('Sort projects'));
+    fireEvent.click(
+      within(await screen.findByRole('listbox')).getByRole('option', { name: 'Manual order' }),
+    );
+
+    await screen.findByText('Updating projects…');
+    expect(screen.getByRole('article', { name: /Wedding Weekend.*20 photos/i })).toBe(card);
+    expect(screen.getByRole('region', { name: 'Projects grid' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    expect(screen.queryByLabelText('Loading projects')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Manual order is required to move Wedding Weekend' }),
+    ).toBeDisabled();
+
+    await act(async () => rejectRequest(new Error('Connection interrupted')));
+    await screen.findByText('Connection interrupted');
+    expect(screen.getByRole('article', { name: /Wedding Weekend.*20 photos/i })).toBe(card);
+    expect(screen.getByRole('region', { name: 'Projects grid' })).toHaveAttribute(
+      'aria-busy',
+      'false',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Manual order is required to move Wedding Weekend' }),
+    ).toBeDisabled();
+  });
+
+  it('clears search immediately, keeps the selected sort and returns focus to the input', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    render(
+      <DashboardPageWrapper initialPath="/dashboard?search=wedding&sort_by=name&order=asc&page=3" />,
+    );
+    await screen.findByText('Wedding Weekend');
+    await user.click(screen.getByRole('button', { name: 'Clear project search' }));
+    const input = screen.getByRole('searchbox', { name: 'Search projects' });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('');
+    await waitFor(() =>
+      expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
+        search: undefined,
+        sort_by: 'name',
+        order: 'asc',
+      }),
+    );
+    await user.type(input, 'editorial');
+    await user.keyboard('{Escape}');
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('');
+    expect(screen.queryByRole('button', { name: 'Clear project search' })).not.toBeInTheDocument();
   });
 
   it('polls project delivery activity every 60 seconds without returning to loading state', async () => {

@@ -74,4 +74,32 @@ describe('ProjectCard', () => {
     expect(screen.getByRole('button', { name: 'Copy latest project share link' })).toBeEnabled();
     expect(container.firstChild).toMatchSnapshot();
   });
+
+  it('replaces a broken cover with a fallback and tries a newly supplied cover URL', () => {
+    const { container, rerender } = render(
+      <MemoryRouter>
+        <ProjectCard project={project} {...callbacks} />
+      </MemoryRouter>,
+    );
+    fireEvent.error(container.querySelector(`img[src="${project.cover_photo_thumbnail_url}"]`)!);
+    expect(screen.getByText('Project preview unavailable')).toBeInTheDocument();
+    expect(container.querySelector(`img[src="${project.cover_photo_thumbnail_url}"]`)).toBeNull();
+    expect(screen.getByRole('link', { name: `Open ${project.name}` })).toHaveAttribute(
+      'href',
+      `/projects/${project.id}`,
+    );
+
+    rerender(
+      <MemoryRouter>
+        <ProjectCard
+          project={{ ...project, cover_photo_thumbnail_url: 'https://example.com/new-cover.jpg' }}
+          {...callbacks}
+        />
+      </MemoryRouter>,
+    );
+    expect(
+      container.querySelector('img[src="https://example.com/new-cover.jpg"]'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Project preview unavailable')).not.toBeInTheDocument();
+  });
 });

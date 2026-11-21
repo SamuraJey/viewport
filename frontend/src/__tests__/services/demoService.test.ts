@@ -66,6 +66,93 @@ describe('demoService', () => {
     vi.unstubAllGlobals();
   });
 
+  it('migrates restored image URLs while preserving video records and metadata', async () => {
+    const photo = {
+      id: 'legacy-image', media_type: 'image' as const, filename: 'portrait.jpg',
+      url: 'https://old.example/image.jpg', thumbnail_url: 'https://old.example/thumb.jpg',
+      file_size: 1000, status: 'successful', uploaded_at: '2026-04-01T00:00:00Z',
+    };
+    const video = { ...photo, id: 'legacy-video', media_type: 'video' as const,
+      filename: 'clip.mp4', url: 'https://old.example/clip.mp4',
+      playback_url: 'https://old.example/playback.mp4' };
+    const state = buildDemoState('2099-01-01T00:00:00Z');
+    localStorage.setItem(DEMO_STATE_STORAGE_KEY, JSON.stringify({
+      ...state,
+      galleries: [{ ...state.galleries[0], photos: [photo, video] }],
+    }));
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+    const detail = await service.getGallery('gallery-1');
+    expect(detail.photos.find((item) => item.id === photo.id)).toEqual({
+      ...photo,
+      url: `${import.meta.env.BASE_URL}demo/placeholder-1.svg`,
+      thumbnail_url: `${import.meta.env.BASE_URL}demo/placeholder-1.svg`,
+    });
+    expect(detail.photos.find((item) => item.id === video.id)).toEqual(video);
+    expect(detail.name).toBe(state.galleries[0].gallery.name);
+    expect(await service.getShareLinks('gallery-1')).toEqual(state.galleries[0].shareLinks);
+
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    await service.downloadPhoto('gallery-1', photo.id, { quality: 'original', includeVideos: true });
+    expect((click.mock.instances[0] as HTMLAnchorElement).download).toBe('portrait.svg');
+  });
+
+  it('downloads uploaded demo placeholders with SVG extensions without renaming the queue files', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+    const files = [new File(['png'], 'portrait.png', { type: 'image/png' }),
+      new File(['jpeg'], 'landscape.jpg', { type: 'image/jpeg' })];
+    const upload = service.uploadPhotosPresigned('demo-project-porto-photos',
+      files.map((file) => ({ file, filename: file.name })));
+    await vi.runAllTimersAsync();
+    const result = await upload;
+    expect(result.results.map((item) => item.filename)).toEqual(files.map((file) => file.name));
+    const detail = await service.getGallery('demo-project-porto-photos');
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    for (const file of files) {
+      const photo = detail.photos.find((item) => item.filename === file.name)!;
+      await service.downloadPhoto(detail.id, photo.id, { quality: 'original', includeVideos: true });
+    }
+    expect(click.mock.instances.map((anchor) => (anchor as HTMLAnchorElement).download))
+      .toEqual(['portrait.svg', 'landscape.svg']);
+  });
+
+  it.each([
+    ['portrait.png', 'data:image/png;base64,aGVsbG8='],
+    ['portrait.jpg', 'data:image/jpeg;base64,aGVsbG8='],
+  ])('preserves the filename when %s has matching raster content', async (filename, url) => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+    const detail = await service.getGallery('demo-project-porto-photos');
+    const photo = detail.photos.find((item) => item.media_type === 'image')!;
+    photo.filename = filename;
+    photo.url = url;
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    await service.downloadPhoto(detail.id, photo.id, { quality: 'original', includeVideos: true });
+    const anchor = click.mock.instances[0] as HTMLAnchorElement;
+    expect(anchor.href).toBe(url);
+    expect(anchor.download).toBe(filename);
+  });
+
+  it('downloads demo SVG originals with matching filenames for owner and public access', async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+    const gallery = await service.getGallery('demo-project-porto-photos');
+    const photo = gallery.photos.find((item) => item.media_type === 'image')!;
+    const options = { quality: 'original', includeVideos: true } as const;
+
+    await service.downloadPhoto(gallery.id, photo.id, options);
+    await service.downloadSharedPhoto('sg-demo-project-porto-photos', photo.id, options);
+
+    expect(click).toHaveBeenCalledTimes(2);
+    for (const anchor of click.mock.instances as HTMLAnchorElement[]) {
+      expect(anchor.getAttribute('href')).toBe(photo.url);
+      expect(anchor.pathname).toMatch(/\.svg$/);
+      expect(anchor.download).toMatch(/\.svg$/);
+    }
+  });
+
 
   it('estimates the listed project scope rather than one gallery and rejects out-of-scope singles', async () => {
     // Reset modules in beforeEach ensures an independent seeded store.
@@ -388,7 +475,7 @@ describe('demoService', () => {
     );
 
     expect(project?.cover_photo_thumbnail_url).toBe(
-      'https://picsum.photos/seed/demo-project-porto-photos-1/700/500',
+      `${import.meta.env.BASE_URL}demo/placeholder-2.svg`,
     );
   });
 

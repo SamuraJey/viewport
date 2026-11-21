@@ -1,23 +1,16 @@
-import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
-
-type LenisWrapperProps = {
-  children: ReactNode;
-  root?: boolean;
-};
+import { useEffect, type ReactNode } from 'react';
+import type Lenis from 'lenis';
 
 export const DeferredLenis = ({ children }: { children: ReactNode }) => {
-  const [LenisComponent, setLenisComponent] = useState<ComponentType<LenisWrapperProps> | null>(
-    null,
-  );
-
   useEffect(() => {
     let isMounted = true;
+    let instance: Lenis | undefined;
 
     const timeoutId = window.setTimeout(() => {
-      void import('lenis/react')
+      void import('lenis')
         .then((module) => {
           if (isMounted) {
-            setLenisComponent(() => module.ReactLenis);
+            instance = new module.default({ autoRaf: true });
           }
         })
         .catch(() => {
@@ -28,12 +21,10 @@ export const DeferredLenis = ({ children }: { children: ReactNode }) => {
     return () => {
       isMounted = false;
       window.clearTimeout(timeoutId);
+      instance?.destroy();
     };
   }, []);
 
-  if (!LenisComponent) {
-    return <>{children}</>;
-  }
-
-  return <LenisComponent root>{children}</LenisComponent>;
+  // Keep the React tree stable when the optional scroll controller arrives.
+  return <>{children}</>;
 };

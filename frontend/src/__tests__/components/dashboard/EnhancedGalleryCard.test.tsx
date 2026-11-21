@@ -1,4 +1,3 @@
-import { createRef } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -45,10 +44,7 @@ const variants = {
 const baseProps = {
   gallery,
   isRenamingThis: false,
-  renameInput: gallery.name,
   isRenaming: false,
-  renameInputRef: createRef<HTMLTextAreaElement>(),
-  onRenameInputChange: vi.fn(),
   onConfirmRename: vi.fn(),
   onCancelRename: vi.fn(),
   onBeginRename: vi.fn(),
@@ -58,6 +54,55 @@ const baseProps = {
 };
 
 describe('EnhancedGalleryCard', () => {
+  it.each(['Enter', 'Escape'])('restores rename focus only after %s closes the editor', (key) => {
+    const view = (editing: boolean, saving = false) => (
+      <MemoryRouter>
+        <EnhancedGalleryCard {...baseProps} isRenamingThis={editing} isRenaming={saving} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(view(true));
+    const input = screen.getByRole('textbox');
+    fireEvent.keyDown(input, { key });
+    expect(input).toHaveFocus();
+    rerender(view(false));
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rename Ceremony' })).toHaveFocus();
+  });
+
+  it('waits for pending saves before enabling and focusing the rename button', () => {
+    const view = (editing: boolean, saving: boolean) => (
+      <MemoryRouter>
+        <EnhancedGalleryCard {...baseProps} isRenamingThis={editing} isRenaming={saving} />
+      </MemoryRouter>
+    );
+    const { rerender } = render(view(true, false));
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    rerender(view(true, true));
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
+    rerender(view(false, true));
+    const button = screen.getByRole('button', { name: 'Rename Ceremony' });
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveFocus();
+    rerender(view(false, false));
+    expect(button).toBeEnabled();
+    expect(button).toHaveFocus();
+  });
+
+  it('preserves Tab focus after blur closes the editor', async () => {
+    const user = userEvent.setup();
+    const view = (editing: boolean) => (
+      <MemoryRouter>
+        <EnhancedGalleryCard {...baseProps} isRenamingThis={editing} />
+        <button type="button">Next control</button>
+      </MemoryRouter>
+    );
+    const { rerender } = render(view(true));
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus();
+    rerender(view(false));
+    expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus();
+  });
+
   it('preserves gallery navigation, metadata, badges, and actions', async () => {
     const user = userEvent.setup();
     const onBeginRename = vi.fn();
@@ -103,18 +148,50 @@ describe('EnhancedGalleryCard', () => {
 
     render(
       <MemoryRouter>
-        <EnhancedGalleryCard
-          {...baseProps}
-          isRenamingThis
-          renameInput="Ceremony highlights"
-          onConfirmRename={onConfirmRename}
-        />
+        <EnhancedGalleryCard {...baseProps} isRenamingThis onConfirmRename={onConfirmRename} />
       </MemoryRouter>,
     );
 
     const input = screen.getByRole('textbox', { name: 'Rename gallery input' });
+    fireEvent.change(input, { target: { value: 'Ceremony highlights' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
-    expect(onConfirmRename).toHaveBeenCalledOnce();
+    expect(onConfirmRename).toHaveBeenCalledExactlyOnceWith('Ceremony highlights');
+  });
+
+  it('keeps hidden navigation out of the editor and cancels with Escape', () => {
+    const onCancelRename = vi.fn();
+    const onConfirmRename = vi.fn();
+    render(
+      <MemoryRouter>
+        <EnhancedGalleryCard
+          {...baseProps}
+          isRenamingThis
+          onCancelRename={onCancelRename}
+          onConfirmRename={onConfirmRename}
+        />
+      </MemoryRouter>,
+    );
+    const input = screen.getByRole('textbox', { name: 'Rename gallery input' });
+    expect(input).toHaveFocus();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Rename Ceremony' })).not.toBeInTheDocument();
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(onCancelRename).toHaveBeenCalledOnce();
+    expect(onConfirmRename).not.toHaveBeenCalled();
+  });
+
+  it('does not save while confirming an IME composition', () => {
+    const onConfirmRename = vi.fn();
+    render(
+      <MemoryRouter>
+        <EnhancedGalleryCard {...baseProps} isRenamingThis onConfirmRename={onConfirmRename} />
+      </MemoryRouter>,
+    );
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Rename gallery input' }), {
+      key: 'Enter',
+      isComposing: true,
+    });
+    expect(onConfirmRename).not.toHaveBeenCalled();
   });
 });
