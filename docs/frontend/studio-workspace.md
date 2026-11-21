@@ -50,22 +50,10 @@ and its instructions appear only in grid view. List mode preserves the server
 order and can return to the grid to reorder. Initial skeletons match each view;
 revalidation keeps the selected presentation mounted.
 
-## Reliable demo photography
+## Demo placeholders
 
-Demo images are bundled under `frontend/public/demo/` and use Vite's base path.
-Existing persisted demo records that reference `https://picsum.photos/` migrate
-to local images without resetting projects, share links or selections. Other
-URLs are preserved. Original videos still use the existing sample video source.
-
-Image sources, downloaded at 1600px with JPEG quality 82:
-
-- `wedding.jpg`: [Unsplash image](https://images.unsplash.com/photo-1519741497674-611481863552?w=1600&q=82&auto=format&fit=crop)
-- `celebration.jpg`: [Unsplash image](https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=1600&q=82&auto=format&fit=crop)
-- `landscape.jpg`: [Unsplash image](https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1600&q=82&auto=format&fit=crop)
-
-Refer to the [Unsplash license](https://unsplash.com/license) when reusing these
-assets outside the sample gallery. These photos illustrate demo content, not
-customer work.
+Demo images use locally authored SVG placeholders under `frontend/public/demo/`.
+Demo videos still use the existing sample video source.
 
 ## Verification
 

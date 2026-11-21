@@ -388,7 +388,7 @@ describe('demoService', () => {
     );
 
     expect(project?.cover_photo_thumbnail_url).toBe(
-      '/demo/celebration.jpg',
+      '/demo/placeholder-2.svg',
     );
   });
 

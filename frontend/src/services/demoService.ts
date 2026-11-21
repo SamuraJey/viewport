@@ -259,7 +259,7 @@ const buildSeedGalleryState = (
 };
 
 const demoPhotoUrl = (index: number): string =>
-  `${import.meta.env.BASE_URL}demo/${['wedding', 'celebration', 'landscape'][index % 3]}.jpg`;
+  `${import.meta.env.BASE_URL}demo/placeholder-${index % 3 + 1}.svg`;
 
 const buildPhoto = (
   galleryId: string,
@@ -677,13 +677,6 @@ class DemoServiceStore {
     const restored = ensureProjectRecords(ensureProjectDemoContent(this.restoreState()));
     this.galleries = (restored?.galleries || seedState()).map((galleryState) => ({
       ...galleryState,
-      photos: galleryState.photos.map((photo, index) => ({
-        ...photo,
-        url: photo.url?.startsWith('https://picsum.photos/') ? demoPhotoUrl(index) : photo.url,
-        thumbnail_url: photo.thumbnail_url?.startsWith('https://picsum.photos/')
-          ? demoPhotoUrl(index)
-          : photo.thumbnail_url,
-      })),
       selectionSessions: normalizeSelectionSessionMap(galleryState.selectionSessions),
     }));
     this.projects = (restored ? (restored.projects ?? []) : buildInitialProjectState()).map(
