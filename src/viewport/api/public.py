@@ -1,8 +1,10 @@
+import asyncio
 import contextlib
 from datetime import date, datetime
 from uuid import UUID, uuid4
 
 import zipstream
+from anyio import CancelScope
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -44,6 +46,8 @@ from viewport.zip_utils import make_content_disposition_header, sanitize_zip_ent
 
 router = APIRouter(prefix="/s", tags=["public"])
 PROJECT_VIEW_WINDOW_SECONDS = 120
+PROJECT_VIEW_PENDING_SECONDS = 5
+PROJECT_VIEW_PENDING_PREFIX = "pending:"
 
 
 def _resolved_client_ip(request: Request) -> str | None:
@@ -64,15 +68,48 @@ async def _record_project_view(repo: ShareLinkRepository, redis: RedisService | 
         return
 
     key = f"project-view-window:{share_id}:{visitor_hash}"
-    token = uuid4().hex
-    if await redis.set_if_absent(key, token, ex=PROJECT_VIEW_WINDOW_SECONDS) is False:
-        return
+    token = f"{PROJECT_VIEW_PENDING_PREFIX}{uuid4().hex}"
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + PROJECT_VIEW_PENDING_SECONDS
+    retry_delay = 0.025
+    acquisition: asyncio.Task[bool | None] | None = None
 
     try:
+        while True:
+            current = await redis.get(key)
+            if current is None:
+                acquisition = asyncio.create_task(redis.set_if_absent(key, token, ex=PROJECT_VIEW_PENDING_SECONDS))
+                if await asyncio.shield(acquisition) is not False:
+                    break
+                acquisition = None
+            elif not current.startswith(PROJECT_VIEW_PENDING_PREFIX):
+                # Existing keys from the previous release last at most one window.
+                return
+
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
+            await asyncio.sleep(min(retry_delay, remaining))
+            retry_delay = min(2 * retry_delay, 0.25)
+
         await repo.record_view(share_id, ip_address=client_ip, user_agent=user_agent)
     except BaseException:
-        await redis.delete_if_value(key, token)
+        if acquisition is not None:
+            with CancelScope(shield=True):
+                # Finish an in-flight SET before trying to release its token.
+                with contextlib.suppress(Exception):
+                    await acquisition
+                await redis.delete_if_value(key, token)
         raise
+
+    if acquisition is not None:
+        with CancelScope(shield=True):
+            confirmation = asyncio.create_task(redis.set_if_value(key, token, "recorded", ex=PROJECT_VIEW_WINDOW_SECONDS))
+            try:
+                await asyncio.shield(confirmation)
+            finally:
+                if not await confirmation:
+                    await redis.delete_if_value(key, token)
 
 
 def _resolve_public_sorting(gallery: Gallery) -> tuple[GalleryPhotoSortBy, SortOrder]:

@@ -1,3 +1,4 @@
+import asyncio
 import io
 import zipfile
 from datetime import UTC, datetime, timedelta
@@ -7,11 +8,15 @@ from uuid import uuid4
 
 import pytest
 from botocore.exceptions import ClientError
-from fastapi import HTTPException, Response
+from fastapi import HTTPException, Request, Response
 from fastapi.testclient import TestClient
+from redis.asyncio import Redis
 
 from tests.helpers import upload_photo_via_presigned
 from viewport.api.public import (
+    PROJECT_VIEW_PENDING_PREFIX,
+    PROJECT_VIEW_PENDING_SECONDS,
+    PROJECT_VIEW_WINDOW_SECONDS,
     _build_project_cover,
     _build_public_gallery_response,
     _build_public_project_response,
@@ -19,6 +24,7 @@ from viewport.api.public import (
     _ensure_gallery_share_scope,
     _get_downloadable_public_photo,
     _load_project_zip_entries,
+    _record_project_view,
     _require_gallery_share_id,
     download_all_photos_zip,
     get_photos_by_sharelink,
@@ -28,6 +34,7 @@ from viewport.api.public import (
 from viewport.models.gallery import MediaType, PhotoUploadStatus
 from viewport.models.sharelink import ShareScopeType
 from viewport.repositories.gallery_stats import GalleryPhotoStats
+from viewport.services.redis_service import RedisService
 from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 pytestmark = pytest.mark.requires_s3
@@ -35,6 +42,119 @@ pytestmark = pytest.mark.requires_s3
 
 def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
     return upload_photo_via_presigned(client, gallery_id, content, filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first_write_fails", [False, True])
+async def test_concurrent_project_view_waits_for_pending_write(valkey_container, monkeypatch, first_write_fails):
+    share_id = uuid4()
+    request = Request({"type": "http", "headers": []})
+    repo = MagicMock()
+    repo.build_visitor_hash.return_value = "visitor"
+    write_started = asyncio.Event()
+    finish_write = asyncio.Event()
+    pending_seen = asyncio.Event()
+
+    async def write_view(*args, **kwargs):
+        if repo.record_view.await_count == 1:
+            write_started.set()
+            await finish_write.wait()
+            if first_write_fails:
+                raise RuntimeError("View write failed")
+
+    repo.record_view = AsyncMock(side_effect=write_view)
+    async with Redis.from_url(valkey_container, decode_responses=True) as client:
+        redis = RedisService(client, None)
+        get = redis.get
+
+        async def observe_pending(key):
+            value = await get(key)
+            if value is not None and value.startswith(PROJECT_VIEW_PENDING_PREFIX):
+                pending_seen.set()
+            return value
+
+        monkeypatch.setattr(redis, "get", observe_pending)
+        first = asyncio.create_task(_record_project_view(repo, redis, share_id, request))
+        await asyncio.wait_for(write_started.wait(), timeout=5)
+        key = f"project-view-window:{share_id}:visitor"
+        assert 0 < await client.pttl(key) <= PROJECT_VIEW_PENDING_SECONDS * 1000
+        second = asyncio.create_task(_record_project_view(repo, redis, share_id, request))
+        try:
+            await asyncio.wait_for(pending_seen.wait(), timeout=5)
+            assert not second.done()
+            assert repo.record_view.await_count == 1
+        finally:
+            finish_write.set()
+
+        results = await asyncio.wait_for(asyncio.gather(first, second, return_exceptions=True), timeout=5)
+        assert results[1] is None
+        if first_write_fails:
+            assert isinstance(results[0], RuntimeError)
+            assert repo.record_view.await_count == 2
+        else:
+            assert results[0] is None
+            assert repo.record_view.await_count == 1
+        assert await get(key) == "recorded"
+        assert PROJECT_VIEW_PENDING_SECONDS * 1000 < await client.pttl(key) <= PROJECT_VIEW_WINDOW_SECONDS * 1000
+
+
+@pytest.mark.asyncio
+async def test_project_view_takes_over_abandoned_reservation_after_short_expiry(valkey_container, monkeypatch):
+    monkeypatch.setattr("viewport.api.public.PROJECT_VIEW_PENDING_SECONDS", 1)
+    share_id = uuid4()
+    request = Request({"type": "http", "headers": []})
+    repo = MagicMock()
+    repo.build_visitor_hash.return_value = "visitor"
+    repo.record_view = AsyncMock()
+    key = f"project-view-window:{share_id}:visitor"
+
+    async with Redis.from_url(valkey_container, decode_responses=True) as client:
+        redis = RedisService(client, None)
+        assert await redis.set_if_absent(key, f"{PROJECT_VIEW_PENDING_PREFIX}abandoned", ex=1) is True
+
+        await asyncio.wait_for(_record_project_view(repo, redis, share_id, request), timeout=3)
+        assert await redis.get(key) == "recorded"
+        repo.record_view.assert_awaited_once()
+
+        expiration = await client.pexpiretime(key)
+        await _record_project_view(repo, redis, share_id, request)
+        repo.record_view.assert_awaited_once()
+        assert await client.pexpiretime(key) == expiration
+
+
+@pytest.mark.asyncio
+async def test_cancelled_project_view_releases_in_flight_reservation(valkey_container, monkeypatch):
+    share_id = uuid4()
+    request = Request({"type": "http", "headers": []})
+    repo = MagicMock()
+    repo.build_visitor_hash.return_value = "visitor"
+    repo.record_view = AsyncMock()
+    reservation_written = asyncio.Event()
+    reply_ready = asyncio.Event()
+
+    async with Redis.from_url(valkey_container, decode_responses=True) as client:
+        redis = RedisService(client, None)
+        reserve = redis.set_if_absent
+
+        async def delay_reply(*args, **kwargs):
+            result = await reserve(*args, **kwargs)
+            reservation_written.set()
+            await reply_ready.wait()
+            return result
+
+        monkeypatch.setattr(redis, "set_if_absent", delay_reply)
+        view = asyncio.create_task(_record_project_view(repo, redis, share_id, request))
+        await asyncio.wait_for(reservation_written.wait(), timeout=5)
+        view.cancel()
+        await asyncio.sleep(0)
+        reply_ready.set()
+        with pytest.raises(asyncio.CancelledError):
+            await view
+
+        repo.record_view.assert_not_awaited()
+        assert await redis.get(f"project-view-window:{share_id}:visitor") is None
+        await _record_project_view(repo, redis, share_id, request)
+        repo.record_view.assert_awaited_once()
 
 
 class TestPublicAPI:

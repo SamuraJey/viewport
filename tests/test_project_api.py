@@ -12,6 +12,7 @@ from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from tests.helpers import upload_photo_via_presigned
 from viewport.api.project import update_project
+from viewport.api.public import PROJECT_VIEW_PENDING_SECONDS
 from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.schemas.project import ProjectUpdateRequest
 
@@ -643,7 +644,7 @@ class TestProjectAPI:
         async def lose_first_reservation_reply(redis, connection, command, *args, **options):
             nonlocal reservation_attempts
             result = await send_command(redis, connection, command, *args, **options)
-            if any(isinstance(arg, str) and arg.startswith(reservation_prefix) for arg in args):
+            if args and args[-1] == PROJECT_VIEW_PENDING_SECONDS and any(isinstance(arg, str) and arg.startswith(reservation_prefix) for arg in args):
                 reservation_attempts += 1
                 if reservation_attempts == 1:
                     raise RedisTimeoutError("Reservation reply lost")

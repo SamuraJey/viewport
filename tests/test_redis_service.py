@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 from redis.asyncio import Redis
-from redis.exceptions import RedisError
+from redis.exceptions import MaxConnectionsError, RedisError
 
 from viewport.services.redis_service import FIXED_WINDOW_INCREMENT_SCRIPT, RedisService, RedisSettings, _NoOpPipelineContext
 
@@ -28,12 +28,34 @@ async def test_expiring_reservation_can_only_be_released_by_current_owner(valkey
         assert 0 < await client.pttl(key) <= first_ttl <= 120_000
 
         await client.pexpireat(key, 1)
-        assert await service.set_if_absent(key, "later-request", ex=120) is True
+        assert await service.set_if_absent(key, "later-request", ex=5) is True
         assert await service.delete_if_value(key, "first-request") is False
+        second_expiration = await client.pexpiretime(key)
+        assert await service.set_if_value(key, "first-request", "recorded", ex=120) is False
         assert await client.get(key) == "later-request"
+        assert await client.pexpiretime(key) == second_expiration
+        assert await service.set_if_value(key, "later-request", "recorded", ex=120) is True
+        assert await client.get(key) == "recorded"
+        assert await client.pexpiretime(key) > second_expiration
         assert 0 < await client.pttl(key) <= 120_000
-        assert await service.delete_if_value(key, "later-request") is True
-        assert await client.get(key) is None
+        assert await service.delete_if_value(key, "later-request") is False
+
+
+@pytest.mark.asyncio
+async def test_exhausted_pool_does_not_mark_redis_unavailable():
+    client = AsyncMock()
+    reserve = AsyncMock(side_effect=MaxConnectionsError("Pool exhausted"))
+    increment = AsyncMock(side_effect=[MaxConnectionsError("Pool exhausted"), [1, 60]])
+    client.register_script = MagicMock(side_effect=[reserve, increment])
+    service = RedisService(client, None)
+
+    assert await service.set_if_absent("view", "token", ex=120) is None
+    assert service.is_available
+    assert await service.fixed_window_increment("auth-counter", 60) is None
+    assert service.is_available
+    result = await service.fixed_window_increment("auth-counter", 60)
+    assert result is not None
+    assert result.count == 1
 
 
 class TestRedisSettings:

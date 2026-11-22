@@ -813,45 +813,30 @@ class SelectionRepository(BaseRepository):
         ]
         return await self._finish_read(rows)
 
-    async def validate_photo_belongs_to_share_scope(self, sharelink_id: uuid.UUID, photo_id: uuid.UUID) -> bool:
+    async def validate_photo_belongs_to_share_scope(self, sharelink_id: uuid.UUID, photo_id: uuid.UUID, *, lock_photo: bool = False) -> bool:
         sharelink = await self.get_public_sharelink(sharelink_id)
         if sharelink is None:
             return await self._finish_read(False)
 
+        stmt = select(Photo.id).join(Photo.gallery).where(Photo.id == photo_id, Photo.status == PhotoUploadStatus.SUCCESSFUL, Gallery.is_deleted.is_(False))
         if sharelink.scope_type == ShareScopeType.GALLERY.value:
             if sharelink.gallery_id is None:
                 return await self._finish_read(False)
-            stmt = (
-                select(func.count())
-                .select_from(Photo)
-                .join(Photo.gallery)
-                .where(
-                    Photo.id == photo_id,
-                    Photo.gallery_id == sharelink.gallery_id,
-                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
-                    Gallery.is_deleted.is_(False),
-                )
-            )
-            count = int((await self.db.execute(stmt)).scalar() or 0)
-            return await self._finish_read(count > 0)
-
-        if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
-            return await self._finish_read(False)
-
-        stmt = (
-            select(func.count())
-            .select_from(Photo)
-            .join(Photo.gallery)
-            .where(
-                Photo.id == photo_id,
-                Photo.status == PhotoUploadStatus.SUCCESSFUL,
+            stmt = stmt.where(Photo.gallery_id == sharelink.gallery_id)
+        elif sharelink.scope_type == ShareScopeType.PROJECT.value and sharelink.project_id is not None:
+            stmt = stmt.where(
                 Gallery.project_id == sharelink.project_id,
                 Gallery.project_visibility == ProjectVisibility.LISTED.value,
-                Gallery.is_deleted.is_(False),
             )
-        )
-        count = int((await self.db.execute(stmt)).scalar() or 0)
-        return await self._finish_read(count > 0)
+        else:
+            return await self._finish_read(False)
+
+        if lock_photo:
+            # Gallery cleanup deletes photos before sessions. Lock the photo
+            # first so its selection items cannot be deleted under the toggle.
+            stmt = stmt.with_for_update(of=Photo, read=True, key_share=True)
+            return (await self.db.execute(stmt)).scalar_one_or_none() is not None
+        return await self._finish_read((await self.db.execute(stmt)).scalar_one_or_none() is not None)
 
     async def get_selected_items_for_sharelink_with_context(
         self,

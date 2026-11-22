@@ -2350,7 +2350,13 @@ class DemoServiceStore {
     const listedFolderStates = this.galleries
       .filter((entry) => entry.gallery.project_id === projectState.project.id)
       .filter((entry) => (entry.gallery.project_visibility ?? 'listed') === 'listed');
-    if (!nestedGalleryId && listedFolderStates.length === 0) {
+    const folderState = nestedGalleryId
+      ? listedFolderStates.find((entry) => entry.gallery.id === nestedGalleryId)
+      : undefined;
+    if (nestedGalleryId && !folderState) {
+      throw this.createNotFoundError('Gallery not found');
+    }
+    if (listedFolderStates.length === 0) {
       throw this.createNotFoundError('Gallery not found or link expired');
     }
 
@@ -2417,11 +2423,7 @@ class DemoServiceStore {
       })),
     };
 
-    if (nestedGalleryId) {
-      const folderState = listedFolderStates.find((entry) => entry.gallery.id === nestedGalleryId);
-      if (!folderState) {
-        throw this.createNotFoundError('Gallery not found');
-      }
+    if (folderState) {
       const sortBy: GalleryPhotoSortBy = folderState.gallery.public_sort_by ?? 'original_filename';
       const sortOrder: SortOrder = folderState.gallery.public_sort_order ?? 'asc';
       const sortedPhotos = this.sortSharedPhotos(folderState.photos, sortBy, sortOrder);

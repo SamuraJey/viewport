@@ -296,3 +296,8 @@ def test_csv_response_neutralizes_spreadsheet_formulas(trigger):
     response = _csv_response("selection.csv", [value, "filename"], [[value, 'a,b "c".jpg']])
     rows = list(csv.reader(io.StringIO(response.body.decode())))
     assert rows == [["'" + value, "filename"], ["'" + value, 'a,b "c".jpg']]
+
+
+def test_csv_response_preserves_literal_leading_apostrophe():
+    response = _csv_response("selection.csv", ["comment"], [["- keep"], ["'- keep"]])
+    assert list(csv.reader(io.StringIO(response.body.decode()))) == [["comment"], ["'- keep"], ["''- keep"]]

@@ -20,7 +20,7 @@ from typing import Any
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from redis.asyncio import ConnectionPool, Redis
 from redis.commands.core import AsyncScript
-from redis.exceptions import RedisError
+from redis.exceptions import MaxConnectionsError, RedisError
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,13 @@ return 0
 DELETE_IF_VALUE_SCRIPT = """
 if redis.call('GET', KEYS[1]) == ARGV[1] then
     return redis.call('DEL', KEYS[1])
+end
+return 0
+"""
+
+SET_IF_VALUE_SCRIPT = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('SET', KEYS[1], ARGV[2], 'XX', 'EX', ARGV[3])
 end
 return 0
 """
@@ -189,6 +196,7 @@ class RedisService:
         self._next_reconnect_at = 0.0
         self._fixed_window_script: AsyncScript | None = None
         self._set_if_absent_script: AsyncScript | None = None
+        self._set_if_value_script: AsyncScript | None = None
 
     @classmethod
     async def create(cls, settings: RedisSettings | None = None) -> "RedisService":
@@ -260,6 +268,7 @@ class RedisService:
             self._settings = None
             self._fixed_window_script = None
             self._set_if_absent_script = None
+            self._set_if_value_script = None
 
     async def ping(self) -> bool:
         """Ping Redis to check connection."""
@@ -323,11 +332,28 @@ class RedisService:
                 script = client.register_script(SET_IF_ABSENT_OR_MATCH_SCRIPT)
                 self._set_if_absent_script = script
             return bool(await script(keys=(key,), args=(value, ex), client=client))
+        except MaxConnectionsError:
+            return None
         except RedisError as exc:
             logger.warning("Redis reservation failed for key %s: %s", key, exc)
             self._available = False
             self._next_reconnect_at = time.monotonic() + 5.0
             return None
+
+    async def set_if_value(self, key: str, expected_value: str, value: str, *, ex: int) -> bool:
+        """Replace a matching value and set its expiration atomically."""
+        client = self._client
+        if client is None:
+            return False
+        try:
+            script = self._set_if_value_script
+            if script is None:
+                script = client.register_script(SET_IF_VALUE_SCRIPT)
+                self._set_if_value_script = script
+            return bool(await script(keys=(key,), args=(expected_value, value, ex), client=client))
+        except RedisError as exc:
+            logger.warning("Redis conditional set failed for key %s: %s", key, exc)
+            return False
 
     async def delete_if_value(self, key: str, expected_value: str) -> bool:
         """Delete a key only if its current value matches, without changing its TTL otherwise."""
@@ -407,6 +433,8 @@ class RedisService:
                 logger.warning("Redis fixed-window script returned an invalid result for key %s", key)
                 return None
             return FixedWindowIncrement(count=int(result[0]), retry_after=max(int(result[1]), 1))
+        except MaxConnectionsError:
+            return None
         except (RedisError, TypeError, ValueError) as e:
             logger.warning("Redis fixed-window increment failed for key %s: %s", key, e)
             self._available = False
@@ -432,6 +460,7 @@ class RedisService:
             self._pool = replacement._pool
             self._fixed_window_script = None
             self._set_if_absent_script = None
+            self._set_if_value_script = None
             self._available = True
             self._next_reconnect_at = 0.0
             replacement._client = None

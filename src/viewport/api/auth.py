@@ -92,9 +92,12 @@ def create_refresh_token(
 @router.post("/register", status_code=status.HTTP_204_NO_CONTENT)
 async def register_user(request: RegisterRequest, http_request: Request, repo: UserRepository = Depends(get_user_repository)) -> None:
     """Register user."""
-    await get_auth_rate_limiter().enforce(http_request, AuthRateLimitRoute.USER_REGISTER, request.email)
     expected_invite = authsettings.invite_code
-    if not expected_invite or not expected_invite.strip() or not compare_digest(request.invite_code.encode("utf-8"), expected_invite.encode("utf-8")):
+    if not expected_invite or not expected_invite.strip():
+        raise HTTPException(status_code=403, detail="Invalid invite code")
+
+    await get_auth_rate_limiter().enforce(http_request, AuthRateLimitRoute.USER_REGISTER, request.email)
+    if not compare_digest(request.invite_code.encode("utf-8"), expected_invite.encode("utf-8")):
         raise HTTPException(status_code=403, detail="Invalid invite code")
 
     hashed_password = await run_in_threadpool(hash_password, request.password)

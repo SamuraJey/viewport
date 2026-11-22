@@ -1,6 +1,7 @@
 """Tests for authentication API endpoints."""
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock
 from uuid import uuid4
 
 import jwt
@@ -78,8 +79,11 @@ class TestAuthAPI:
         from viewport.auth_utils import authsettings
 
         monkeypatch.setattr(authsettings, "invite_code", invite_code)
+        get_limiter = Mock()
+        monkeypatch.setattr("viewport.api.auth.get_auth_rate_limiter", get_limiter)
         response = client.post("/auth/register", json=test_user_data)
         assert response.status_code == 403
+        get_limiter.assert_not_called()
 
     def test_login_success(self, client: TestClient, test_user_data, auth_settings):
         """Test successful login."""
