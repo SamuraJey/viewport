@@ -38,6 +38,16 @@ end
 return {count, ttl}
 """
 
+SET_IF_ABSENT_OR_MATCH_SCRIPT = """
+if redis.call('SET', KEYS[1], ARGV[1], 'NX', 'EX', ARGV[2]) then
+    return 1
+end
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return 1
+end
+return 0
+"""
+
 DELETE_IF_VALUE_SCRIPT = """
 if redis.call('GET', KEYS[1]) == ARGV[1] then
     return redis.call('DEL', KEYS[1])
@@ -178,6 +188,7 @@ class RedisService:
         self._reconnect_lock = asyncio.Lock()
         self._next_reconnect_at = 0.0
         self._fixed_window_script: AsyncScript | None = None
+        self._set_if_absent_script: AsyncScript | None = None
 
     @classmethod
     async def create(cls, settings: RedisSettings | None = None) -> "RedisService":
@@ -248,6 +259,7 @@ class RedisService:
             self._available = False
             self._settings = None
             self._fixed_window_script = None
+            self._set_if_absent_script = None
 
     async def ping(self) -> bool:
         """Ping Redis to check connection."""
@@ -299,16 +311,20 @@ class RedisService:
             return False
 
     async def set_if_absent(self, key: str, value: str, *, ex: int) -> bool | None:
-        """Set a key and its expiration atomically. Return None if Redis fails."""
+        """Acquire a key or recognize its token on retry without renewing its TTL."""
         if not self.is_available:
             await self._reconnect_if_due()
         client = self._client
         if not self.is_available or client is None:
             return None
         try:
-            return bool(await client.set(key, value, ex=ex, nx=True))
+            script = self._set_if_absent_script
+            if script is None:
+                script = client.register_script(SET_IF_ABSENT_OR_MATCH_SCRIPT)
+                self._set_if_absent_script = script
+            return bool(await script(keys=(key,), args=(value, ex), client=client))
         except RedisError as exc:
-            logger.warning("Redis SET NX failed for key %s: %s", key, exc)
+            logger.warning("Redis reservation failed for key %s: %s", key, exc)
             self._available = False
             self._next_reconnect_at = time.monotonic() + 5.0
             return None
@@ -415,6 +431,7 @@ class RedisService:
             self._client = replacement._client
             self._pool = replacement._pool
             self._fixed_window_script = None
+            self._set_if_absent_script = None
             self._available = True
             self._next_reconnect_at = 0.0
             replacement._client = None

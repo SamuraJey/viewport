@@ -23,6 +23,7 @@ async def test_expiring_reservation_can_only_be_released_by_current_owner(valkey
 
         assert await service.set_if_absent(key, "first-request", ex=120) is True
         first_ttl = await client.pttl(key)
+        assert await service.set_if_absent(key, "first-request", ex=240) is True
         assert await service.set_if_absent(key, "later-request", ex=240) is False
         assert 0 < await client.pttl(key) <= first_ttl <= 120_000
 
