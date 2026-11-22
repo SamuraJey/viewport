@@ -1,12 +1,12 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from hmac import compare_digest
 from os import getenv
 
 import bcrypt
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_metrics import REFRESH_FAMILIES_REVOKED, REFRESH_REJECTS, REFRESH_ROTATIONS
@@ -15,7 +15,7 @@ from viewport.dependencies import get_user_repository
 from viewport.models.user import User
 from viewport.repositories.refresh_token_repository import RefreshRotationRejected, RefreshTokenRepository
 from viewport.repositories.user_repository import UserRepository
-from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair, validate_user_password
+from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, TokenPair, validate_user_password
 from viewport.services.auth_rate_limiter import AuthRateLimitRoute, get_auth_rate_limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -89,20 +89,16 @@ def create_refresh_token(
     return jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
 
 
-@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_user_repository)) -> RegisterResponse:
+@router.post("/register", status_code=status.HTTP_204_NO_CONTENT)
+async def register_user(request: RegisterRequest, http_request: Request, repo: UserRepository = Depends(get_user_repository)) -> None:
     """Register user."""
-    # Verify invite code
-    if request.invite_code != authsettings.invite_code:
+    await get_auth_rate_limiter().enforce(http_request, AuthRateLimitRoute.USER_REGISTER, request.email)
+    expected_invite = authsettings.invite_code
+    if not expected_invite or not expected_invite.strip() or not compare_digest(request.invite_code.encode("utf-8"), expected_invite.encode("utf-8")):
         raise HTTPException(status_code=403, detail="Invalid invite code")
 
     hashed_password = await run_in_threadpool(hash_password, request.password)
-
-    try:
-        user = await repo.create_user(request.email, hashed_password)
-    except IntegrityError as err:
-        raise HTTPException(status_code=400, detail="Email already registered") from err
-    return RegisterResponse(id=str(user.id), email=user.email)
+    await repo.create_user_if_absent(request.email, hashed_password)
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)

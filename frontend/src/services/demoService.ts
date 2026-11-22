@@ -26,8 +26,6 @@ import type {
   PhotoResponse,
   PhotoUploadProgress,
   PhotoUploadResponse,
-  RegisterRequest,
-  RegisterResponse,
   ShareLink,
   ShareLinkAnalyticsResponse,
   ShareLinkDailyPoint,
@@ -1126,13 +1124,6 @@ class DemoServiceStore {
     return {
       ...this.user,
       tokens: this.getDemoTokens(),
-    };
-  }
-
-  async register(data: RegisterRequest): Promise<RegisterResponse> {
-    return {
-      id: makeDemoId(),
-      email: data.email,
     };
   }
 
@@ -2282,6 +2273,8 @@ class DemoServiceStore {
     });
   }
 
+  private readonly projectViewTimes = new Map<string, number>();
+
   async getSharedGallery(
     shareId: string,
     options?: SharedGalleryQueryOptions,
@@ -2362,7 +2355,9 @@ class DemoServiceStore {
     }
 
     const shareLink = projectState.shareLinks.find((link) => link.id === shareId);
-    if (shareLink && (!nestedGalleryId || !options?.skipProjectViewCount)) {
+    const now = Date.now();
+    if (shareLink && now - (this.projectViewTimes.get(shareId) ?? -Infinity) >= 120_000) {
+      this.projectViewTimes.set(shareId, now);
       shareLink.views += 1;
       this.recalculateProjects();
       this.persistState();

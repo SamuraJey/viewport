@@ -43,7 +43,7 @@ from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_availabl
 from viewport.zip_utils import make_content_disposition_header, sanitize_zip_entry_name
 
 router = APIRouter(prefix="/s", tags=["public"])
-INTERNAL_PROJECT_NAVIGATION_HEADER = "x-viewport-internal-navigation"
+PROJECT_VIEW_WINDOW_SECONDS = 120
 
 
 def _resolved_client_ip(request: Request) -> str | None:
@@ -53,6 +53,17 @@ def _resolved_client_ip(request: Request) -> str | None:
         return resolve_client_ip(request, get_auth_rate_limit_settings().trusted_proxy_cidrs)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid forwarded client address") from exc
+
+
+async def _record_project_view(repo: ShareLinkRepository, redis: RedisService | None, share_id: UUID, request: Request) -> None:
+    client_ip = _resolved_client_ip(request)
+    user_agent = request.headers.get("user-agent")
+    visitor_hash = repo.build_visitor_hash(client_ip, user_agent)
+    if redis is not None and visitor_hash is not None:
+        result = await redis.fixed_window_increment(f"project-view:{share_id}:{visitor_hash}", PROJECT_VIEW_WINDOW_SECONDS)
+        if result is not None and result.count > 1:
+            return
+    await repo.record_view(share_id, ip_address=client_ip, user_agent=user_agent)
 
 
 def _resolve_public_sorting(gallery: Gallery) -> tuple[GalleryPhotoSortBy, SortOrder]:
@@ -489,12 +500,7 @@ async def _build_public_project_response(
         )
 
     if record_view:
-        client_ip = _resolved_client_ip(request)
-        await ShareLinkRepository(project_repo.db).record_view(
-            share_id,
-            ip_address=client_ip,
-            user_agent=request.headers.get("user-agent"),
-        )
+        await _record_project_view(ShareLinkRepository(project_repo.db), redis, share_id, request)
 
     owner = getattr(project, "owner", None)
     photographer = getattr(owner, "display_name", None) or ""
@@ -637,7 +643,6 @@ async def get_project_gallery_by_sharelink(
         )
         raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
-    record_project_view = request.headers.get(INTERNAL_PROJECT_NAVIGATION_HEADER) != "1"
     project_navigation = await _build_public_project_response(
         share_id=share_id,
         request=request,
@@ -650,7 +655,7 @@ async def get_project_gallery_by_sharelink(
         record_view=False,
     )
 
-    return await _build_public_gallery_response(
+    result = await _build_public_gallery_response(
         share_id=share_id,
         request=request,
         response=response,
@@ -661,11 +666,13 @@ async def get_project_gallery_by_sharelink(
         limit=limit,
         offset=offset,
         parent_share_id=share_id,
-        record_view=record_project_view,
+        record_view=False,
         project_navigation=project_navigation,
         override_appearance=project_navigation.appearance,
         override_cover=project_navigation.cover,
     )
+    await _record_project_view(repo, redis, share_id, request)
+    return result
 
 
 @router.get("/{share_id}/photos/by-ids", response_model=list[PublicPhoto])

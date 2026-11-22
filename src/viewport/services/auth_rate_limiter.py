@@ -35,6 +35,7 @@ class InvalidClientAddressError(ValueError):
 
 class AuthRateLimitRoute(StrEnum):
     USER_LOGIN = "user_login"
+    USER_REGISTER = "user_register"
     ADMIN_LOGIN = "admin_login"
     SHARE_UNLOCK = "share_unlock"
 
@@ -68,6 +69,11 @@ class AuthRateLimitSettings(BaseSettings):
     user_login_scope_limit: int = Field(default=10, gt=0)
     user_login_scope_window_seconds: int = Field(default=60, gt=0)
 
+    user_register_ip_limit: int = Field(default=10, gt=0)
+    user_register_ip_window_seconds: int = Field(default=60, gt=0)
+    user_register_scope_limit: int = Field(default=5, gt=0)
+    user_register_scope_window_seconds: int = Field(default=60, gt=0)
+
     admin_login_ip_limit: int = Field(default=10, gt=0)
     admin_login_ip_window_seconds: int = Field(default=60, gt=0)
     admin_login_scope_limit: int = Field(default=5, gt=0)
@@ -100,6 +106,12 @@ class AuthRateLimitSettings(BaseSettings):
             return RouteRateLimit(
                 ip=RateLimitBudget(self.admin_login_ip_limit, self.admin_login_ip_window_seconds),
                 scope=RateLimitBudget(self.admin_login_scope_limit, self.admin_login_scope_window_seconds),
+                fail_closed_when_fallback_full=True,
+            )
+        if route is AuthRateLimitRoute.USER_REGISTER:
+            return RouteRateLimit(
+                ip=RateLimitBudget(self.user_register_ip_limit, self.user_register_ip_window_seconds),
+                scope=RateLimitBudget(self.user_register_scope_limit, self.user_register_scope_window_seconds),
                 fail_closed_when_fallback_full=True,
             )
         return RouteRateLimit(

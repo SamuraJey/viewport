@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import {
   ArrowLeft,
   CircleCheckBig,
@@ -53,10 +53,6 @@ const createInitialStartForm = (): SelectionSessionStartRequest => ({
   client_note: '',
 });
 
-const INTERNAL_PROJECT_NAVIGATION_STATE = {
-  skipProjectViewCount: true,
-} as const;
-
 const HERO_CONTROLS_VISIBLE_RATIO = 0.25;
 
 type PublicDownloadTarget =
@@ -70,16 +66,9 @@ export const PublicGalleryPage = () => {
     resumeToken?: string;
     galleryId?: string;
   }>();
-  const location = useLocation();
   const navigate = useNavigate();
-  const navigationType = useNavigationType();
   const isFavoritesView = Boolean(resumeToken);
   const activeGalleryId = galleryId;
-  const shouldSkipProjectViewCount =
-    Boolean(
-      activeGalleryId &&
-      (location.state as { skipProjectViewCount?: boolean } | null)?.skipProjectViewCount,
-    ) && navigationType !== 'POP';
 
   const [startForm, setStartForm] = useState<SelectionSessionStartRequest>(createInitialStartForm);
   const [startFormError, setStartFormError] = useState('');
@@ -114,7 +103,6 @@ export const PublicGalleryPage = () => {
   } = usePublicGallery({
     shareId,
     galleryId: activeGalleryId,
-    skipProjectViewCount: shouldSkipProjectViewCount,
   });
   const isInitialGalleryLoading = isLoading && !gallery;
   const isGalleryPhotoSwitching = isLoading && Boolean(gallery);
@@ -608,7 +596,6 @@ export const PublicGalleryPage = () => {
 
     navigate(projectShare.galleries[0].route_path, {
       replace: true,
-      state: INTERNAL_PROJECT_NAVIGATION_STATE,
     });
   }, [activeGalleryId, isFavoritesView, navigate, projectShare]);
 
@@ -940,7 +927,6 @@ export const PublicGalleryPage = () => {
                     <Link
                       key={projectGallery.gallery_id}
                       to={projectGallery.route_path}
-                      state={INTERNAL_PROJECT_NAVIGATION_STATE}
                       preventScrollReset
                       className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
                         isActive

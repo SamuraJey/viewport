@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import case, func, select, update
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -257,6 +257,33 @@ class SelectionRepository(BaseRepository):
         await self.db.refresh(session)
         await self.db.refresh(session, attribute_names=["items"])
         return session
+
+    async def lock_session(self, session_id: uuid.UUID) -> ShareLinkSelectionSession | None:
+        stmt = select(ShareLinkSelectionSession).where(ShareLinkSelectionSession.id == session_id).with_for_update(key_share=True).execution_options(populate_existing=True)
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def toggle_selection_item(
+        self,
+        session: ShareLinkSelectionSession,
+        photo_id: uuid.UUID,
+        limit: int | None,
+    ) -> tuple[bool, int] | None:
+        """Toggle a photo and update the count while holding the session row lock."""
+        item_filter = (ShareLinkSelectionItem.session_id == session.id, ShareLinkSelectionItem.photo_id == photo_id)
+        removed = await self.db.execute(delete(ShareLinkSelectionItem).where(*item_filter).returning(ShareLinkSelectionItem.photo_id))
+        selected = removed.scalar_one_or_none() is None
+        count_stmt = select(func.count()).select_from(ShareLinkSelectionItem).where(ShareLinkSelectionItem.session_id == session.id)
+        selected_count = (await self.db.execute(count_stmt)).scalar_one()
+        if selected:
+            if limit is not None and selected_count >= limit:
+                await self.db.rollback()
+                return None
+            self.db.add(ShareLinkSelectionItem(session_id=session.id, photo_id=photo_id))
+            selected_count += 1
+        session.selected_count = selected_count
+        session.last_activity_at = datetime.now(UTC)
+        await self.db.commit()
+        return selected, selected_count
 
     async def upsert_selection_item(
         self,

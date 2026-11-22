@@ -2,6 +2,7 @@
 
 Viewport rate-limits expensive password verification with independent fixed-window budgets for the client IP and the credential scope:
 
+- registration: IP plus normalized email;
 - user login: IP plus normalized email;
 - SQLAdmin login: IP plus normalized email;
 - protected share access: IP plus share-link ID.
@@ -17,7 +18,7 @@ An unavailable Redis connection is retried lazily on limiter traffic with a five
 When that fallback map reaches capacity:
 
 - user login fails open;
-- SQLAdmin login and share-password verification fail closed.
+- Registration, SQLAdmin login and share-password verification fail closed.
 
 Normal over-budget attempts fail closed for every route regardless of backend. The user-login exception applies only to fallback capacity exhaustion, not to a reached rate limit.
 
@@ -31,6 +32,10 @@ All settings come from `src/viewport/services/auth_rate_limiter.py`. Defaults sh
 | `AUTH_RATE_LIMIT_USER_LOGIN_IP_WINDOW_SECONDS` | `60` | User-login IP window |
 | `AUTH_RATE_LIMIT_USER_LOGIN_SCOPE_LIMIT` | `10` | User-login attempts per email |
 | `AUTH_RATE_LIMIT_USER_LOGIN_SCOPE_WINDOW_SECONDS` | `60` | User-login email window |
+| `AUTH_RATE_LIMIT_USER_REGISTER_IP_LIMIT` | `10` | Registration attempts per client IP |
+| `AUTH_RATE_LIMIT_USER_REGISTER_IP_WINDOW_SECONDS` | `60` | Registration IP window |
+| `AUTH_RATE_LIMIT_USER_REGISTER_SCOPE_LIMIT` | `5` | Registration attempts per email |
+| `AUTH_RATE_LIMIT_USER_REGISTER_SCOPE_WINDOW_SECONDS` | `60` | Registration email window |
 | `AUTH_RATE_LIMIT_ADMIN_LOGIN_IP_LIMIT` | `10` | Admin-login attempts per client IP |
 | `AUTH_RATE_LIMIT_ADMIN_LOGIN_IP_WINDOW_SECONDS` | `60` | Admin-login IP window |
 | `AUTH_RATE_LIMIT_ADMIN_LOGIN_SCOPE_LIMIT` | `5` | Admin-login attempts per email |

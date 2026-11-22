@@ -26,11 +26,6 @@ class RegisterRequest(BaseModel):
         return validate_user_password(value)
 
 
-class RegisterResponse(BaseModel):
-    id: str
-    email: EmailStr
-
-
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)

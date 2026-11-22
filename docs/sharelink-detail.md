@@ -29,6 +29,13 @@ only. The selected period survives tab changes. Changing it refreshes only the
 analytics endpoint; selection data and the active selection session remain
 untouched.
 
+A unique view counts the first recorded request for an IP and User-Agent
+pair in each UTC day. Project landing and gallery requests share a
+two-minute server-side window per share and visitor. Redis outages allow
+views to be counted without that short-window deduplication. The fix for
+unique view counting applies to new events. Existing daily totals may
+contain inflated counts.
+
 ## Selection sessions
 
 Selection data remains lazy: owner selection endpoints are first called only
@@ -51,3 +58,8 @@ Presentation components under
 `frontend/src/components/share-link-detail/` receive data and event handlers
 through props. API loading, mutations, exports, editor state, confirmations,
 and tab/period state remain in `ShareLinkDetailPage`.
+
+
+The backend applies selection limits in the same database transaction that
+changes the selection. Selection CSV exports prefix formula-like cell values
+with an apostrophe so spreadsheet apps treat them as text.

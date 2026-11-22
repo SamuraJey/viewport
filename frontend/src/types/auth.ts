@@ -35,8 +35,3 @@ export interface LoginResponse {
   storage_quota: number;
   tokens: AuthTokens;
 }
-
-export interface RegisterResponse {
-  id: string;
-  email: string;
-}

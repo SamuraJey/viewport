@@ -18,14 +18,12 @@ interface UsePublicGalleryProps {
   shareId: string | undefined;
   galleryId?: string;
   photosPerPage?: number;
-  skipProjectViewCount?: boolean;
 }
 
 export const usePublicGallery = ({
   shareId,
   galleryId,
   photosPerPage = 100,
-  skipProjectViewCount = false,
 }: UsePublicGalleryProps) => {
   const [gallery, setGallery] = useState<SharedGallery | null>(null);
   const [photos, setPhotos] = useState<PublicPhoto[]>([]);
@@ -69,7 +67,6 @@ export const usePublicGallery = ({
           limit: photosPerPage,
           offset: 0,
           galleryId,
-          skipProjectViewCount,
         },
         controller.signal,
       );
@@ -105,7 +102,7 @@ export const usePublicGallery = ({
         setIsLoading(false);
       }
     }
-  }, [galleryId, shareId, photosPerPage, skipProjectViewCount, startRequest]);
+  }, [galleryId, shareId, photosPerPage, startRequest]);
 
   const loadMorePhotos = useCallback(async () => {
     if (isLoadingMore || !hasMore || !shareId) return;
@@ -120,7 +117,6 @@ export const usePublicGallery = ({
           limit: photosPerPage,
           offset: currentOffset,
           galleryId,
-          skipProjectViewCount,
         },
         controller.signal,
       );
@@ -159,7 +155,6 @@ export const usePublicGallery = ({
     isLoadingMore,
     hasMore,
     photosPerPage,
-    skipProjectViewCount,
     startRequest,
   ]);
 

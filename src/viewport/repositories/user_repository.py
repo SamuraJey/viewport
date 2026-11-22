@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
@@ -9,20 +10,10 @@ from viewport.repositories.base_repository import BaseRepository
 
 
 class UserRepository(BaseRepository):
-    async def create_user(self, email: str, password_hash: str) -> User:
-        user = User(
-            id=uuid.uuid4(),
-            email=email,
-            password_hash=password_hash,
-        )
-        self.db.add(user)
-        try:
-            await self.db.commit()
-            await self.db.refresh(user)
-        except IntegrityError:
-            await self.db.rollback()
-            raise
-        return user
+    async def create_user_if_absent(self, email: str, password_hash: str) -> None:
+        stmt = insert(User).values(email=email, password_hash=password_hash).on_conflict_do_nothing(index_elements=[User.email])
+        await self.db.execute(stmt)
+        await self.db.commit()
 
     async def get_user_by_email(self, email: str) -> User | None:
         stmt = select(User).where(User.email == email)

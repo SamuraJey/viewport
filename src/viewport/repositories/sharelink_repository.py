@@ -606,9 +606,10 @@ class ShareLinkRepository(BaseRepository):
                         ShareLinkDailyVisitor.visitor_hash,
                     ]
                 )
+                .returning(ShareLinkDailyVisitor.visitor_hash)
             )
             inserted = await self.db.execute(visitor_stmt)
-            is_unique = bool(getattr(inserted, "rowcount", 0))
+            is_unique = inserted.scalar_one_or_none() is not None
 
         await self._increment_sharelink_counters(
             sharelink_id,

@@ -115,19 +115,11 @@ describe('authService', () => {
         invite_code: 'INVITE123',
       };
 
-      const mockResponse = {
-        data: {
-          id: '456',
-          email: 'newuser@example.com',
-        },
-      };
+      vi.mocked(api.post).mockResolvedValue({ status: 204 });
 
-      vi.mocked(api.post).mockResolvedValue(mockResponse);
-
-      const result = await authService.register(mockRequest);
+      await expect(authService.register(mockRequest)).resolves.toBeUndefined();
 
       expect(api.post).toHaveBeenCalledWith('/auth/register', mockRequest);
-      expect(result).toEqual(mockResponse.data);
     });
 
     it('should handle registration errors', async () => {
@@ -137,10 +129,10 @@ describe('authService', () => {
         invite_code: 'INVITE123',
       };
 
-      const mockError = new Error('Email already exists');
+      const mockError = new Error('Invalid invite code');
       vi.mocked(api.post).mockRejectedValue(mockError);
 
-      await expect(authService.register(mockRequest)).rejects.toThrow('Email already exists');
+      await expect(authService.register(mockRequest)).rejects.toThrow('Invalid invite code');
       expect(api.post).toHaveBeenCalledWith('/auth/register', mockRequest);
     });
   });

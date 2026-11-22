@@ -453,3 +453,25 @@ async def test_validate_photo_belongs_to_share_scope_rejects_missing_or_malforme
     assert await repo.validate_photo_belongs_to_share_scope(uuid4(), uuid4()) is False
 
     db.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_selection_toggles_respect_limit(db_session, async_engine):
+    _, gallery, link, _, _ = await _create_owner_gallery_sharelinks(db_session)
+    config = await _create_config(db_session, link, limit_enabled=True, limit_value=1)
+    session = await _create_session(db_session, link, config, client_name="Visitor")
+    photos = [await _create_photo(db_session, gallery, name) for name in ("first.jpg", "second.jpg")]
+    session_factory = async_sessionmaker(bind=async_engine, expire_on_commit=False)
+
+    async def select_photo(photo_id):
+        async with session_factory() as db:
+            repository = SelectionRepository(db)
+            locked_session = await repository.lock_session(session.id)
+            assert locked_session is not None
+            return await repository.toggle_selection_item(locked_session, photo_id, 1)
+
+    results = await asyncio.gather(*(select_photo(photo.id) for photo in photos))
+    assert results.count((True, 1)) == 1
+    assert results.count(None) == 1
+    await db_session.refresh(session)
+    assert session.selected_count == 1

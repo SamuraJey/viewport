@@ -664,7 +664,10 @@ class TestProjectAPI:
         assert project_share_resp.status_code == 201
         project_share_id = project_share_resp.json()["id"]
 
-        deep_link_resp = authenticated_client.get(f"/s/{project_share_id}/galleries/{gallery_id}")
+        deep_link_resp = authenticated_client.get(
+            f"/s/{project_share_id}/galleries/{gallery_id}?offset=1",
+            headers={"X-Viewport-Internal-Navigation": "1"},
+        )
         assert deep_link_resp.status_code == 200
 
         analytics_resp = authenticated_client.get(f"/share-links/{project_share_id}/analytics?days=30")

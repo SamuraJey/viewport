@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 from pydantic import ValidationError
 
-from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
+from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, TokenPair
 from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse
 from viewport.schemas.photo import GalleryPhotoResponse, PhotoCreateRequest, PhotoListResponse, PhotoResponse
 from viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse, ShareLinkUpdateRequest
@@ -54,14 +54,6 @@ class TestAuthSchemas:
         data = {"email": "test@example.com", "password": invalid_password, "invite_code": "testinvite"}
         with pytest.raises(ValidationError):
             RegisterRequest(**data)
-
-    def test_register_response_valid(self):
-        """Test valid register response."""
-        data = {"id": str(uuid.uuid4()), "email": "test@example.com"}
-        response = RegisterResponse(**data)
-
-        assert response.id == data["id"]
-        assert response.email == "test@example.com"
 
     def test_login_request_valid(self):
         """Test valid login request."""
