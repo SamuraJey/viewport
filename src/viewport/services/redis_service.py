@@ -38,6 +38,13 @@ end
 return {count, ttl}
 """
 
+DELETE_IF_VALUE_SCRIPT = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+end
+return 0
+"""
+
 
 class RedisSettings(BaseSettings):
     """Redis connection settings loaded from environment."""
@@ -289,6 +296,33 @@ class RedisService:
             return True
         except RedisError as e:
             logger.warning("Redis SET failed for key %s: %s", key, e)
+            return False
+
+    async def set_if_absent(self, key: str, value: str, *, ex: int) -> bool | None:
+        """Set a key and its expiration atomically. Return None if Redis fails."""
+        if not self.is_available:
+            await self._reconnect_if_due()
+        client = self._client
+        if not self.is_available or client is None:
+            return None
+        try:
+            return bool(await client.set(key, value, ex=ex, nx=True))
+        except RedisError as exc:
+            logger.warning("Redis SET NX failed for key %s: %s", key, exc)
+            self._available = False
+            self._next_reconnect_at = time.monotonic() + 5.0
+            return None
+
+    async def delete_if_value(self, key: str, expected_value: str) -> bool:
+        """Delete a key only if its current value matches, without changing its TTL otherwise."""
+        client = self._client
+        if client is None:
+            return False
+        try:
+            script = client.register_script(DELETE_IF_VALUE_SCRIPT)
+            return bool(await script(keys=(key,), args=(expected_value,), client=client))
+        except RedisError as exc:
+            logger.warning("Redis conditional delete failed for key %s: %s", key, exc)
             return False
 
     async def mget(self, keys: list[str]) -> dict[str, str]:

@@ -31,10 +31,11 @@ untouched.
 
 A unique view counts the first recorded request for an IP and User-Agent
 pair in each UTC day. Project landing and gallery requests share a
-two-minute server-side window per share and visitor. Redis outages allow
-views to be counted without that short-window deduplication. The fix for
-unique view counting applies to new events. Existing daily totals may
-contain inflated counts.
+two-minute server-side window per share and visitor. If recording a view
+fails, the server releases that request's reservation so the next request
+can count the view. Redis outages allow views to be counted without that
+short-window deduplication. The fix for unique view counting applies to
+new events. Existing daily totals may contain inflated counts.
 
 ## Selection sessions
 

@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from tests.helpers import upload_photo_via_presigned
 from viewport.api.project import update_project
+from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.schemas.project import ProjectUpdateRequest
 
 pytestmark = pytest.mark.requires_s3
@@ -607,7 +608,8 @@ class TestProjectAPI:
         expired_selection_resp = authenticated_client.get(f"/s/{expired_share_id}/selection/config")
         assert expired_selection_resp.status_code == 410
 
-    def test_project_folder_navigation_does_not_double_count_project_share_views(self, authenticated_client: TestClient):
+    @pytest.mark.parametrize("first_write_fails", [False, True])
+    def test_project_folder_navigation_counts_one_successful_view(self, authenticated_client: TestClient, monkeypatch, first_write_fails: bool):
         project_resp = authenticated_client.post("/projects", json={"name": "Analytics Project"})
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
@@ -625,6 +627,12 @@ class TestProjectAPI:
         project_share_resp = authenticated_client.post(f"/projects/{project_id}/share-links", json={})
         assert project_share_resp.status_code == 201
         project_share_id = project_share_resp.json()["id"]
+
+        if first_write_fails:
+            with monkeypatch.context() as patches:
+                patches.setattr(ShareLinkRepository, "record_view", AsyncMock(side_effect=RuntimeError("View write failed")))
+                with pytest.raises(RuntimeError, match="View write failed"):
+                    authenticated_client.get(f"/s/{project_share_id}")
 
         landing_resp = authenticated_client.get(f"/s/{project_share_id}")
         assert landing_resp.status_code == 200

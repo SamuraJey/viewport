@@ -6,11 +6,33 @@ Tests cover connection management, graceful degradation, and common operations.
 
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from uuid import uuid4
 
 import pytest
+from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
 from viewport.services.redis_service import FIXED_WINDOW_INCREMENT_SCRIPT, RedisService, RedisSettings, _NoOpPipelineContext
+
+
+@pytest.mark.asyncio
+async def test_expiring_reservation_can_only_be_released_by_current_owner(valkey_container: str):
+    async with Redis.from_url(valkey_container, decode_responses=True) as client:
+        service = RedisService(client, None)
+        key = f"project-view-window:test:{uuid4()}"
+
+        assert await service.set_if_absent(key, "first-request", ex=120) is True
+        first_ttl = await client.pttl(key)
+        assert await service.set_if_absent(key, "later-request", ex=240) is False
+        assert 0 < await client.pttl(key) <= first_ttl <= 120_000
+
+        await client.pexpireat(key, 1)
+        assert await service.set_if_absent(key, "later-request", ex=120) is True
+        assert await service.delete_if_value(key, "first-request") is False
+        assert await client.get(key) == "later-request"
+        assert 0 < await client.pttl(key) <= 120_000
+        assert await service.delete_if_value(key, "later-request") is True
+        assert await client.get(key) is None
 
 
 class TestRedisSettings:

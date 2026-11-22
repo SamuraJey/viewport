@@ -1,6 +1,6 @@
 import contextlib
 from datetime import date, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import zipstream
 from botocore.exceptions import BotoCoreError, ClientError
@@ -59,11 +59,20 @@ async def _record_project_view(repo: ShareLinkRepository, redis: RedisService | 
     client_ip = _resolved_client_ip(request)
     user_agent = request.headers.get("user-agent")
     visitor_hash = repo.build_visitor_hash(client_ip, user_agent)
-    if redis is not None and visitor_hash is not None:
-        result = await redis.fixed_window_increment(f"project-view:{share_id}:{visitor_hash}", PROJECT_VIEW_WINDOW_SECONDS)
-        if result is not None and result.count > 1:
-            return
-    await repo.record_view(share_id, ip_address=client_ip, user_agent=user_agent)
+    if redis is None or visitor_hash is None:
+        await repo.record_view(share_id, ip_address=client_ip, user_agent=user_agent)
+        return
+
+    key = f"project-view-window:{share_id}:{visitor_hash}"
+    token = uuid4().hex
+    if await redis.set_if_absent(key, token, ex=PROJECT_VIEW_WINDOW_SECONDS) is False:
+        return
+
+    try:
+        await repo.record_view(share_id, ip_address=client_ip, user_agent=user_agent)
+    except BaseException:
+        await redis.delete_if_value(key, token)
+        raise
 
 
 def _resolve_public_sorting(gallery: Gallery) -> tuple[GalleryPhotoSortBy, SortOrder]:
