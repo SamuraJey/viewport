@@ -17,6 +17,9 @@ import pytest
 import pytest_asyncio
 from botocore.config import Config
 from fastapi.testclient import TestClient
+from redis import Redis
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 from requests.exceptions import RequestException
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import make_url
@@ -238,6 +241,20 @@ def _start_valkey_container() -> DockerContainer:
     container = DockerContainer(VALKEY_IMAGE).with_exposed_ports(VALKEY_PORT)
     container.start()
     return container
+
+
+def _wait_for_valkey(redis_url: str) -> None:
+    """Wait for Valkey to answer on the same published port the tests use."""
+    deadline = time.monotonic() + 10
+    with Redis.from_url(redis_url, socket_connect_timeout=1, socket_timeout=1) as client:
+        while True:
+            try:
+                client.ping()
+                return
+            except (RedisConnectionError, RedisTimeoutError) as exc:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(f"Valkey did not respond to PING at {redis_url}") from exc
+                time.sleep(0.1)
 
 
 def _worker_redis_db_index(config: pytest.Config) -> int:
@@ -608,7 +625,9 @@ def valkey_container(request: pytest.FixtureRequest) -> Generator[str]:
     container = _start_valkey_container()
     try:
         valkey_info = _connection_info_from_valkey_container(container)
-        yield valkey_info.redis_url(db_index)
+        redis_url = valkey_info.redis_url(db_index)
+        _wait_for_valkey(redis_url)
+        yield redis_url
     finally:
         container.stop()
 
