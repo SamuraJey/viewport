@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_03c171962077bda5_metrics_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.17.3">coverage.py v7.17.3</a>,
-            created at 2026-11-21 10:34 +0000
+            created at 2026-11-23 19:34 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -185,7 +185,7 @@
     <p class="pln"><span class="n"><a id="t101" href="#t101">101</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t102" href="#t102">102</a></span><span class="t"><span class="nam">app</span><span class="op">.</span><span class="nam">add_middleware</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t103" href="#t103">103</a></span><span class="t">    <span class="nam">SessionMiddleware</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t104" href="#t104">104</a></span><span class="t">    <span class="nam">secret_key</span><span class="op">=</span><span class="nam">authsettings</span><span class="op">.</span><span class="nam">jwt_secret_key</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t104" href="#t104">104</a></span><span class="t">    <span class="nam">secret_key</span><span class="op">=</span><span class="nam">authsettings</span><span class="op">.</span><span class="nam">admin_jwt_secret_key</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t105" href="#t105">105</a></span><span class="t">    <span class="nam">max_age</span><span class="op">=</span><span class="num">1800</span><span class="op">,</span>  <span class="com"># 30 minutes</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t106" href="#t106">106</a></span><span class="t"><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t107" href="#t107">107</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -224,7 +224,7 @@
     <p class="pln"><span class="n"><a id="t140" href="#t140">140</a></span><span class="t"><span class="com"># Initialize SQLAdmin</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t141" href="#t141">141</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t142" href="#t142">142</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t143" href="#t143">143</a></span><span class="t"><span class="nam">authentication_backend</span> <span class="op">=</span> <span class="nam">AdminAuth</span><span class="op">(</span><span class="nam">secret_key</span><span class="op">=</span><span class="nam">authsettings</span><span class="op">.</span><span class="nam">jwt_secret_key</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t143" href="#t143">143</a></span><span class="t"><span class="nam">authentication_backend</span> <span class="op">=</span> <span class="nam">AdminAuth</span><span class="op">(</span><span class="nam">secret_key</span><span class="op">=</span><span class="nam">authsettings</span><span class="op">.</span><span class="nam">admin_jwt_secret_key</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t144" href="#t144">144</a></span><span class="t"><span class="nam">admin</span> <span class="op">=</span> <span class="nam">ViewportAdmin</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t145" href="#t145">145</a></span><span class="t">    <span class="nam">app</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t146" href="#t146">146</a></span><span class="t">    <span class="nam">get_engine</span><span class="op">(</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -259,7 +259,7 @@
             <a class="nav" href="z_03c171962077bda5_metrics_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.17.3">coverage.py v7.17.3</a>,
-            created at 2026-11-21 10:34 +0000
+            created at 2026-11-23 19:34 +0000
         </p>
     </div>
 </footer>
