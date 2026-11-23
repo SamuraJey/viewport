@@ -2,22 +2,28 @@
 
 Viewport rate-limits expensive password verification with independent fixed-window budgets for the client IP and the credential scope:
 
+- registration: IP plus normalized email;
 - user login: IP plus normalized email;
 - SQLAdmin login: IP plus normalized email;
 - protected share access: IP plus share-link ID.
 
 Both counters must allow the request. A denial returns `429 Too Many Requests` with `Retry-After`, and enforcement occurs before bcrypt. Protected shares apply the same budgets to `POST /s/{share_id}/unlock` and to direct `X-Viewport-Share-Password` verification on public routes.
 
+Disabled registration returns `403` before touching either counter.
+
 ## Backends and failure policy
 
 Redis is the cross-process source of truth. Each fixed-window increment and first-use expiry is one atomic Redis script operation. If Redis is unavailable, the application uses a bounded, process-local fallback map; this keeps memory bounded but means counters are no longer shared between application processes.
+
+If the local Redis connection pool is full, only the current operation falls
+back. Later requests can use the pool as soon as a connection is free.
 
 An unavailable Redis connection is retried lazily on limiter traffic with a five-second backoff, so a startup-order race does not leave the process permanently on local fallback. A successful reconnect restores shared counters without restarting the application.
 
 When that fallback map reaches capacity:
 
 - user login fails open;
-- SQLAdmin login and share-password verification fail closed.
+- Registration, SQLAdmin login and share-password verification fail closed.
 
 Normal over-budget attempts fail closed for every route regardless of backend. The user-login exception applies only to fallback capacity exhaustion, not to a reached rate limit.
 
@@ -31,6 +37,10 @@ All settings come from `src/viewport/services/auth_rate_limiter.py`. Defaults sh
 | `AUTH_RATE_LIMIT_USER_LOGIN_IP_WINDOW_SECONDS` | `60` | User-login IP window |
 | `AUTH_RATE_LIMIT_USER_LOGIN_SCOPE_LIMIT` | `10` | User-login attempts per email |
 | `AUTH_RATE_LIMIT_USER_LOGIN_SCOPE_WINDOW_SECONDS` | `60` | User-login email window |
+| `AUTH_RATE_LIMIT_USER_REGISTER_IP_LIMIT` | `10` | Registration attempts per client IP |
+| `AUTH_RATE_LIMIT_USER_REGISTER_IP_WINDOW_SECONDS` | `60` | Registration IP window |
+| `AUTH_RATE_LIMIT_USER_REGISTER_SCOPE_LIMIT` | `5` | Registration attempts per email |
+| `AUTH_RATE_LIMIT_USER_REGISTER_SCOPE_WINDOW_SECONDS` | `60` | Registration email window |
 | `AUTH_RATE_LIMIT_ADMIN_LOGIN_IP_LIMIT` | `10` | Admin-login attempts per client IP |
 | `AUTH_RATE_LIMIT_ADMIN_LOGIN_IP_WINDOW_SECONDS` | `60` | Admin-login IP window |
 | `AUTH_RATE_LIMIT_ADMIN_LOGIN_SCOPE_LIMIT` | `5` | Admin-login attempts per email |

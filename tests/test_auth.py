@@ -1,11 +1,14 @@
 """Tests for authentication API endpoints."""
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock
 from uuid import uuid4
 
 import jwt
 import pytest
 from fastapi.testclient import TestClient
+
+from tests.helpers import registration_payload
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -20,21 +23,18 @@ class TestAuthAPI:
     """Test authentication API endpoints with comprehensive coverage."""
 
     @pytest.mark.parametrize(
-        "user_data",
+        ("email", "password"),
         [
-            {"email": "test1@example.com", "password": "password123", "invite_code": "testinvitecode"},
-            {"email": "test2@example.com", "password": "verylongpassword12345", "invite_code": "testinvitecode"},
-            {"email": "user.with.dots@example.com", "password": "password123", "invite_code": "testinvitecode"},
-            {"email": "user+tag@example.com", "password": "password123", "invite_code": "testinvitecode"},
+            ("test1@example.com", "password123"),
+            ("test2@example.com", "verylongpassword12345"),
+            ("user.with.dots@example.com", "password123"),
+            ("user+tag@example.com", "password123"),
         ],
     )
-    def test_register_success(self, client: TestClient, user_data):
-        """Test successful user registration with various valid inputs."""
-        response = client.post("/auth/register", json=user_data)
-        assert response.status_code == 201
-        data = response.json()
-        assert data["email"] == user_data["email"]
-        assert "id" in data
+    def test_register_success(self, client: TestClient, email: str, password: str):
+        response = client.post("/auth/register", json=registration_payload(email, password))
+        assert response.status_code == 204
+        assert response.content == b""
 
     @pytest.mark.parametrize(
         "invalid_data,expected_status",
@@ -63,15 +63,27 @@ class TestAuthAPI:
         assert response.json()["detail"] == "Invalid invite code"
 
     def test_register_duplicate_email(self, client: TestClient, test_user_data):
-        """Test registration with duplicate email."""
-        # First registration should succeed
-        response1 = client.post("/auth/register", json=test_user_data)
-        assert response1.status_code == 201
+        first = client.post("/auth/register", json=test_user_data)
+        second = client.post("/auth/register", json={**test_user_data, "password": "replacement-password"})
+        assert first.status_code == second.status_code == 204
+        assert first.content == second.content == b""
+        assert client.post("/auth/login", json=test_user_data).status_code == 200
 
-        # Second registration should fail
-        response2 = client.post("/auth/register", json=test_user_data)
-        assert response2.status_code == 400
-        assert response2.json()["detail"] == "Email already registered"
+    def test_shared_invite_can_register_different_emails(self, client: TestClient, test_user_data):
+        first = client.post("/auth/register", json=test_user_data)
+        second = client.post("/auth/register", json={**test_user_data, "email": "other@example.com"})
+        assert first.status_code == second.status_code == 204
+
+    @pytest.mark.parametrize("invite_code", [None, "", "   "])
+    def test_registration_without_configured_code(self, client: TestClient, test_user_data, monkeypatch, invite_code):
+        from viewport.auth_utils import authsettings
+
+        monkeypatch.setattr(authsettings, "invite_code", invite_code)
+        get_limiter = Mock()
+        monkeypatch.setattr("viewport.api.auth.get_auth_rate_limiter", get_limiter)
+        response = client.post("/auth/register", json=test_user_data)
+        assert response.status_code == 403
+        get_limiter.assert_not_called()
 
     def test_login_success(self, client: TestClient, test_user_data, auth_settings):
         """Test successful login."""
@@ -115,18 +127,17 @@ class TestAuthFlow:
 
     def test_complete_auth_flow(self, client: TestClient):
         """Test complete registration -> login -> access protected endpoint flow."""
-        user_data = {"email": "flow@example.com", "password": "flowpassword123", "invite_code": "testinvitecode"}
+        user_data = registration_payload("flow@example.com", "flowpassword123")
 
         # Step 1: Register
         reg_response = client.post("/auth/register", json=user_data)
-        assert reg_response.status_code == 201
-        user_id = reg_response.json()["id"]
+        assert reg_response.status_code == 204
 
         # Step 2: Login
         login_response = client.post("/auth/login", json=user_data)
         assert login_response.status_code == 200
         login_data = login_response.json()
-        assert login_data["id"] == user_id
+        user_id = login_data["id"]
         token = login_data["tokens"]["access_token"]
 
         # Step 3: Access protected endpoint
@@ -144,7 +155,7 @@ class TestAuthFlow:
         for user_data in multiple_users_data:
             # Register user
             reg_response = client.post("/auth/register", json=user_data)
-            assert reg_response.status_code == 201
+            assert reg_response.status_code == 204
 
             # Login user
             login_response = client.post("/auth/login", json=user_data)
@@ -296,7 +307,7 @@ class TestAuthFlow:
     )
     def test_passwords_over_bcrypt_byte_limit_are_rejected(self, client: TestClient, password: str):
         """Register/login reject passwords whose UTF-8 encoding exceeds 72 bytes."""
-        register_payload = {"email": "long-password@example.com", "password": password, "invite_code": "testinvitecode"}
+        register_payload = registration_payload("long-password@example.com", password)
 
         register_response = client.post("/auth/register", json=register_payload)
         login_response = client.post("/auth/login", json={"email": "long-password@example.com", "password": password})
@@ -318,9 +329,10 @@ class TestAuthFlow:
         """Test that generated tokens contain the correct user ID."""
         # Register and login
         reg_response = client.post("/auth/register", json=test_user_data)
-        user_id = reg_response.json()["id"]
+        assert reg_response.status_code == 204
 
         login_response = client.post("/auth/login", json=test_user_data)
+        user_id = login_response.json()["id"]
         tokens = login_response.json()["tokens"]
 
         # Decode access token and verify user ID

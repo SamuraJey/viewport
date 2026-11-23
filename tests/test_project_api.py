@@ -7,9 +7,13 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from redis.asyncio import Redis
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from tests.helpers import upload_photo_via_presigned
 from viewport.api.project import update_project
+from viewport.api.public import PROJECT_VIEW_PENDING_SECONDS
+from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.schemas.project import ProjectUpdateRequest
 
 pytestmark = pytest.mark.requires_s3
@@ -607,7 +611,8 @@ class TestProjectAPI:
         expired_selection_resp = authenticated_client.get(f"/s/{expired_share_id}/selection/config")
         assert expired_selection_resp.status_code == 410
 
-    def test_project_folder_navigation_does_not_double_count_project_share_views(self, authenticated_client: TestClient):
+    @pytest.mark.parametrize("failure", ["none", "view_write", "lost_redis_reply"])
+    def test_project_folder_navigation_counts_one_successful_view(self, authenticated_client: TestClient, monkeypatch, failure: str):
         project_resp = authenticated_client.post("/projects", json={"name": "Analytics Project"})
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
@@ -626,7 +631,31 @@ class TestProjectAPI:
         assert project_share_resp.status_code == 201
         project_share_id = project_share_resp.json()["id"]
 
-        landing_resp = authenticated_client.get(f"/s/{project_share_id}")
+        if failure == "view_write":
+            with monkeypatch.context() as patches:
+                patches.setattr(ShareLinkRepository, "record_view", AsyncMock(side_effect=RuntimeError("View write failed")))
+                with pytest.raises(RuntimeError, match="View write failed"):
+                    authenticated_client.get(f"/s/{project_share_id}")
+
+        reservation_attempts = 0
+        send_command = Redis._send_command_parse_response
+        reservation_prefix = f"project-view-window:{project_share_id}:"
+
+        async def lose_first_reservation_reply(redis, connection, command, *args, **options):
+            nonlocal reservation_attempts
+            result = await send_command(redis, connection, command, *args, **options)
+            if args and args[-1] == PROJECT_VIEW_PENDING_SECONDS and any(isinstance(arg, str) and arg.startswith(reservation_prefix) for arg in args):
+                reservation_attempts += 1
+                if reservation_attempts == 1:
+                    raise RedisTimeoutError("Reservation reply lost")
+            return result
+
+        with monkeypatch.context() as patches:
+            if failure == "lost_redis_reply":
+                patches.setattr(Redis, "_send_command_parse_response", lose_first_reservation_reply)
+            landing_resp = authenticated_client.get(f"/s/{project_share_id}")
+        if failure == "lost_redis_reply":
+            assert reservation_attempts == 2
         assert landing_resp.status_code == 200
         assert landing_resp.json()["scope_type"] == "project"
         assert landing_resp.json()["galleries"][0]["route_path"] == f"/share/{project_share_id}/galleries/{gallery_id}"
@@ -664,7 +693,10 @@ class TestProjectAPI:
         assert project_share_resp.status_code == 201
         project_share_id = project_share_resp.json()["id"]
 
-        deep_link_resp = authenticated_client.get(f"/s/{project_share_id}/galleries/{gallery_id}")
+        deep_link_resp = authenticated_client.get(
+            f"/s/{project_share_id}/galleries/{gallery_id}?offset=1",
+            headers={"X-Viewport-Internal-Navigation": "1"},
+        )
         assert deep_link_resp.status_code == 200
 
         analytics_resp = authenticated_client.get(f"/share-links/{project_share_id}/analytics?days=30")

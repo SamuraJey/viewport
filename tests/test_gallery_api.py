@@ -321,7 +321,7 @@ class TestGalleryAPI:
     def test_get_gallery_different_user(self, client: TestClient, gallery_id_fixture: str):
         """Test retrieving gallery owned by different user."""
         # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
+        different_user_token = register_and_login(client, "different@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         response = client.get(f"/galleries/{gallery_id_fixture}")
@@ -359,7 +359,7 @@ class TestGalleryAPI:
     def test_delete_gallery_different_user(self, client: TestClient, gallery_id_fixture: str):
         """Test deleting gallery owned by different user."""
         # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
+        different_user_token = register_and_login(client, "different@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         response = client.delete(f"/galleries/{gallery_id_fixture}")
@@ -369,7 +369,7 @@ class TestGalleryAPI:
     def test_gallery_isolation_between_users(self, client: TestClient):
         """Test that users can only see their own galleries."""
         # Create first user and gallery
-        user1_token = register_and_login(client, "user1@example.com", "password123", "testinvitecode")
+        user1_token = register_and_login(client, "user1@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user1_token}"})
 
         resp1 = client.post("/galleries", json={})
@@ -377,7 +377,7 @@ class TestGalleryAPI:
         gallery1_id = resp1.json()["id"]
 
         # Create second user and gallery
-        user2_token = register_and_login(client, "user2@example.com", "password123", "testinvitecode")
+        user2_token = register_and_login(client, "user2@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user2_token}"})
 
         resp2 = client.post("/galleries", json={})

@@ -26,8 +26,6 @@ import type {
   PhotoResponse,
   PhotoUploadProgress,
   PhotoUploadResponse,
-  RegisterRequest,
-  RegisterResponse,
   ShareLink,
   ShareLinkAnalyticsResponse,
   ShareLinkDailyPoint,
@@ -1126,13 +1124,6 @@ class DemoServiceStore {
     return {
       ...this.user,
       tokens: this.getDemoTokens(),
-    };
-  }
-
-  async register(data: RegisterRequest): Promise<RegisterResponse> {
-    return {
-      id: makeDemoId(),
-      email: data.email,
     };
   }
 
@@ -2282,6 +2273,8 @@ class DemoServiceStore {
     });
   }
 
+  private readonly projectViewTimes = new Map<string, number>();
+
   async getSharedGallery(
     shareId: string,
     options?: SharedGalleryQueryOptions,
@@ -2357,12 +2350,20 @@ class DemoServiceStore {
     const listedFolderStates = this.galleries
       .filter((entry) => entry.gallery.project_id === projectState.project.id)
       .filter((entry) => (entry.gallery.project_visibility ?? 'listed') === 'listed');
-    if (!nestedGalleryId && listedFolderStates.length === 0) {
+    const folderState = nestedGalleryId
+      ? listedFolderStates.find((entry) => entry.gallery.id === nestedGalleryId)
+      : undefined;
+    if (nestedGalleryId && !folderState) {
+      throw this.createNotFoundError('Gallery not found');
+    }
+    if (listedFolderStates.length === 0) {
       throw this.createNotFoundError('Gallery not found or link expired');
     }
 
     const shareLink = projectState.shareLinks.find((link) => link.id === shareId);
-    if (shareLink && (!nestedGalleryId || !options?.skipProjectViewCount)) {
+    const now = Date.now();
+    if (shareLink && now - (this.projectViewTimes.get(shareId) ?? -Infinity) >= 120_000) {
+      this.projectViewTimes.set(shareId, now);
       shareLink.views += 1;
       this.recalculateProjects();
       this.persistState();
@@ -2422,11 +2423,7 @@ class DemoServiceStore {
       })),
     };
 
-    if (nestedGalleryId) {
-      const folderState = listedFolderStates.find((entry) => entry.gallery.id === nestedGalleryId);
-      if (!folderState) {
-        throw this.createNotFoundError('Gallery not found');
-      }
+    if (folderState) {
       const sortBy: GalleryPhotoSortBy = folderState.gallery.public_sort_by ?? 'original_filename';
       const sortOrder: SortOrder = folderState.gallery.public_sort_order ?? 'asc';
       const sortedPhotos = this.sortSharedPhotos(folderState.photos, sortBy, sortOrder);

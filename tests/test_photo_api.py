@@ -64,7 +64,7 @@ class TestPhotoAPI:
     def test_upload_photo_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
         """Test uploading photo to gallery owned by different user."""
         # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
+        different_user_token = register_and_login(client, "different@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         image_content = b"fake image content"
@@ -115,7 +115,7 @@ class TestPhotoAPI:
     def test_delete_photo_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
         """Test deleting photo from gallery owned by different user."""
         # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
+        different_user_token = register_and_login(client, "different@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         fake_photo_id = str(uuid4())
@@ -209,7 +209,7 @@ class TestPhotoAPI:
     def test_rename_photo_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
         """Test renaming photo in gallery owned by different user."""
         # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
+        different_user_token = register_and_login(client, "different@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         fake_photo_id = str(uuid4())

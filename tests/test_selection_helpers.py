@@ -1,3 +1,5 @@
+import csv
+import io
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -286,3 +288,16 @@ async def test_update_owner_selection_config_rejects_limit_value_when_limit_is_d
 
     assert exc_info.value.status_code == 422
     assert exc_info.value.detail == "limit_value must not be provided when limit_enabled is false"
+
+
+@pytest.mark.parametrize("trigger", ["=", "+", "-", "@", "\t", "\r", "\n", "  =", "＝"])
+def test_csv_response_neutralizes_spreadsheet_formulas(trigger):
+    value = trigger + 'sample, "text"'
+    response = _csv_response("selection.csv", [value, "filename"], [[value, 'a,b "c".jpg']])
+    rows = list(csv.reader(io.StringIO(response.body.decode())))
+    assert rows == [["'" + value, "filename"], ["'" + value, 'a,b "c".jpg']]
+
+
+def test_csv_response_preserves_literal_leading_apostrophe():
+    response = _csv_response("selection.csv", ["comment"], [["- keep"], ["'- keep"]])
+    assert list(csv.reader(io.StringIO(response.body.decode()))) == [["comment"], ["'- keep"], ["''- keep"]]

@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
@@ -453,3 +453,44 @@ async def test_validate_photo_belongs_to_share_scope_rejects_missing_or_malforme
     assert await repo.validate_photo_belongs_to_share_scope(uuid4(), uuid4()) is False
 
     db.execute.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_selection_scope_validation_holds_photo_lock_for_toggle(db_session, async_engine):
+    _, gallery, link, _, _ = await _create_owner_gallery_sharelinks(db_session)
+    photo = await _create_photo(db_session, gallery, "selected.jpg")
+    photo_id = photo.id
+    repository = SelectionRepository(db_session)
+    assert await repository.validate_photo_belongs_to_share_scope(link.id, photo_id, lock_photo=True)
+
+    session_factory = async_sessionmaker(bind=async_engine, expire_on_commit=False)
+    async with session_factory() as cleanup:
+        # A DELETE needs the same row lock as FOR UPDATE.
+        stmt = select(Photo.id).where(Photo.id == photo_id).with_for_update(nowait=True)
+        with pytest.raises(OperationalError) as exc_info:
+            await cleanup.execute(stmt)
+        assert getattr(exc_info.value.orig, "sqlstate", None) == "55P03"
+    await db_session.rollback()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_selection_toggles_respect_limit(db_session, async_engine):
+    _, gallery, link, _, _ = await _create_owner_gallery_sharelinks(db_session)
+    config = await _create_config(db_session, link, limit_enabled=True, limit_value=1)
+    session = await _create_session(db_session, link, config, client_name="Visitor")
+    photos = [await _create_photo(db_session, gallery, name) for name in ("first.jpg", "second.jpg")]
+    session_factory = async_sessionmaker(bind=async_engine, expire_on_commit=False)
+
+    async def select_photo(photo_id):
+        async with session_factory() as db:
+            repository = SelectionRepository(db)
+            assert await repository.validate_photo_belongs_to_share_scope(link.id, photo_id, lock_photo=True)
+            locked_session = await repository.lock_session(session.id)
+            assert locked_session is not None
+            return await repository.toggle_selection_item(locked_session, photo_id, 1)
+
+    results = await asyncio.gather(*(select_photo(photo.id) for photo in photos))
+    assert results.count((True, 1)) == 1
+    assert results.count(None) == 1
+    await db_session.refresh(session)
+    assert session.selected_count == 1

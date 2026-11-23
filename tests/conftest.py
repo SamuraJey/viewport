@@ -68,6 +68,8 @@ os.environ.update(
         "JWT_SECRET_KEY": "supersecretkeysupersecretkeysupersecretkey",
         "ADMIN_JWT_SECRET_KEY": "adminsecretkeyadminsecretkeyadminsecretkey",
         "INVITE_CODE": "testinvitecode",
+        "AUTH_RATE_LIMIT_USER_REGISTER_IP_LIMIT": "100000",
+        "AUTH_RATE_LIMIT_USER_REGISTER_SCOPE_LIMIT": "100000",
         "BCRYPT_ROUNDS": "4",
         "ENVIRONMENT": "pytest",
         "AUTH_RATE_LIMIT_USER_LOGIN_IP_LIMIT": "100000",
@@ -680,14 +682,16 @@ def client(db_session: AsyncSession, app_client: TestClient, _db_session_holder:
 @pytest.fixture(scope="function")
 def test_user_data() -> dict[str, str]:
     """Данные тестового пользователя."""
-    return {"email": "botuhh@example.com", "password": "testpassword123", "invite_code": "testinvitecode"}
+    from tests.helpers import registration_payload
+
+    return registration_payload("botuhh@example.com", "testpassword123")
 
 
 @pytest.fixture(scope="function")
 def auth_token(client: TestClient, test_user_data: dict[str, str]) -> str:
     """Register/login a user once per test to return a valid access token."""
     register_response = client.post("/auth/register", json=test_user_data)
-    assert register_response.status_code in {200, 201}
+    assert register_response.status_code == 204
 
     login_response = client.post("/auth/login", json=test_user_data)
     assert login_response.status_code == 200
@@ -724,12 +728,14 @@ def sharelink_fixture(authenticated_client: TestClient, gallery_fixture: str) ->
 @pytest.fixture(scope="function")
 def multiple_users_data() -> list[dict[str, str]]:
     """Fixture providing multiple user data for multi-user tests."""
+    from tests.helpers import registration_payload
+
     return [
-        {"email": "user1@example.com", "password": "password123", "invite_code": "testinvitecode"},
-        {"email": "user2@example.com", "password": "password456", "invite_code": "testinvitecode"},
-        {"email": "user3@example.com", "password": "password789", "invite_code": "testinvitecode"},
-        {"email": "user4@example.com", "password": "passwordabc", "invite_code": "testinvitecode"},
-        {"email": "user5@example.com", "password": "passworddef", "invite_code": "testinvitecode"},
+        registration_payload("user1@example.com", "password123"),
+        registration_payload("user2@example.com", "password456"),
+        registration_payload("user3@example.com", "password789"),
+        registration_payload("user4@example.com", "passwordabc"),
+        registration_payload("user5@example.com", "passworddef"),
     ]
 
 

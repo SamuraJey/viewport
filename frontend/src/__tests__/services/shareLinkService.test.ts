@@ -84,19 +84,14 @@ describe('shareLinkService', () => {
     expect(result).toEqual({ photos: [], total_photos: 0 });
   });
 
-  it('sends the internal navigation header when project gallery views should not increment analytics', async () => {
+  it('fetches a nested project gallery', async () => {
     vi.mocked(publicApi.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
 
     await shareLinkService.getSharedGallery('share123', {
       galleryId: 'gallery-1',
-      skipProjectViewCount: true,
     });
 
-    expect(publicApi.get).toHaveBeenCalledWith('/s/share123/galleries/gallery-1', {
-      headers: {
-        'X-Viewport-Internal-Navigation': '1',
-      },
-    });
+    expect(publicApi.get).toHaveBeenCalledWith('/s/share123/galleries/gallery-1');
   });
 
   it('forwards an AbortSignal when loading a shared gallery', async () => {

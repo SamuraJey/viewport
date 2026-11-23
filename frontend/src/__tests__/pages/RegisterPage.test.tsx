@@ -173,10 +173,7 @@ describe('RegisterPage', () => {
   });
 
   it('should handle successful registration', async () => {
-    const mockRegister = vi.mocked(authService.register).mockResolvedValue({
-      id: '1',
-      email: 'test@example.com',
-    });
+    const mockRegister = vi.mocked(authService.register).mockResolvedValue(undefined);
 
     render(<RegisterPageWrapper />);
 

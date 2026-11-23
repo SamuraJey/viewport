@@ -296,10 +296,15 @@ async def _get_session_by_token_or_404(
 
 
 def _csv_response(filename: str, headers: list[str], rows: list[list[str]]) -> Response:
+    def safe_cell(value: str) -> str:
+        if value.startswith(("'", "\t", "\r", "\n")) or value.lstrip().startswith(("=", "+", "-", "@", "＝", "＋", "－", "＠")):
+            return "'" + value
+        return value
+
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(headers)
-    writer.writerows(rows)
+    writer.writerow(map(safe_cell, headers))
+    writer.writerows(map(safe_cell, row) for row in rows)
     return Response(
         content=output.getvalue(),
         media_type="text/csv; charset=utf-8",
@@ -393,25 +398,23 @@ async def toggle_public_selection_item(
         _set_selection_cookie(request, response, share_id, resolved_token)
     _validate_session_mutable(session)
 
-    if not await repo.validate_photo_belongs_to_share_scope(sharelink.id, photo_id):
+    if not await repo.validate_photo_belongs_to_share_scope(sharelink.id, photo_id, lock_photo=True):
         raise HTTPException(status_code=404, detail="Photo not found for this share link")
 
-    existing_item = await repo.get_selection_item(session.id, photo_id)
-    if existing_item:
-        await repo.delete_selection_item(session.id, photo_id)
-        selected = False
-    else:
-        if config.limit_enabled and config.limit_value is not None and session.selected_count >= config.limit_value:
-            raise HTTPException(status_code=409, detail=f"Selection limit reached ({config.limit_value})")
-        await repo.upsert_selection_item(session.id, photo_id)
-        selected = True
-
-    selected_count = await repo.refresh_selected_count(session)
+    locked_session = await repo.lock_session(session.id)
+    if locked_session is None:
+        raise HTTPException(status_code=404, detail="Selection session not found")
+    _validate_session_mutable(locked_session)
+    limit_enabled, limit_value = config.limit_enabled, config.limit_value
+    result = await repo.toggle_selection_item(locked_session, photo_id, limit_value if limit_enabled else None)
+    if result is None:
+        raise HTTPException(status_code=409, detail=f"Selection limit reached ({limit_value})")
+    selected, selected_count = result
     return SelectionTogglePhotoResponse(
         selected=selected,
         selected_count=selected_count,
-        limit_enabled=config.limit_enabled,
-        limit_value=config.limit_value,
+        limit_enabled=limit_enabled,
+        limit_value=limit_value,
     )
 
 

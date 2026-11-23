@@ -505,6 +505,29 @@ describe('demoService', () => {
     expect(updatedProjectLink.has_password).toBe(false);
   });
 
+  it.each(['missing', 'unlisted'])('counts only valid demo gallery views after a %s gallery request', async (invalidGallery) => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+    const project = await service.createProject({ name: 'Demo Views' });
+    const listed = await service.createProjectGallery(project.id, { name: 'Listed' });
+    const hidden = await service.createProjectGallery(project.id, {
+      name: 'Hidden',
+      project_visibility: 'direct_only',
+    });
+    const link = await service.createProjectShareLink(project.id, {});
+    const invalidGalleryId = invalidGallery === 'missing' ? 'missing-gallery' : hidden.id;
+    const countViews = async () =>
+      (await service.getProjectShareLinks(project.id)).find(({ id }) => id === link.id)?.views;
+
+    await expect(service.getSharedGallery(link.id, { galleryId: invalidGalleryId })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    expect(await countViews()).toBe(0);
+
+    await service.getSharedGallery(link.id, { galleryId: listed.id });
+    expect(await countViews()).toBe(1);
+  });
+
   it('supports one project selection session across multiple listed galleries in demo mode', async () => {
     const { getDemoService } = await import('../../services/demoService');
     const service = getDemoService();

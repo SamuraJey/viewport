@@ -6,6 +6,7 @@ from hmac import new as hmac_new
 import jwt
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,13 +19,19 @@ class AuthSettings(BaseSettings):
     """Settings for authentication, loaded from environment variables."""
 
     jwt_secret_key: str
-    admin_jwt_secret_key: str
+    admin_jwt_secret_key: str = Field(min_length=32)
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_minutes: int = 7200
-    invite_code: str = "testinvitecode"  # Default invite code for tests
+    invite_code: str | None = None
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore", hide_input_in_errors=True)
+
+    @model_validator(mode="after")
+    def validate_secret_separation(self) -> "AuthSettings":
+        if self.admin_jwt_secret_key == self.jwt_secret_key:
+            raise ValueError("Authentication signing keys must be distinct")
+        return self
 
 
 authsettings = AuthSettings()

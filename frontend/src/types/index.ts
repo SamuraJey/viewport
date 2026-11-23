@@ -93,5 +93,4 @@ export type {
   LoginRequest,
   RegisterRequest,
   LoginResponse,
-  RegisterResponse,
 } from './auth';

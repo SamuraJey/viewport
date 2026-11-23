@@ -152,16 +152,7 @@ const getSharedGallery = async (
   const basePath = nestedGalleryId ? `/s/${shareId}/galleries/${nestedGalleryId}` : `/s/${shareId}`;
   const queryString = params.toString();
   const url = queryString ? `${basePath}?${queryString}` : basePath;
-  const config = {
-    ...(options?.skipProjectViewCount
-      ? { headers: { 'X-Viewport-Internal-Navigation': '1' } }
-      : {}),
-    ...(signal ? { signal } : {}),
-  };
-
-  const response = Object.keys(config).length
-    ? await publicApi.get(url, config)
-    : await publicApi.get(url);
+  const response = signal ? await publicApi.get(url, { signal }) : await publicApi.get(url);
   return response.data;
 };
 

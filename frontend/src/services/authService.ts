@@ -7,7 +7,6 @@ import type {
   LoginRequest,
   RegisterRequest,
   LoginResponse,
-  RegisterResponse,
 } from '../types';
 
 export const authService = {
@@ -20,13 +19,10 @@ export const authService = {
     return response.data;
   },
 
-  register: async (data: RegisterRequest): Promise<RegisterResponse> => {
-    if (isDemoModeEnabled()) {
-      return getDemoService().register(data);
+  register: async (data: RegisterRequest): Promise<void> => {
+    if (!isDemoModeEnabled()) {
+      await api.post('/auth/register', data);
     }
-
-    const response = await api.post('/auth/register', data);
-    return response.data;
   },
 
   getCurrentUser: async (): Promise<User> => {

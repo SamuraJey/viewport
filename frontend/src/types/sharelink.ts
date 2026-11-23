@@ -120,7 +120,6 @@ export interface SharedGalleryQueryOptions {
   limit?: number;
   offset?: number;
   galleryId?: string;
-  skipProjectViewCount?: boolean;
 }
 
 export interface PublicGalleryAppearance {

@@ -1,8 +1,10 @@
+import asyncio
 import contextlib
 from datetime import date, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import zipstream
+from anyio import CancelScope
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
@@ -43,7 +45,9 @@ from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_availabl
 from viewport.zip_utils import make_content_disposition_header, sanitize_zip_entry_name
 
 router = APIRouter(prefix="/s", tags=["public"])
-INTERNAL_PROJECT_NAVIGATION_HEADER = "x-viewport-internal-navigation"
+PROJECT_VIEW_WINDOW_SECONDS = 120
+PROJECT_VIEW_PENDING_SECONDS = 5
+PROJECT_VIEW_PENDING_PREFIX = "pending:"
 
 
 def _resolved_client_ip(request: Request) -> str | None:
@@ -53,6 +57,59 @@ def _resolved_client_ip(request: Request) -> str | None:
         return resolve_client_ip(request, get_auth_rate_limit_settings().trusted_proxy_cidrs)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid forwarded client address") from exc
+
+
+async def _record_project_view(repo: ShareLinkRepository, redis: RedisService | None, share_id: UUID, request: Request) -> None:
+    client_ip = _resolved_client_ip(request)
+    user_agent = request.headers.get("user-agent")
+    visitor_hash = repo.build_visitor_hash(client_ip, user_agent)
+    if redis is None or visitor_hash is None:
+        await repo.record_view(share_id, ip_address=client_ip, user_agent=user_agent)
+        return
+
+    key = f"project-view-window:{share_id}:{visitor_hash}"
+    token = f"{PROJECT_VIEW_PENDING_PREFIX}{uuid4().hex}"
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + PROJECT_VIEW_PENDING_SECONDS
+    retry_delay = 0.025
+    acquisition: asyncio.Task[bool | None] | None = None
+
+    try:
+        while True:
+            current = await redis.get(key)
+            if current is None:
+                acquisition = asyncio.create_task(redis.set_if_absent(key, token, ex=PROJECT_VIEW_PENDING_SECONDS))
+                if await asyncio.shield(acquisition) is not False:
+                    break
+                acquisition = None
+            elif not current.startswith(PROJECT_VIEW_PENDING_PREFIX):
+                # Existing keys from the previous release last at most one window.
+                return
+
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                break
+            await asyncio.sleep(min(retry_delay, remaining))
+            retry_delay = min(2 * retry_delay, 0.25)
+
+        await repo.record_view(share_id, ip_address=client_ip, user_agent=user_agent)
+    except BaseException:
+        if acquisition is not None:
+            with CancelScope(shield=True):
+                # Finish an in-flight SET before trying to release its token.
+                with contextlib.suppress(Exception):
+                    await acquisition
+                await redis.delete_if_value(key, token)
+        raise
+
+    if acquisition is not None:
+        with CancelScope(shield=True):
+            confirmation = asyncio.create_task(redis.set_if_value(key, token, "recorded", ex=PROJECT_VIEW_WINDOW_SECONDS))
+            try:
+                await asyncio.shield(confirmation)
+            finally:
+                if not await confirmation:
+                    await redis.delete_if_value(key, token)
 
 
 def _resolve_public_sorting(gallery: Gallery) -> tuple[GalleryPhotoSortBy, SortOrder]:
@@ -489,12 +546,7 @@ async def _build_public_project_response(
         )
 
     if record_view:
-        client_ip = _resolved_client_ip(request)
-        await ShareLinkRepository(project_repo.db).record_view(
-            share_id,
-            ip_address=client_ip,
-            user_agent=request.headers.get("user-agent"),
-        )
+        await _record_project_view(ShareLinkRepository(project_repo.db), redis, share_id, request)
 
     owner = getattr(project, "owner", None)
     photographer = getattr(owner, "display_name", None) or ""
@@ -637,7 +689,6 @@ async def get_project_gallery_by_sharelink(
         )
         raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
-    record_project_view = request.headers.get(INTERNAL_PROJECT_NAVIGATION_HEADER) != "1"
     project_navigation = await _build_public_project_response(
         share_id=share_id,
         request=request,
@@ -650,7 +701,7 @@ async def get_project_gallery_by_sharelink(
         record_view=False,
     )
 
-    return await _build_public_gallery_response(
+    result = await _build_public_gallery_response(
         share_id=share_id,
         request=request,
         response=response,
@@ -661,11 +712,13 @@ async def get_project_gallery_by_sharelink(
         limit=limit,
         offset=offset,
         parent_share_id=share_id,
-        record_view=record_project_view,
+        record_view=False,
         project_navigation=project_navigation,
         override_appearance=project_navigation.appearance,
         override_cover=project_navigation.cover,
     )
+    await _record_project_view(repo, redis, share_id, request)
+    return result
 
 
 @router.get("/{share_id}/photos/by-ids", response_model=list[PublicPhoto])

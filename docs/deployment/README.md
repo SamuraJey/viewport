@@ -77,7 +77,13 @@ See [Production Deployment Guide](./production.md)
 
 ## Deployment Methods
 
-### Docker Compose (Development/Small Deployments)
+### Docker Compose for development
+
+`docker-compose.yml` is the local development stack. It publishes Postgres and
+Valkey and RustFS with development settings. In production, use private Postgres and
+Valkey endpoints with deployment-specific credentials. Configure the
+[authentication keys](../backend/auth.md) and [S3 credentials](../s3-credentials.md)
+for each production service.
 - Single-machine deployment
 - All services in containers
 - Easy to manage and scale locally

@@ -31,13 +31,25 @@ The API process exposes rate-limit decisions, successful refresh rotations, refr
 
 ## Endpoints
 
-- `POST /auth/register` creates a user after validating the configured invite code.
+- `POST /auth/register` accepts the configured shared invite code and returns `204 No Content` for both new and existing accounts. An existing account keeps its password.
 - `POST /auth/login` returns the user summary, an access token, and the root refresh token.
 - `POST /auth/refresh` atomically rotates the supplied refresh token and returns a new access/refresh pair.
 - `GET /me` resolves the bearer access token and its current password fingerprint.
 - `PUT /me/password` changes the password and revokes all existing authentication sessions.
 
 Expirations and signing are configured by `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`, and `REFRESH_TOKEN_EXPIRE_MINUTES`. Use a strong, unique production secret and rotate it only with an intentional global re-login event.
+
+## Registration invites
+
+Set `INVITE_CODE` to enable registration with a shared code. Registration is
+disabled when the setting is absent, empty, or contains only whitespace.
+The server applies independent limits per client IP and email.
+
+## SQLAdmin sessions
+
+Configure `ADMIN_JWT_SECRET_KEY` with a random value of at least 32 characters
+that differs from `JWT_SECRET_KEY`. Admin sessions signed with the
+previous user-token key require a fresh admin login when this change rolls out.
 
 ## Authorization boundaries
 

@@ -18,8 +18,13 @@ from viewport.repositories.sharelink_repository import ShareLinkRepository
 
 
 class _InsertResult:
-    def __init__(self, rowcount: int):
-        self.rowcount = rowcount
+    rowcount = -1
+
+    def __init__(self, value: str | None):
+        self.value = value
+
+    def scalar_one_or_none(self) -> str | None:
+        return self.value
 
 
 class _RowsResult:
@@ -51,7 +56,7 @@ async def test_record_view_without_identity_does_not_increment_unique_views():
 @pytest.mark.asyncio
 async def test_record_view_with_new_identity_increments_unique_views():
     db = AsyncMock()
-    db.execute = AsyncMock(side_effect=[_InsertResult(1), None])
+    db.execute = AsyncMock(side_effect=[_InsertResult("hash"), None])
     repo = ShareLinkRepository(db)
     repo._upsert_daily_stat = AsyncMock()
 
@@ -60,6 +65,22 @@ async def test_record_view_with_new_identity_increments_unique_views():
 
     repo._upsert_daily_stat.assert_awaited_once()
     assert repo._upsert_daily_stat.await_args.kwargs["views_unique_inc"] == 1
+
+
+@pytest.mark.asyncio
+async def test_record_view_counts_repeat_visitor_once(repo: ShareLinkRepository, db_session):
+    user = User(email=f"visitor-{uuid4()}@example.com", password_hash="hashed")
+    gallery = Gallery(owner=user, name="Analytics Gallery")
+    sharelink = ShareLink(gallery=gallery)
+    db_session.add(sharelink)
+    await db_session.commit()
+
+    await repo.record_view(sharelink.id, "203.0.113.7", "pytest")
+    await repo.record_view(sharelink.id, "203.0.113.7", "pytest")
+
+    stats = await db_session.get(ShareLinkDailyStat, (sharelink.id, datetime.now(UTC).date()))
+    assert stats is not None
+    assert (stats.views_total, stats.views_unique) == (2, 1)
 
 
 @pytest.mark.asyncio

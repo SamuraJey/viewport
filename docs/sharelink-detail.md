@@ -29,6 +29,18 @@ only. The selected period survives tab changes. Changing it refreshes only the
 analytics endpoint; selection data and the active selection session remain
 untouched.
 
+A unique view counts the first recorded request for an IP and User-Agent
+pair in each UTC day. Project landing and gallery requests share a
+two-minute server-side window per share and visitor. A pending reservation
+expires after five seconds, including when a worker stops before recording
+the view. Other requests wait up to five seconds for a pending write.
+A successful write starts the two-minute window if the request still owns
+the reservation. Failed or cancelled writes release their own reservations.
+Views may be counted without short-window deduplication if Redis is
+unavailable or a write takes longer than the pending reservation. The fix
+for unique view counting applies to new events. Existing daily totals may
+contain inflated counts.
+
 ## Selection sessions
 
 Selection data remains lazy: owner selection endpoints are first called only
@@ -51,3 +63,11 @@ Presentation components under
 `frontend/src/components/share-link-detail/` receive data and event handlers
 through props. API loading, mutations, exports, editor state, confirmations,
 and tab/period state remain in `ShareLinkDetailPage`.
+
+
+The backend applies selection limits in the same database transaction that
+changes the selection. It locks the photo before the selection session so
+gallery cleanup and selection changes use compatible lock ordering. Selection
+CSV exports prefix formula-like cell values with an apostrophe so spreadsheet
+apps treat them as text. A literal leading apostrophe is doubled to preserve
+the distinction.

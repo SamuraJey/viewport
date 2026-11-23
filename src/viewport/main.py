@@ -101,7 +101,7 @@ app = FastAPI(redoc_url=None, redirect_slashes=False, lifespan=lifespan)
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key=authsettings.jwt_secret_key,
+    secret_key=authsettings.admin_jwt_secret_key,
     max_age=1800,  # 30 minutes
 )
 
@@ -140,7 +140,7 @@ setup_metrics(app)
 # Initialize SQLAdmin
 
 
-authentication_backend = AdminAuth(secret_key=authsettings.jwt_secret_key)
+authentication_backend = AdminAuth(secret_key=authsettings.admin_jwt_secret_key)
 admin = ViewportAdmin(
     app,
     get_engine(),
