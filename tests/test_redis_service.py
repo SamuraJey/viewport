@@ -490,20 +490,19 @@ class TestNoOpPipelineContext:
 class TestModuleLevelFunctions:
     """Tests for module-level getter/setter functions."""
 
-    def test_get_set_redis_service(self):
+    def test_get_set_redis_service(self, monkeypatch):
         """Test get/set redis service instance."""
-        from viewport.services.redis_service import get_redis_service, set_redis_service
+        from viewport.services import redis_service
 
-        # Mock service
+        # Restore the service owned by the session-scoped app client after this test.
+        monkeypatch.setattr(redis_service, "_redis_service_instance", None)
         mock_service = MagicMock()
 
-        # Set and get
-        set_redis_service(mock_service)
-        assert get_redis_service() is mock_service
+        redis_service.set_redis_service(mock_service)
+        assert redis_service.get_redis_service() is mock_service
 
-        # Clean up
-        set_redis_service(None)
-        assert get_redis_service() is None
+        redis_service.set_redis_service(None)
+        assert redis_service.get_redis_service() is None
 
 
 class TestRedisServiceClose:
