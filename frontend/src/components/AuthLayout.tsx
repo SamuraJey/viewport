@@ -11,37 +11,25 @@ interface AuthLayoutProps {
 
 export const AuthLayout = ({ children }: AuthLayoutProps) => {
   return (
-    <div className="auth-layout relative flex min-h-screen items-center justify-center overflow-hidden bg-surface p-4 text-text dark:bg-surface-dark">
+    <div className="auth-layout relative flex min-h-dvh flex-col bg-surface-1 text-text dark:bg-surface-dark-1">
       <SkipToContentLink />
-      {/* Decorative gradient orbs */}
-      <div className="pointer-events-none absolute -top-48 -left-48 h-150 w-150 rounded-full bg-accent/8 blur-3xl dark:bg-accent/4" />
-      <div className="pointer-events-none absolute -bottom-48 -right-48 h-150 w-150 rounded-full bg-violet-500/8 blur-3xl dark:bg-violet-500/4" />
-      <div className="pointer-events-none absolute top-1/3 right-1/4 h-64 w-64 rounded-full bg-sky-400/6 blur-2xl dark:bg-sky-400/3" />
-
-      {/* Subtle dot-grid texture */}
-      <div className="auth-dot-grid pointer-events-none absolute inset-0 opacity-25 dark:opacity-12" />
-
-      <Link
-        to="/"
-        className="fixed left-4 top-[calc(1rem+env(safe-area-inset-top))] z-50 inline-flex items-center gap-2 rounded-2xl border border-border/40 bg-surface/85 px-3 py-2 font-oswald text-sm font-bold uppercase tracking-wider text-text shadow-sm backdrop-blur-lg transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent dark:bg-surface-dark/85"
-        aria-label="Viewport home"
-      >
-        <Camera className="h-5 w-5" />
-        Viewport
-      </Link>
-
-      <div className="fixed right-4 top-[calc(1rem+env(safe-area-inset-top))] z-50 flex items-center gap-2">
-        <ReadabilitySettingsButton />
-        <ThemeSwitch variant="inline" />
-      </div>
-
-      <div className="relative z-10 grid w-full max-w-md items-center gap-8 pt-16 lg:pt-0">
-        {/* Animated card wrapper */}
-        <main
-          id="main-content"
-          tabIndex={-1}
-          className="relative z-10 w-full max-w-md animate-fade-in-up justify-self-center"
+      <header className="flex items-center justify-between gap-3 border-b border-border/50 px-4 pb-3 pt-[max(.75rem,env(safe-area-inset-top))] sm:px-8">
+        <Link
+          to="/"
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg font-oswald text-lg font-bold uppercase tracking-wider text-text focus-visible:ring-[3px] focus-visible:ring-accent"
+          aria-label="Viewport home"
         >
+          <Camera className="h-5 w-5" />
+          Viewport
+        </Link>
+
+        <div className="flex items-center gap-2">
+          <ReadabilitySettingsButton />
+          <ThemeSwitch variant="inline" />
+        </div>
+      </header>
+      <div className="grid flex-1 place-items-center px-4 py-8 sm:py-12">
+        <main id="main-content" tabIndex={-1} className="w-full max-w-md">
           {children}
         </main>
       </div>

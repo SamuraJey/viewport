@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { handleApiError } from '../lib/errorHandling';
 import { projectService } from '../services/projectService';
@@ -6,30 +6,20 @@ import type { Project } from '../types';
 
 interface UseCreateProjectModalOptions {
   onCreated: (project: Project) => void;
-  onError: (message: string) => void;
 }
 
-export const useCreateProjectModal = ({ onCreated, onError }: UseCreateProjectModalOptions) => {
+export const useCreateProjectModal = ({ onCreated }: UseCreateProjectModalOptions) => {
   const [isOpen, setIsOpen] = useState(false);
   const [name, setName] = useState('');
   const [shootingDate, setShootingDate] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (
-      isOpen &&
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(min-width: 768px) and (pointer: fine)').matches
-    ) {
-      inputRef.current?.focus();
-    }
-  }, [isOpen]);
 
   const open = () => {
     setName('');
     setShootingDate(new Date().toISOString().slice(0, 10));
-    onError('');
+    setError('');
     setIsOpen(true);
   };
 
@@ -38,6 +28,7 @@ export const useCreateProjectModal = ({ onCreated, onError }: UseCreateProjectMo
   const save = async () => {
     if (!name.trim()) return;
     setIsCreating(true);
+    setError('');
     try {
       const project = await projectService.createProject({
         name: name.trim(),
@@ -46,7 +37,7 @@ export const useCreateProjectModal = ({ onCreated, onError }: UseCreateProjectMo
       setIsOpen(false);
       onCreated(project);
     } catch (err) {
-      onError(handleApiError(err).message || 'Failed to create project');
+      setError(handleApiError(err).message || 'Failed to create project');
     } finally {
       setIsCreating(false);
     }
@@ -54,6 +45,7 @@ export const useCreateProjectModal = ({ onCreated, onError }: UseCreateProjectMo
 
   return {
     close,
+    error,
     inputRef,
     isCreating,
     isOpen,

@@ -94,17 +94,16 @@ describe('LandingPage and root route', () => {
     expect(screen.getByText('Built for photographers and studios')).toBeInTheDocument();
     expect(
       screen.getByRole('heading', {
-        name: /Deliver photo galleries that sell your studio twice/i,
+        name: /Your work, beautifully delivered/i,
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /Viewport gives photographers a polished delivery workflow: fast uploads, beautiful client links/i,
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Share a finished shoot in one gallery/i)).toBeInTheDocument();
     expect(screen.getByText('Why Viewport')).toBeInTheDocument();
     expect(screen.getByText('Northern Editorial')).toBeInTheDocument();
-    expect(screen.getByText('Preview ready')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Create studio account' })).toHaveAttribute(
+      'href',
+      '/auth/register',
+    );
   });
 
   it('keeps the final CTA readable in both light and dark themes', () => {

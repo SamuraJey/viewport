@@ -637,7 +637,7 @@ describe('ProjectPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /add gallery/i }));
-    expect(screen.getByLabelText(/shooting date/i)).toHaveValue('2026-04-18');
+    expect(screen.getByLabelText(/shooting date/i)).toHaveTextContent(new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date('2026-04-18')));
     await user.type(screen.getByLabelText(/gallery name/i), 'Highlights{Enter}');
 
     await waitFor(() => {

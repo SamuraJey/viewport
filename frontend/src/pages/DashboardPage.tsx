@@ -157,7 +157,6 @@ export const DashboardPage = () => {
 
   const createProjectModal = useCreateProjectModal({
     onCreated: (project) => navigate(`/projects/${project.id}`),
-    onError: setError,
   });
   const renameProjectModal = useRenameProjectModal({
     onError: setError,
@@ -449,6 +448,7 @@ export const DashboardPage = () => {
       <CreateProjectModal
         isOpen={createProjectModal.isOpen}
         isCreating={createProjectModal.isCreating}
+        error={createProjectModal.error}
         name={createProjectModal.name}
         shootingDate={createProjectModal.shootingDate}
         inputRef={createProjectModal.inputRef}

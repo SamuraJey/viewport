@@ -1,5 +1,7 @@
 import {
   useState,
+  useCallback,
+  type CSSProperties,
   type ComponentProps,
   type MutableRefObject,
   type RefObject,
@@ -34,6 +36,9 @@ interface AppPopoverProps {
   className?: string;
   buttonClassName?: string | ((open: boolean) => string);
   buttonAriaLabel?: string;
+  buttonId?: string;
+  disabled?: boolean;
+  topLayerAnchor?: string;
   buttonContent: ReactNode | ((open: boolean) => ReactNode);
   buttonRef?: RefObject<HTMLButtonElement | null>;
   panelClassName?: string;
@@ -44,17 +49,37 @@ interface AppPopoverProps {
 
 const AnimatedPopoverPanel = ({
   anchor,
+  topLayerAnchor,
   panelFocus,
   panelClassName,
   panel,
-}: Pick<AppPopoverProps, 'anchor' | 'panelFocus' | 'panelClassName' | 'panel'>) => {
+}: Pick<
+  AppPopoverProps,
+  'anchor' | 'panelFocus' | 'panelClassName' | 'panel' | 'topLayerAnchor'
+>) => {
   const [entered, setEntered] = useState(false);
+
+  const showPanel = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (topLayerAnchor && node?.isConnected) node.showPopover?.();
+    },
+    [topLayerAnchor],
+  );
 
   return (
     <PopoverPanel
       static
       as={motion.div}
-      anchor={anchor}
+      ref={showPanel}
+      popover={
+        topLayerAnchor &&
+        typeof HTMLElement !== 'undefined' &&
+        'showPopover' in HTMLElement.prototype
+          ? 'manual'
+          : undefined
+      }
+      style={topLayerAnchor ? ({ positionAnchor: topLayerAnchor } as CSSProperties) : undefined}
+      anchor={topLayerAnchor ? undefined : anchor}
       // Anchored panels mount in a portal before their coordinates are resolved.
       // Wait for the enter animation before focusing an action so the browser
       // cannot scroll to the portal's initial origin.
@@ -80,6 +105,9 @@ export const AppPopover = ({
   className,
   buttonClassName,
   buttonAriaLabel,
+  buttonId,
+  disabled,
+  topLayerAnchor,
   buttonContent,
   buttonRef,
   panelClassName,
@@ -91,6 +119,9 @@ export const AppPopover = ({
     {({ open }) => (
       <>
         <PopoverButton
+          id={buttonId}
+          disabled={disabled}
+          style={topLayerAnchor ? ({ anchorName: topLayerAnchor } as CSSProperties) : undefined}
           ref={buttonRef}
           aria-label={buttonAriaLabel}
           onMouseDown={(event) => {
@@ -109,6 +140,7 @@ export const AppPopover = ({
           {open ? (
             <AnimatedPopoverPanel
               anchor={anchor}
+              topLayerAnchor={topLayerAnchor}
               panelFocus={panelFocus}
               panelClassName={panelClassName}
               panel={panel}

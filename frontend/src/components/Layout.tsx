@@ -205,10 +205,10 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
                 key={to}
                 to={to}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-2 text-xs font-bold transition-colors duration-150 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
                   active
-                    ? 'bg-accent text-accent-foreground shadow-sm'
-                    : 'text-muted hover:bg-surface-1 hover:text-text dark:hover:bg-surface-dark-1'
+                    ? 'bg-accent text-accent-foreground shadow-sm active:bg-accent/85'
+                    : 'text-muted hover:bg-surface-1 hover:text-text active:bg-surface-2 active:text-text dark:hover:bg-surface-dark-1 dark:active:bg-surface-dark-2'
                 }`}
               >
                 <Icon className="h-4 w-4" />

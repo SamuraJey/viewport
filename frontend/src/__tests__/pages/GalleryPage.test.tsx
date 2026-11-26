@@ -264,10 +264,6 @@ const GalleryPageWrapper = () => {
   );
 };
 
-const fillInput = (input: HTMLElement, value: string) => {
-  fireEvent.change(input, { target: { value } });
-};
-
 const openGalleryActions = async (user = userEvent.setup()) => {
   const trigger = await screen.findByRole('button', { name: /more gallery actions/i });
   // The real popover closes when its trigger disappears. jsdom has no layout.
@@ -789,14 +785,16 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       const shootingDateInput = await screen.findByLabelText(/shooting date/i);
-      expect(shootingDateInput).toHaveValue('2024-01-01');
+      expect(shootingDateInput).toHaveTextContent(new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date('2024-01-01')));
 
-      fillInput(shootingDateInput, '');
+      vi.spyOn(shootingDateInput, 'getBoundingClientRect').mockReturnValue(new DOMRect(16, 16, 160, 44));
+      await userEvent.click(shootingDateInput);
+      await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
 
       await waitFor(
         () => {
           expect(vi.mocked(galleryService.updateGallery)).not.toHaveBeenCalled();
-          expect(shootingDateInput).toHaveValue('2024-01-01');
+          expect(shootingDateInput).toHaveTextContent(new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date('2024-01-01')));
         },
         { timeout: 1200 },
       );

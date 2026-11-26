@@ -1,0 +1,5 @@
+Mountain by Andy Betts, from KDE Plasma Workspace Wallpapers
+https://invent.kde.org/plasma/plasma-workspace-wallpapers/-/tree/master/Mountain
+Licensed under Creative Commons Attribution-ShareAlike 4.0 International
+https://creativecommons.org/licenses/by-sa/4.0/
+This resized WebP rendition carries the same license.

@@ -28,10 +28,10 @@ export const ProjectListSkeleton = () => (
 );
 
 export const ProjectList = ({ projects, ...actions }: ProjectActions & { projects: Project[] }) => (
-  <div className="overflow-hidden rounded-2xl border border-border/50 bg-surface dark:bg-surface-dark">
+  <div className="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-sm dark:bg-surface-dark">
     <table className="w-full table-fixed text-left text-sm">
       <caption className="sr-only">Project library</caption>
-      <thead className="border-b border-border/40 bg-surface-1 text-[10px] uppercase tracking-widest text-muted dark:bg-surface-dark-1">
+      <thead className="border-b border-border/40 bg-surface-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted dark:bg-surface-dark-1">
         <tr>
           <th scope="col" className="px-4 py-4 sm:w-[42%] sm:px-5">
             Project
@@ -62,9 +62,9 @@ export const ProjectList = ({ projects, ...actions }: ProjectActions & { project
             <th scope="row" className="px-4 py-4 font-normal sm:px-5">
               <Link
                 to={`/projects/${project.id}`}
-                className="flex min-w-0 items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
+                className="flex min-w-0 items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
               >
-                <span className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-2 text-muted dark:bg-surface-dark-2">
+                <span className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-2 text-muted ring-1 ring-border/45 transition-[transform,box-shadow] duration-200 can-hover:group-hover:scale-[1.02] can-hover:group-hover:shadow-sm dark:bg-surface-dark-2 dark:ring-border/35">
                   {project.cover_photo_thumbnail_url ? (
                     <>
                       <ImageIcon className="h-5 w-5" aria-hidden="true" />
@@ -72,6 +72,8 @@ export const ProjectList = ({ projects, ...actions }: ProjectActions & { project
                         key={project.cover_photo_thumbnail_url}
                         src={project.cover_photo_thumbnail_url}
                         alt=""
+                        width={56}
+                        height={56}
                         loading="lazy"
                         className="absolute inset-0 h-full w-full object-cover"
                         style={{
@@ -90,10 +92,10 @@ export const ProjectList = ({ projects, ...actions }: ProjectActions & { project
                   )}
                 </span>
                 <span className="min-w-0">
-                  <span className="line-clamp-2 wrap-anywhere font-bold text-text group-hover:text-accent-text">
+                  <span className="line-clamp-2 wrap-anywhere font-bold leading-5 text-text transition-colors group-hover:text-accent-text">
                     {project.name}
                   </span>
-                  <span className="mt-1 block text-xs text-muted">
+                  <span className="mt-1 block text-xs leading-4 text-muted">
                     {project.gallery_count} {project.gallery_count === 1 ? 'gallery' : 'galleries'}
                     <span className="sm:hidden"> · {project.total_photo_count} photos</span>
                   </span>
