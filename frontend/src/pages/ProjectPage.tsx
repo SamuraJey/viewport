@@ -1,6 +1,7 @@
+import { CalendarField } from '../components/ui/CalendarField';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { CalendarDays, FolderPlus, ListChecks, LoaderCircle, PencilLine } from 'lucide-react';
+import { FolderPlus, ListChecks, LoaderCircle, PencilLine } from 'lucide-react';
 import { ProjectOverview } from '../components/project-page/ProjectOverview';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui/AppDialog';
@@ -1007,18 +1008,12 @@ export const ProjectPage = () => {
                 >
                   Shooting date
                 </label>
-                <div className="relative">
-                  <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                  <input
-                    id="project-folder-date"
-                    type="date"
-                    value={galleryDraft.shooting_date}
-                    onChange={(event) =>
-                      setGalleryDraft((prev) => ({ ...prev, shooting_date: event.target.value }))
-                    }
-                    className="h-12 w-full rounded-2xl border border-border/45 bg-surface-1 pl-10 pr-3 text-sm font-semibold text-text outline-none transition-colors hover:border-accent/45 focus:border-accent dark:border-border/30 dark:bg-surface-dark-1"
-                  />
-                </div>
+                <CalendarField
+                  id="project-folder-date"
+                  label="Shooting date"
+                  value={galleryDraft.shooting_date}
+                  onChange={(date) => setGalleryDraft((prev) => ({ ...prev, shooting_date: date }))}
+                />
               </div>
             </div>
 

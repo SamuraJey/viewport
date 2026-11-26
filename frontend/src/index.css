@@ -1616,25 +1616,6 @@ html.dark .auth-layout a:hover {
   color: rgb(var(--color-primary-400-rgb)) !important;
 }
 
-/* ===== AUTH LAYOUT DECORATION ===== */
-/* Subtle radial dot-grid pattern for auth pages */
-.auth-dot-grid {
-  background-image: radial-gradient(
-    circle,
-    rgb(var(--color-accent-rgb) / 0.18) 1px,
-    transparent 1px
-  );
-  background-size: 28px 28px;
-}
-
-html.dark .auth-dot-grid {
-  background-image: radial-gradient(
-    circle,
-    rgb(var(--color-accent-rgb) / 0.1) 1px,
-    transparent 1px
-  );
-}
-
 /* ===== CUSTOM SCROLLBAR ===== */
 /* Webkit-based browsers */
 ::-webkit-scrollbar {
@@ -1718,5 +1699,22 @@ html[data-readability-mode='on'] .owner-photo-card {
 @media (width >= 768px) {
   .owner-photo-card {
     contain-intrinsic-block-size: auto calc(21.5rem + var(--owner-photo-caption-height) + 1px);
+  }
+}
+
+.calendar-panel {
+  position: fixed;
+  inset: 0;
+  width: min(20rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 1.5rem);
+  margin: auto;
+}
+
+@supports (position-area: bottom) {
+  .calendar-panel {
+    inset: auto;
+    position-area: bottom span-right;
+    position-try-fallbacks: flip-inline, flip-block, flip-block flip-inline;
+    margin: 0.375rem 0;
   }
 }

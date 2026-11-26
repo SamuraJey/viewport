@@ -1,3 +1,4 @@
+import { CalendarField } from '../ui/CalendarField';
 import {
   useEffect,
   useLayoutEffect,
@@ -544,21 +545,17 @@ export const GalleryHeader = ({
         className={`${detailsOpen ? 'flex' : 'hidden'} mt-2 min-w-0 flex-wrap items-center gap-x-3 gap-y-2 pl-1 text-sm font-medium text-muted sm:flex`}
       >
         <span>{metaLine}</span>
-        <label
-          htmlFor="gallery-shooting-date"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border/35 bg-surface-1/65 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted transition-colors focus-within:border-accent/50 dark:border-border/30 dark:bg-surface-dark-1/70"
-        >
-          <span>Shooting</span>
-          <input
+        <div className="inline-flex items-center gap-1.5">
+          <label htmlFor="gallery-shooting-date" className="text-xs font-semibold text-muted">Shooting</label>
+          <CalendarField
             id="gallery-shooting-date"
-            type="date"
+            compact
+            label="Shooting date"
             value={shootingDateInput}
-            onChange={(event) => onShootingDateChange(event.target.value)}
-            className="gallery-date-input h-5 min-w-0 border-none bg-transparent px-0 text-base font-bold normal-case tracking-normal text-text focus:outline-hidden sm:text-xs"
-            aria-label="Shooting date"
+            onChange={onShootingDateChange}
           />
           {isSavingShootingDate && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
-        </label>
+        </div>
         {subtitle ? <div className="min-w-0 truncate">{subtitle}</div> : null}
       </div>
 

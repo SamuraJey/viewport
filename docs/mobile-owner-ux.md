@@ -37,11 +37,17 @@ and a software keyboard taking up part of the screen.
 
 ## Compact layouts
 
-Project creation omits promotional feature cards on phones, and drawer sections
-become flat forms without nested card headers. Project rename and gallery creation use smaller mobile padding and wrapping
-action rows. Share-link save/cancel actions share one row when space allows.
+Project creation, project rename, and gallery creation use centered dialogs
+with smaller mobile padding and wrapping action rows. Project and gallery
+creation place the name and date side by side on wider screens and stack them
+on phones. Share-link save/cancel actions share one row when space allows.
 Appearance previews have narrower mobile gutters and a width-bounded phone
 preview. Popovers are width-bounded and use anchor padding at screen edges.
+
+In date fields, tap the month in the calendar header to open a localized
+month grid. Tap the year to browse groups of 12 years or enter a year and
+confirm with **Go** or Enter. Both actions return to the day grid, where
+choosing a day updates the field.
 
 Gallery card actions, rename and reorder controls retain 44px touch targets at
 every viewport width. Compact sizes use `can-hover` for fine pointers with hover.

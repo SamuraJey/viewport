@@ -8,13 +8,10 @@ import {
   ChevronRight,
   CloudUpload,
   FolderKanban,
-  Heart,
-  Image as ImageIcon,
   Link2,
   LockKeyhole,
   MessageSquareHeart,
   MousePointerClick,
-  ShieldCheck,
   Sparkles,
   Star,
   Users,
@@ -27,14 +24,6 @@ import { useAuthStore } from '../stores/authStore';
 import { getDemoService } from '../services/demoService';
 import { enableDemoMode } from '../lib/demoMode';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-
-const trustStats = [
-  { value: '10k+', label: 'photos delivered in demo studios' },
-  { value: '3 min', label: 'from upload to share-ready preview' },
-  { value: '24/7', label: 'client access without manual handoff' },
-];
-
-const proofLogos = ['Editorial', 'Weddings', 'Commercial', 'Portraits', 'Events'];
 
 const featureItems = [
   {
@@ -148,104 +137,10 @@ const faqItems = [
   },
 ];
 
-const galleryTiles = [
-  'from-accent/80 to-sky-300/80',
-  'from-slate-800/90 to-accent/80',
-  'from-amber-200/85 to-rose-300/80',
-];
-
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
   visible: { opacity: 1, y: 0 },
 };
-
-const LandingPreview = () => (
-  <div className="relative mx-auto w-full max-w-xl">
-    <div className="absolute -inset-6 rounded-4xl bg-accent/15 blur-3xl dark:bg-accent/8" />
-    <div className="relative overflow-hidden rounded-4xl border border-border/50 bg-surface/90 p-3 shadow-2xl backdrop-blur-xl dark:bg-surface-dark/85">
-      <div className="rounded-3xl border border-border/40 bg-surface-1/90 p-4 dark:bg-surface-dark-1/85">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-accent">
-              Client delivery
-            </p>
-            <h2 className="mt-1 text-lg font-bold text-text">Northern Editorial</h2>
-          </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-success/25 bg-success/10 px-3 py-1 text-xs font-bold text-success">
-            <span className="h-2 w-2 rounded-full bg-success motion-safe:animate-pulse motion-reduce:animate-none" />
-            Live link
-          </span>
-        </div>
-
-        <div className="grid grid-cols-[1.2fr_0.8fr] gap-3">
-          <div className="overflow-hidden rounded-2xl border border-border/40 bg-surface shadow-sm">
-            <div className="aspect-4/3 bg-linear-to-br from-slate-950 via-accent/60 to-sky-200 relative overflow-hidden">
-              {/* Simulated photo composition */}
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_40%,rgba(255,255,255,0.15),transparent_50%)]" />
-              <div className="absolute bottom-3 left-3 right-3">
-                <div className="h-1.5 w-3/4 rounded-full bg-white/20" />
-                <div className="mt-1.5 h-1.5 w-1/2 rounded-full bg-white/10" />
-              </div>
-            </div>
-            <div className="space-y-2 p-3">
-              <div className="h-2 w-2/3 rounded-full bg-text/15" />
-              <div className="h-2 w-1/2 rounded-full bg-muted/15" />
-            </div>
-          </div>
-          <div className="grid gap-3">
-            {galleryTiles.map((tile, i) => (
-              <div
-                key={tile}
-                className={`rounded-2xl border border-border/40 bg-linear-to-br ${tile} relative overflow-hidden`}
-              >
-                {/* Simulated photo highlights */}
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,rgba(255,255,255,0.12),transparent_60%)]" />
-                {i === 0 && (
-                  <div className="absolute top-2 right-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
-                      <Heart className="h-2.5 w-2.5 text-red-300" fill="currentColor" />
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-border/40 bg-surface px-3 py-3 dark:bg-surface-dark">
-            <p className="text-[0.68rem] font-bold uppercase tracking-widest text-muted">Views</p>
-            <p className="mt-1 text-xl font-bold text-text">1,284</p>
-          </div>
-          <div className="rounded-2xl border border-border/40 bg-surface px-3 py-3 dark:bg-surface-dark">
-            <p className="text-[0.68rem] font-bold uppercase tracking-widest text-muted">
-              Selected
-            </p>
-            <p className="mt-1 text-xl font-bold text-text">42</p>
-          </div>
-          <div className="rounded-2xl border border-border/40 bg-surface px-3 py-3 dark:bg-surface-dark">
-            <p className="text-[0.68rem] font-bold uppercase tracking-widest text-muted">
-              Downloads
-            </p>
-            <p className="mt-1 text-xl font-bold text-text">318</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="absolute bottom-6 right-6 hidden rounded-2xl border border-border/50 bg-surface/95 p-3 shadow-xl backdrop-blur sm:block dark:bg-surface-dark/90">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
-            <ImageIcon className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-sm font-bold text-text">Preview ready</p>
-            <p className="text-xs text-muted">128 photos processed</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
 
 export const LandingPage = () => {
   useDocumentTitle('Viewport · Beautiful gallery delivery for photographers');
@@ -273,14 +168,6 @@ export const LandingPage = () => {
   return (
     <div className="relative min-h-screen overflow-hidden bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
       <SkipToContentLink />
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 top-0 h-112 w-md rounded-full bg-accent/12 blur-3xl dark:bg-accent/8" />
-        <div className="absolute -right-40 top-32 h-128 w-lg rounded-full bg-sky-400/12 blur-3xl dark:bg-sky-400/8" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_10%,rgb(var(--color-accent-rgb)/0.08),transparent_35%),linear-gradient(180deg,transparent,rgb(var(--color-accent-rgb)/0.03),transparent)]" />
-        {/* Subtle grid pattern overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgb(var(--color-accent-rgb)/0.02)_1px,transparent_1px),linear-gradient(90deg,rgb(var(--color-accent-rgb)/0.02)_1px,transparent_1px)] bg-size-[64px_64px] mask-[radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
-      </div>
-
       <header className="sticky top-0 z-50 border-b border-border/40 bg-surface/90 backdrop-blur-xl dark:border-border/30 dark:bg-surface-dark/85">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6">
           <Link
@@ -320,87 +207,37 @@ export const LandingPage = () => {
       </header>
 
       <main id="main-content" tabIndex={-1} className="relative z-10">
-        <section className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-12 px-4 pb-16 pt-14 sm:px-6 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:pb-24 lg:pt-24">
-          <motion.div
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 28 }}
-            animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: 'easeOut' }}
-            className="space-y-8"
-          >
-            <span className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/8 px-4 py-2 text-sm font-bold text-accent shadow-xs">
-              <ShieldCheck className="h-4 w-4" />
-              Built for photographers and studios
-            </span>
-            <div className="space-y-5">
-              <h1 className="max-w-4xl font-oswald text-5xl font-bold uppercase leading-[0.92] tracking-wider sm:text-6xl lg:text-7xl">
-                Deliver photo galleries that sell your studio twice.
+        <section className="mx-auto max-w-7xl px-3 pb-16 pt-3 sm:px-6 sm:pt-6 lg:pb-24">
+          <div className="relative isolate flex min-h-[32rem] flex-col justify-end overflow-hidden rounded-2xl bg-black text-white sm:min-h-[36rem] lg:min-h-[40rem]">
+            <img
+              src={`${import.meta.env.BASE_URL}demo/mountain.webp`}
+              alt="Snow-covered mountain summits beneath a clear blue sky"
+              width={1800}
+              height={1013}
+              fetchPriority="high"
+              className="absolute inset-0 -z-20 h-full w-full object-cover object-[62%_center]"
+            />
+            <div aria-hidden="true" className="absolute inset-0 -z-10 bg-linear-to-t from-black/90 via-black/50 to-transparent" />
+            <div className="p-6 sm:p-10 lg:p-16">
+              <p className="mb-4 text-xs font-bold uppercase tracking-[0.19em]">Built for photographers and studios</p>
+              <h1 className="max-w-3xl text-balance font-oswald text-5xl leading-[1.02] tracking-tight sm:text-7xl lg:text-8xl">
+                Your work, beautifully delivered.
               </h1>
-              <p className="max-w-2xl text-lg leading-8 text-muted sm:text-xl">
-                Viewport gives photographers a polished delivery workflow: fast uploads, beautiful
-                client links, favorites, downloads, and clear analytics in one calm workspace.
+              <p className="mt-5 max-w-md text-base leading-relaxed text-white/95 sm:text-lg">
+                Share a finished shoot in one gallery. Give clients a place to choose their favorites and download the final images.
               </p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Link
-                to="/auth/register"
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-base font-bold text-accent-foreground shadow-lg shadow-accent/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:brightness-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
-              >
-                Start delivering better
-                <ArrowRight className="h-5 w-5" />
-              </Link>
-              <button
-                type="button"
-                onClick={handleOpenDemoCabinet}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border/50 bg-surface-1/80 px-6 py-4 text-base font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1/80 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
-              >
-                Open demo dashboard
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              {trustStats.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-3xl border border-border/50 bg-surface/80 p-4 shadow-xs backdrop-blur transition-all duration-200 hover:border-accent/20 hover:shadow-sm dark:border-border/35 dark:bg-surface-foreground/6"
-                >
-                  <p className="font-oswald text-3xl font-bold uppercase text-text dark:text-accent-foreground">
-                    {stat.value}
-                  </p>
-                  <p className="mt-1 text-sm leading-5 text-muted">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 32, scale: 0.98 }}
-            animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.65, ease: 'easeOut', delay: 0.08 }}
-          >
-            <LandingPreview />
-          </motion.div>
-        </section>
-
-        <section
-          aria-label="Trusted by photography teams"
-          className="mx-auto max-w-7xl px-4 pb-16 sm:px-6"
-        >
-          <div className="rounded-3xl border border-border/60 bg-surface/70 px-5 py-4 shadow-xs backdrop-blur dark:border-border/40 dark:bg-surface-foreground/8">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <p className="text-sm font-bold uppercase tracking-[0.22em] text-muted">
-                Built for real client delivery
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {proofLogos.map((label) => (
-                  <span
-                    key={label}
-                    className="rounded-full border border-border/60 bg-surface-1 px-3 py-1.5 text-sm font-semibold text-muted dark:border-border/40 dark:bg-surface-dark-1"
-                  >
-                    {label}
-                  </span>
-                ))}
+              <div className="mt-7 flex flex-wrap gap-3">
+                <button type="button" onClick={handleOpenDemoCabinet} className="inline-flex min-h-12 items-center justify-center gap-3 rounded-lg bg-white px-5 font-bold text-black transition-colors hover:bg-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
+                  Open demo dashboard <ArrowRight size={18} aria-hidden="true" />
+                </button>
+                <Link to="/auth/register" className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-white/60 bg-black/30 px-5 font-bold text-white transition-colors hover:bg-black/60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
+                  Create studio account <ChevronRight size={16} aria-hidden="true" />
+                </Link>
               </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/25 px-6 py-3 text-sm sm:px-10 lg:px-16">
+              <span>Northern Editorial</span>
+              <a href={`${import.meta.env.BASE_URL}demo/mountain-credit.txt`} className="underline decoration-white/50 underline-offset-4">Mountain · Andy Betts</a>
             </div>
           </div>
         </section>
@@ -425,9 +262,9 @@ export const LandingPage = () => {
             {featureItems.map(({ icon: Icon, title, description }) => (
               <article
                 key={title}
-                className="group rounded-3xl border border-border/50 bg-surface/80 p-6 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:border-accent/25 hover:shadow-lg dark:border-border/35 dark:bg-surface-foreground/6"
+                className="border-t border-border/60 py-6 sm:pr-6"
               >
-                <span className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-transform duration-300 group-hover:scale-110 group-hover:bg-accent/15">
+                <span className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent ">
                   <Icon className="h-6 w-6" />
                 </span>
                 <h3 className="text-xl font-bold text-text dark:text-accent-foreground">{title}</h3>

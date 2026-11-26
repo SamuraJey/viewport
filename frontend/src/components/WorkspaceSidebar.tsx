@@ -16,16 +16,15 @@ export const WorkspaceSidebar = ({ user, pathname, onOpenSettings }: WorkspaceSi
   return (
     <aside
       data-lenis-prevent
-      className="fixed bottom-0 left-0 top-16 z-30 hidden w-60 flex-col overflow-y-auto overscroll-contain border-r border-border/50 bg-surface-1 px-4 py-7 lg:flex dark:bg-surface-dark-1"
+      className="fixed bottom-0 left-0 top-16 z-30 hidden w-60 flex-col overflow-y-auto overscroll-contain border-r border-border/50 bg-surface-1 px-3 py-5 lg:flex dark:bg-surface-dark-1"
     >
-      <div className="px-3 pb-7">
+      <div className="mx-2 border-b border-border/40 px-1 pb-5 dark:border-border/30">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted">Workspace</p>
-        <p className="mt-2 truncate text-sm font-bold text-text">
+        <p className="mt-2 truncate text-sm font-bold tracking-tight text-text">
           {user?.display_name || 'Your studio'}
         </p>
-        <p className="mt-1 text-xs text-muted">A home for your best work.</p>
       </div>
-      <nav aria-label="Workspace navigation" className="space-y-1.5">
+      <nav aria-label="Workspace navigation" className="mt-4 space-y-1.5">
         {[
           {
             href: '/dashboard',
@@ -46,9 +45,12 @@ export const WorkspaceSidebar = ({ user, pathname, onOpenSettings }: WorkspaceSi
             key={href}
             to={href}
             aria-current={active ? 'page' : undefined}
-            className={`flex min-h-16 items-center gap-3 rounded-xl border px-3 py-3 transition-colors focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent ${active ? 'border-accent/20 bg-accent/10 text-accent-text' : 'border-transparent text-muted hover:bg-surface-2 hover:text-text dark:hover:bg-surface-dark-2'}`}
+            className={`group flex min-h-15 items-center gap-3 rounded-xl border px-3 py-3 transition-colors focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent ${active ? 'border-accent/25 bg-accent/10 text-accent-text shadow-xs' : 'border-transparent text-muted hover:border-border/40 hover:bg-surface-2 hover:text-text dark:hover:border-border/35 dark:hover:bg-surface-dark-2'}`}
           >
-            <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+            <Icon
+              className={`h-5 w-5 shrink-0 ${active ? 'text-accent' : 'text-muted group-hover:text-accent'}`}
+              aria-hidden="true"
+            />
             <span>
               <span className="block text-sm font-bold">{title}</span>
               <span className="mt-0.5 block text-[11px] text-muted">{description}</span>
@@ -56,12 +58,12 @@ export const WorkspaceSidebar = ({ user, pathname, onOpenSettings }: WorkspaceSi
           </Link>
         ))}
       </nav>
-      <div className="mt-auto space-y-5 pt-8">
+      <div className="mt-auto space-y-4 border-t border-border/40 px-2 pt-5 dark:border-border/30">
         {user && quota > 0 ? (
           <button
             type="button"
             onClick={onOpenSettings}
-            className="w-full rounded-2xl border border-border/50 bg-surface p-4 text-left transition-colors hover:border-accent/40 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent dark:bg-surface-dark"
+            className="w-full rounded-2xl border border-border/50 bg-surface p-4 text-left shadow-xs transition-colors hover:border-accent/40 hover:bg-surface-2 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent dark:bg-surface-dark dark:hover:bg-surface-dark-2"
             aria-label="Storage usage and account settings"
           >
             <span className="flex items-center justify-between text-muted">
@@ -90,9 +92,6 @@ export const WorkspaceSidebar = ({ user, pathname, onOpenSettings }: WorkspaceSi
             Studio settings
           </button>
         ) : null}
-        <p className="px-3 text-[10px] uppercase tracking-[0.16em] text-muted">
-          Made for the way you create.
-        </p>
       </div>
     </aside>
   );

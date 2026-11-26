@@ -571,7 +571,7 @@ describe('DashboardPage', () => {
     }
   });
 
-  it('creates a project and navigates to the project gallery list', async () => {
+  it('shows creation errors in the dialog and opens the project gallery list after retry', async () => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
 
@@ -591,16 +591,23 @@ describe('DashboardPage', () => {
 
     await screen.findByText('Wedding Weekend');
     await user.click(screen.getByRole('button', { name: 'New project' }));
-    fillInput(screen.getByPlaceholderText('Project name'), 'Client Delivery');
-    await user.click(screen.getByRole('button', { name: 'Create Project' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'New project' }));
+    const nameInput = dialog.getByRole('textbox', { name: 'Project name' });
+    const createButton = dialog.getByRole('button', { name: 'Create Project' });
+    vi.mocked(projectService.createProject).mockRejectedValueOnce(new Error('Service unavailable'));
+    fillInput(nameInput, 'Client Delivery');
+    await user.click(createButton);
+    expect(await dialog.findByRole('alert')).toHaveTextContent('Service unavailable');
+    expect(nameInput).toHaveValue('Client Delivery');
+    await user.click(createButton);
 
     await waitFor(() => {
-      expect(projectService.createProject).toHaveBeenCalledWith(
+      expect(projectService.createProject).toHaveBeenNthCalledWith(
+        2,
         expect.objectContaining({ name: 'Client Delivery' }),
       );
+      expect(mockNavigate).toHaveBeenCalledWith('/projects/project-3');
     });
-
-    expect(mockNavigate).toHaveBeenCalledWith('/projects/project-3');
   });
 
   it('renames a project through the extracted modal state and refreshes the list', async () => {

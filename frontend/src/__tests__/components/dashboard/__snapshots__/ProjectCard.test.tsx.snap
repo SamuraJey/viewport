@@ -3,10 +3,10 @@
 exports[`ProjectCard > renders the complete visual and accessibility contract 1`] = `
 <article
   aria-label="North Sea Editorial Delivery With A Deliberately Long Name. 3 galleries, 812 photos, 3 active share links. Last activity 2 hours ago."
-  class="group/card relative flex h-full min-w-0 w-full flex-col overflow-hidden rounded-2xl border border-card-border bg-surface text-left shadow-sm transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark motion-reduce:transform-none motion-reduce:transition-none"
+  class="group/card relative flex h-full min-w-0 w-full flex-col overflow-hidden rounded-2xl border border-card-border bg-surface text-left shadow-sm transition-[transform,box-shadow,border-color] duration-300 ease-out can-hover:hover:-translate-y-0.5 can-hover:hover:border-accent/35 can-hover:hover:shadow-md focus-within:border-accent/45 focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark motion-reduce:transform-none motion-reduce:transition-none"
 >
   <div
-    class="relative h-52 overflow-hidden bg-surface-2 dark:bg-surface-dark-2"
+    class="relative h-52 overflow-hidden bg-surface-2 [isolation:isolate] dark:bg-surface-dark-2"
   >
     <a
       aria-label="Open North Sea Editorial Delivery With A Deliberately Long Name"
@@ -287,46 +287,46 @@ exports[`ProjectCard > renders the complete visual and accessibility contract 1`
     style="grid-template-columns: repeat(3, minmax(0, 1fr));"
   >
     <div
-      class="min-w-0 px-3 py-3 first:pl-4 last:pr-4"
+      class="min-w-0 px-3 py-3.5 first:pl-4 last:pr-4"
     >
       <p
-        class="truncate text-base font-bold tabular-nums text-text"
+        class="truncate text-[1.05rem] font-bold leading-5 tabular-nums text-text"
         title="812 photos"
       >
         812
       </p>
       <p
-        class="mt-0.5 text-xs font-medium text-muted"
+        class="mt-1 text-xs font-medium leading-tight text-muted"
       >
         Photos
       </p>
     </div>
     <div
-      class="min-w-0 px-3 py-3 first:pl-4 last:pr-4"
+      class="min-w-0 px-3 py-3.5 first:pl-4 last:pr-4"
     >
       <p
-        class="truncate text-base font-bold tabular-nums text-text"
+        class="truncate text-[1.05rem] font-bold leading-5 tabular-nums text-text"
         title="1.08 GB storage"
       >
         1.08 GB
       </p>
       <p
-        class="mt-0.5 text-xs font-medium text-muted"
+        class="mt-1 text-xs font-medium leading-tight text-muted"
       >
         Storage
       </p>
     </div>
     <div
-      class="min-w-0 px-3 py-3 first:pl-4 last:pr-4"
+      class="min-w-0 px-3 py-3.5 first:pl-4 last:pr-4"
     >
       <p
-        class="truncate text-base font-bold tabular-nums text-success dark:text-success"
+        class="truncate text-[1.05rem] font-bold leading-5 tabular-nums text-success dark:text-success"
         title="3 links"
       >
         3
       </p>
       <p
-        class="mt-0.5 text-xs font-medium text-muted"
+        class="mt-1 text-xs font-medium leading-tight text-muted"
       >
         Links
       </p>

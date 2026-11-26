@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { Camera } from 'lucide-react';
 
 interface AuthCardProps {
   title: string;
@@ -8,14 +7,9 @@ interface AuthCardProps {
 }
 
 export const AuthCard = ({ title, subtitle, children }: AuthCardProps) => (
-  <div className="rounded-3xl border border-border/50 bg-surface/95 p-7 shadow-xl backdrop-blur-xl dark:border-white/8 dark:bg-surface-dark/95 sm:p-9">
-    <div className="text-center mb-8">
-      <div className="w-14 h-14 bg-accent rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-accent/15 ring-4 ring-accent/8">
-        <Camera className="h-7 w-7 text-white" />
-      </div>
-      <h2 className="font-oswald text-3xl sm:text-4xl font-bold uppercase tracking-wider text-text mb-2.5">
-        {title}
-      </h2>
+  <div className="rounded-2xl border border-border/60 bg-surface p-6 shadow-sm dark:bg-surface-dark sm:p-9">
+    <div className="mb-7 border-b border-border/50 pb-6">
+      <h1 className="mb-2 font-oswald text-4xl font-bold tracking-tight text-text">{title}</h1>
       <p className="text-muted text-lg">{subtitle}</p>
     </div>
     {children}

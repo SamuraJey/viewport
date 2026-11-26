@@ -20,7 +20,7 @@ interface CollectionCardProps extends Pick<
 }
 
 const DEFAULT_SHELL_CLASSNAME =
-  'group/card relative flex h-full min-w-0 w-full flex-col overflow-hidden rounded-2xl border border-card-border bg-surface text-left shadow-sm transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark motion-reduce:transform-none motion-reduce:transition-none';
+  'group/card relative flex h-full min-w-0 w-full flex-col overflow-hidden rounded-2xl border border-card-border bg-surface text-left shadow-sm transition-[transform,box-shadow,border-color] duration-300 ease-out can-hover:hover:-translate-y-0.5 can-hover:hover:border-accent/35 can-hover:hover:shadow-md focus-within:border-accent/45 focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark motion-reduce:transform-none motion-reduce:transition-none';
 
 interface CollectionCardCoverProps {
   children: ReactNode;
@@ -38,7 +38,10 @@ export const CollectionCardCover = ({
   topRightOverlay,
 }: CollectionCardCoverProps) => (
   <div
-    className={cn('relative h-52 overflow-hidden bg-surface-2 dark:bg-surface-dark-2', className)}
+    className={cn(
+      'relative h-52 overflow-hidden bg-surface-2 [isolation:isolate] dark:bg-surface-dark-2',
+      className,
+    )}
   >
     {children}
     {topOverlay ? (
@@ -93,17 +96,19 @@ export const CollectionCardMetrics = ({ items }: { items: CollectionCardMetric[]
     style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
   >
     {items.map(({ emphasized = false, label, value }) => (
-      <div key={label} className="min-w-0 px-3 py-3 first:pl-4 last:pr-4">
+      <div key={label} className="min-w-0 px-3 py-3.5 first:pl-4 last:pr-4">
         <p
           className={cn(
-            'truncate text-base font-bold tabular-nums',
+            'truncate text-[1.05rem] font-bold leading-5 tabular-nums',
             emphasized ? 'text-success dark:text-success' : 'text-text',
           )}
           title={`${value} ${label.toLowerCase()}`}
         >
           {value}
         </p>
-        <p className="mt-0.5 text-xs font-medium text-muted">{label}</p>
+        <p className="mt-1 text-xs font-medium leading-tight text-muted">
+          {label}
+        </p>
       </div>
     ))}
   </div>

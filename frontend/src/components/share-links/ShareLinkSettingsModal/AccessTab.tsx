@@ -1,5 +1,6 @@
+import { CalendarField } from '../../ui/CalendarField';
 import { useState } from 'react';
-import { CalendarClock, Eye, EyeOff, LockKeyhole } from 'lucide-react';
+import { Eye, EyeOff, LockKeyhole } from 'lucide-react';
 import {
   TTL_OPTIONS,
   SHARE_LINK_PASSWORD_MIN_LENGTH,
@@ -106,17 +107,14 @@ export const AccessTab = ({
             <label htmlFor="share-link-expiration" className="text-xs font-semibold text-text">
               Custom expiration
             </label>
-            <div className="relative">
-              <CalendarClock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <input
-                id="share-link-expiration"
-                type="datetime-local"
-                value={customExpiresAt}
-                onChange={(event) => setCustomExpiresAt(event.target.value)}
-                className="w-full rounded-xl border border-border/50 bg-surface-1 py-2.5 pl-9 pr-3 text-sm text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
-                disabled={isSaving}
-              />
-            </div>
+            <CalendarField
+              id="share-link-expiration"
+              label="Custom expiration"
+              value={customExpiresAt}
+              onChange={setCustomExpiresAt}
+              withTime
+              disabled={isSaving}
+            />
           </div>
         ) : null}
       </section>
